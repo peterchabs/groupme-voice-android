@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing comes from CI secrets; without them it falls back to the debug key.
+def ks = System.getenv("KEYSTORE_FILE")
+
+android {
+    namespace 'io.github.peterchabs.groupmevoice'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.github.peterchabs.groupmevoice'
+        minSdk 30          // Wear OS 3 (Galaxy Watch 4) and newer
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
+        versionName System.getenv("VERSION_NAME") ?: "1.0"
+    }
+
+    signingConfigs {
+        release {
+            if (ks) {
+                storeFile file(ks)
+                storeType 'pkcs12'
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ks ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    implementation 'com.google.zxing:core:3.5.3'   // draws the sign-in QR code
+    testImplementation 'junit:junit:4.13.2'
+}

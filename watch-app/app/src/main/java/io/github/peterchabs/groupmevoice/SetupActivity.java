@@ -1,0 +1,193 @@
+package io.github.peterchabs.groupmevoice;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputType;
+import android.widget.EditText;
+
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
+
+import java.io.IOException;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+/**
+ * Sign in. The watch shows a QR code and a short code; you open the page on your phone,
+ * paste your GroupMe token (or sign in with GroupMe), and the watch picks it up, checks it
+ * with GroupMe, and says who you're signed in as. Typing the token on the watch is the backup.
+ */
+public class SetupActivity extends Activity {
+    private static final long POLL_MS = 3000;
+    private static final long CODE_LIFE_MS = 10 * 60 * 1000L;
+
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private final ExecutorService bg = Executors.newSingleThreadExecutor();
+    private Stage stage;
+    private Future<?> polling;
+
+    @Override
+    protected void onCreate(Bundle saved) {
+        super.onCreate(saved);
+        stage = new Stage(this);
+        if (Store.token(this).isEmpty()) startLink();
+        else showAccount();
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopPolling();
+        bg.shutdownNow();
+        super.onDestroy();
+    }
+
+    private void showAccount() {
+        stopPolling();
+        stage.showOrb();
+        String who = Store.name(this);
+        stage.show(OrbView.Mode.DONE, who.isEmpty() ? "Signed in" : "Signed in as " + who, null,
+                "Back", (Runnable) this::goMain,
+                "Switch account", (Runnable) this::startLink,
+                "Sign out", (Runnable) () -> {
+                    Store.clear(this);
+                    startLink();
+                });
+    }
+
+    // ---------------- sign in from your phone ----------------
+
+    private void startLink() {
+        stopPolling();
+        Link link = Link.create();
+        Bitmap code = qr(link.pageUrl());
+        if (code != null) stage.showQr(code);
+        stage.show(OrbView.Mode.BUSY, "Sign in on your phone",
+                "Scan this with your phone's camera.\n\nOr go to\npeterchabs.github.io/groupme-voice-android\nand enter:\n\n"
+                        + link.pretty(),
+                "New code", (Runnable) this::startLink,
+                "Type token instead", (Runnable) () -> showTyping(null));
+        final long started = System.currentTimeMillis();
+        polling = bg.submit(() -> poll(link, started));
+    }
+
+    private void poll(Link link, long started) {
+        long sinceSec = started / 1000 - 5;
+        while (!Thread.currentThread().isInterrupted()) {
+            if (System.currentTimeMillis() - started > CODE_LIFE_MS) {
+                ui.post(() -> {
+                    stage.showOrb();
+                    stage.show(OrbView.Mode.ERROR, "That code expired", "Codes last 10 minutes.",
+                            "Get a new code", (Runnable) this::startLink);
+                });
+                return;
+            }
+            try {
+                List<String> msgs = Api.relayMessages(link.topic(), sinceSec);
+                for (int i = msgs.size() - 1; i >= 0; i--) { // newest first
+                    String token = link.open(msgs.get(i), System.currentTimeMillis());
+                    if (token != null) {
+                        ui.post(() -> verify(token));
+                        return;
+                    }
+                }
+            } catch (IOException ignored) {
+                // relay hiccup or no connection yet: keep waiting
+            }
+            try {
+                Thread.sleep(POLL_MS);
+            } catch (InterruptedException e) {
+                return;
+            }
+        }
+    }
+
+    private void stopPolling() {
+        if (polling != null) {
+            polling.cancel(true);
+            polling = null;
+        }
+    }
+
+    // ---------------- typing the token on the watch (backup) ----------------
+
+    private void showTyping(String error) {
+        stopPolling();
+        stage.showOrb();
+        EditText e = new EditText(this);
+        e.setHint("Token");
+        e.setSingleLine(true);
+        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); // no autocorrect: typed exactly
+        stage.show(error == null ? OrbView.Mode.IDLE : OrbView.Mode.ERROR, "Type your token",
+                error != null ? error : "From dev.groupme.com > Access Token. Every letter matters.",
+                "Save", (Runnable) () -> verify(e.getText().toString().replaceAll("\\s+", "")),
+                "Use my phone instead", (Runnable) this::startLink).extra(e);
+    }
+
+    // ---------------- check with GroupMe, then save ----------------
+
+    private void verify(String token) {
+        if (token.isEmpty()) {
+            showTyping("Please type your token first.");
+            return;
+        }
+        stopPolling();
+        stage.showOrb();
+        stage.show(OrbView.Mode.BUSY, "Checking with GroupMe", null);
+        bg.execute(() -> {
+            try {
+                String name = Api.myName(token);
+                List<Phrase.Group> groups = Api.listGroups(token);
+                Store.setToken(this, token);
+                Store.setName(this, name);
+                Store.saveGroups(this, groups);
+                ui.post(() -> stage.show(OrbView.Mode.DONE,
+                        name.isEmpty() ? "You're signed in" : "Hi, " + name + "!",
+                        "Found " + groups.size() + " groups.\n\nNext time, just say:\n\"Hey Google, open GroupMe Voice\"",
+                        "Try it now", (Runnable) this::goMain));
+            } catch (Api.AuthException e) {
+                ui.post(() -> showTyping("GroupMe didn't accept that token. Check it and try again."));
+            } catch (IOException e) {
+                ui.post(() -> {
+                    stage.show(OrbView.Mode.ERROR, "Couldn't reach GroupMe",
+                            "Check that your watch is connected to your phone or Wi-Fi.",
+                            "Try again", (Runnable) () -> verify(token));
+                });
+            }
+        });
+    }
+
+    private void goMain() {
+        startActivity(new Intent(this, MainActivity.class));
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        finish();
+    }
+
+    private Bitmap qr(String text) {
+        try {
+            int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.46f);
+            Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
+            hints.put(EncodeHintType.MARGIN, 2); // white border so phone cameras lock on
+            BitMatrix m = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, hints);
+            int[] px = new int[size * size];
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) px[y * size + x] = m.get(x, y) ? Color.BLACK : Color.WHITE;
+            }
+            return Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888);
+        } catch (WriterException | IllegalArgumentException e) {
+            return null; // the typed code still works
+        }
+    }
+}

@@ -10,9 +10,92 @@ Your phone says: *"Sent to Weekend Crew."*
 The message goes out from **your own GroupMe account**, to **your own groups**,
 with **whatever words you say each time**.
 
-Setup takes about 15 minutes, one time. You do not need to know how to code.
+You do not need to know how to code.
+
+## Pick one
+
+| I want to talk to... | Use | Cost | Setup time |
+|---|---|---|---|
+| **My Galaxy Watch** | [The watch app](#galaxy-watch-app) | Free | about 15 minutes |
+| **My Android phone** | [The phone setup](#phone-setup) | About $3.50 (Tasker) | about 15 minutes |
+
+You can set up both. They don't need each other.
 
 ---
+
+## Galaxy Watch app
+
+A small app that goes on your watch. It talks to GroupMe by itself, so you
+don't need any of the phone setup.
+
+**Works on:** Galaxy Watch 4 or newer (any watch with Wear OS 3 or newer).
+
+### W1. Get your GroupMe token
+
+Follow [Part 2](#part-2-get-your-groupme-token) below, but instead of copying
+the token, **write it down** or leave it open on your phone screen. You will
+type it into your watch.
+
+### W2. Turn on "install apps" mode on your watch
+
+You only do this once, to install the app.
+
+1. On your watch, open **Settings** > **About watch** > **Software information**.
+2. Tap **Software version** 5 times, until it says developer mode is on.
+3. Go back to **Settings**. Open the new **Developer options** at the bottom.
+4. Turn on **ADB debugging**.
+5. Turn on **Wireless debugging** and tap **Allow**. (Your watch must be on the
+   same Wi-Fi as your phone. Turn on Wi-Fi in **Settings** > **Connections** > **Wi-Fi**.)
+
+### W3. Install the app
+
+1. On your phone, open this page and tap the file to download it:
+   **[GroupMeVoice-watch.apk](https://github.com/peterchabs/groupme-voice-android/releases/latest/download/GroupMeVoice-watch.apk)**
+2. Open the **Play Store** on your phone and search **"Wear OS APK installer"**.
+   Install one of the free ones.
+3. Open it and follow its steps. It will ask for a **pairing code** and an
+   **IP address**. Find both on your watch in **Developer options** >
+   **Wireless debugging** > **Pair new device**.
+4. Choose the **GroupMeVoice-watch.apk** file you downloaded and tap **Install**.
+
+**Have a computer?** Instead of steps 2 to 4, follow Google's guide to
+[installing an app over Wi-Fi](https://developer.android.com/training/wearables/get-started/debug-wifi),
+then run `adb install GroupMeVoice-watch.apk`.
+
+**When it's installed:** go back to **Developer options** on your watch and
+turn **ADB debugging** off again. It's safer that way.
+
+### W4. Set it up
+
+1. On your watch, find **GroupMe Voice** in your apps and open it.
+2. Type your token. Take your time: every letter matters.
+3. Tap **Save**. It checks the token with GroupMe and shows how many groups it found.
+
+### W5. Use it
+
+Say **"Hey Google, open GroupMe Voice"** to your watch. When it starts
+listening, say:
+
+> **[group name]** that says **[your message]**
+
+It shows who it's sending to for 3 seconds. Tap **Cancel** if it heard you
+wrong. Otherwise it sends, buzzes, and says **Sent**.
+
+Tips:
+
+- **Your watch uses Bixby instead?** Say "Hi Bixby, open GroupMe Voice", or
+  set Google as your assistant in the watch's **Settings** > **Buttons**.
+- **Want a shortcut button?** In **Settings** > **Buttons** > **Double press**,
+  pick **GroupMe Voice**. Now double-pressing the top button opens it.
+- Your watch needs internet: either connected to your phone by Bluetooth, or on Wi-Fi or LTE.
+- Need to change your token? In the app, tap **Settings**.
+
+---
+
+## Phone setup
+
+The steps below are for talking to your **phone** (Parts 1 to 4). Skip them if
+you only want the watch app.
 
 ## Before you start, you need
 
@@ -140,60 +223,6 @@ example: **"Weekend Crew that says this is a test"**.
 If "Hey Google" doesn't start it, you can still use it with one tap:
 press and hold your home screen, tap **Widgets**, find **Tasker**, drag the
 **Task** widget onto your home screen, and pick **GroupMe Voice**.
-
----
-
-## Part 5 (optional, experimental): Use it from a Galaxy Watch
-
-> **Heads up:** this part has not been tested on a Galaxy Watch yet. Some
-> people report the AutoWear app not responding on newer Galaxy Watches.
-> Set up Parts 1 to 4 first and make sure they work on your phone. If you try
-> this part, please open an Issue on this page and say whether it worked.
-
-Your watch can't run the GroupMe sender itself. Instead, the watch hears you
-and passes your words to your phone, and the phone sends the message.
-
-**You need:** a Wear OS Galaxy Watch (Galaxy Watch 4 or newer), and the
-**AutoWear** app (about $1.50, free trial) on **both** your phone and watch.
-
-### 5a. Install AutoWear
-
-1. On your phone, open the **Play Store**, install **AutoWear**, and open it once.
-2. On your watch, open the **Play Store**, search **AutoWear**, and install it.
-
-### 5b. Make the watch ask you what to send
-
-1. In **Tasker**, tap **TASKS**, tap **+**, name it **GroupMe Watch**.
-2. Tap **+**, then **Plugin**, then **AutoWear**, then **AutoWear Voice Screen**.
-3. Tap the **pencil** next to Configuration.
-   - **Prompt:** `Which group, and what should I say?`
-   - **Command Prefix:** `groupme`
-4. Save with the check mark, then the back arrow.
-
-### 5c. Make the phone send what the watch heard
-
-1. In **Tasker**, tap the **PROFILES** tab, then **+**.
-2. Tap **Event**, then **Plugin**, then **AutoWear**.
-3. Tap the **pencil**. In **Command Filter**, type `groupme`. Save and go back.
-4. Tasker asks which task to run. Tap **New Task**, name it **GroupMe Watch Send**.
-5. Add the same last 2 steps as Part 4b:
-   - **File > Write File**: File `Tasker/groupme_heard.txt`. For **Text**,
-     tap the **tag icon** next to the box and pick the one called
-     **Command**. Append **off**.
-   - **Plugin > Termux:Tasker**: Executable `groupme_send.py`, Arguments
-     `--heard-file ~/storage/shared/Tasker/groupme_heard.txt`
-6. Go back to save.
-
-### 5d. Start it from your watch
-
-1. Open **AutoWear** on your phone and tap **Secondary Apps**.
-2. Add one named **GroupMe Voice** that runs the Tasker task **GroupMe Watch**.
-3. On your watch, it now appears in your app list as **GroupMe Voice**. Tap
-   it, then say: **"Weekend Crew that says on my way"**.
-4. You can also try saying **"Hey Google, open GroupMe Voice"** to your watch.
-   Whether that works depends on your watch's software version.
-
-Your phone needs to be nearby and connected to the watch by Bluetooth.
 
 ---
 
