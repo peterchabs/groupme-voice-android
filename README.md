@@ -153,13 +153,12 @@ On your watch, go to **Settings** > **Developer options** and turn off
    Tap the link that pops up.
    - Camera won't scan it? On your phone, go to
      **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
-4. The page walks you through it:
-   1. Tap **Open GroupMe** and log in with your normal GroupMe account.
-   2. At the top right of that page, tap **Access Token**. (Don't see it? In your
-      browser menu, turn on **Desktop site**.)
-   3. Copy the long code it shows. This is your **token**. It works like a password,
-      so never share it with anyone.
-   4. Go back to the first tab, tap **Paste**, then tap **Send to my watch**.
+4. On the page, tap **Sign in with GroupMe**, log in with your normal GroupMe
+   account, and tap **Authorize** (or **Allow**).
+   - The page sends your sign-in to your watch by itself. You'll see a green check.
+   - **Backup way**, if that button doesn't work: follow the steps under it to copy
+     your **Access Token** from dev.groupme.com (it works like a password, so never
+     share it), tap **Paste**, then **Send to my watch**.
 5. Within a few seconds your watch says **"Hi, [your name]!"** and how many groups it found.
 
 That's it. You're set up.
