@@ -36,6 +36,7 @@ public class ScreenshotTest {
     @Before public void setUp() {
         String dir = System.getenv("SCREENSHOTS_DIR");
         assumeTrue(dir != null && !dir.isEmpty());
+        assumeTrue("watch".equals(BuildConfig.FLAVOR)); // round-screen pictures are for the watch build
         out = new File(dir);
         out.mkdirs();
         try { // the renderer defaults animations to zero length; play them at normal speed

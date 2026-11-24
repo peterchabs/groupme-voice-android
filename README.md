@@ -20,7 +20,7 @@ with **whatever words you say each time**. You don't need to know how to code.
 | I want to talk to... | Use | Cost | Time |
 |---|---|---|---|
 | **My Galaxy Watch** | [The watch app](#galaxy-watch-app) | Free | about 20 minutes, once |
-| **My Android phone** | [The phone setup](#phone-setup) | About $3.50 (Tasker) | about 15 minutes, once |
+| **My Android phone** | [The phone app](#android-phone-app) | Free | about 5 minutes, once |
 
 You can set up both. They don't need each other.
 
@@ -273,12 +273,61 @@ To turn it off, go to **Settings** > **Default group** > **No default**.
 
 ---
 
-## Phone setup
+## Android phone app
 
-The steps below are for talking to your **phone** (Parts 1 to 4). Skip them if
-you only want the watch app.
+The same app, for your phone. Free, and no computer needed.
 
-## Before you start, you need
+**Works on:** Android 8 or newer.
+
+### Step 1: Download it on your phone
+
+1. On your phone, open this link:
+   **https://github.com/peterchabs/groupme-voice-android/releases/latest**
+2. Scroll down to **Assets** and tap **GroupMeVoice-phone.apk**.
+3. If your browser warns that the file might be harmful, tap **Download anyway**.
+   (It warns about every app that doesn't come from the Play Store.)
+
+### Step 2: Install it
+
+1. When the download finishes, tap **Open**. (Or open your **Files** app, go to
+   **Downloads**, and tap **GroupMeVoice-phone.apk**.)
+2. If your phone says it isn't allowed to install apps from this source, tap
+   **Settings**, turn on **Allow from this source**, then tap the back arrow.
+3. Tap **Install**.
+4. If **Google Play Protect** says it doesn't recognize the app, tap
+   **More details**, then **Install anyway**. It only says this because the app
+   isn't from the Play Store.
+5. Tap **Open**.
+
+### Step 3: Sign in to GroupMe
+
+1. In the app, tap **Sign in on this phone**. Your browser opens.
+2. Tap **Sign in with GroupMe**, log in with your normal GroupMe account, and tap
+   **Authorize** (or **Allow**).
+3. When you see the green check, switch back to the **GroupMe Voice** app.
+   Within a few seconds it says **"Hi, [your name]!"**
+
+### Step 4: Use it
+
+1. Say **"Hey Google, open GroupMe Voice"**. (Or tap the app.)
+2. The first time only, tap **Allow** so it can use the microphone.
+3. When the circle pulses, say **"[group name] that says [your message]"**.
+
+Everything in [More things you can say](#more-things-you-can-say) and
+[set a default group](#optional-set-a-default-group) works on the phone too.
+To change settings, tap **Settings** in the app.
+
+---
+
+## Optional: the Tasker version
+
+Only for people who already use the Tasker app. Everyone else should use the
+free phone app above.
+
+<details>
+<summary>Show the Tasker steps</summary>
+
+### Before you start, you need
 
 - An Android phone
 - A GroupMe account
@@ -286,7 +335,7 @@ you only want the watch app.
 
 ---
 
-## Part 1: Install the apps
+### Part 1: Install the apps
 
 Install these 4 apps. The first 3 must all come from **F-Droid**, not the Play Store.
 
@@ -302,7 +351,7 @@ Install these 4 apps. The first 3 must all come from **F-Droid**, not the Play S
 
 ---
 
-## Part 2: Get your GroupMe token
+### Part 2: Get your GroupMe token
 
 Your token is like a password that lets this tool send messages as you.
 **Never share it with anyone.**
@@ -322,7 +371,7 @@ Keep it copied. You will paste it in the next part.
 
 ---
 
-## Part 3: Set up Termux (one copy and paste)
+### Part 3: Set up Termux (one copy and paste)
 
 1. Open the **Termux** app. You will see a black screen with text. That is normal.
 2. Copy this whole line:
@@ -350,15 +399,15 @@ rm ~/.config/groupme-voice/token
 
 ---
 
-## Part 4: Set up Tasker
+### Part 4: Set up Tasker
 
-### 4a. Let Tasker talk to Termux
+#### 4a. Let Tasker talk to Termux
 
 1. Open your phone's **Settings** > **Apps** > **Tasker** > **Permissions**.
 2. Tap **Additional permissions** (or "Other permissions").
 3. Turn on **Run commands in Termux environment**.
 
-### 4b. Build the task
+#### 4b. Build the task
 
 Open **Tasker**. If it shows a welcome or tips screen, tap through it.
 
@@ -394,7 +443,7 @@ Now add 3 steps. For each one, tap the **+** at the bottom of the screen.
 the name of one of your groups, then "that says", then your message. For
 example: **"Weekend Crew that says this is a test"**.
 
-### 4c. Make "Hey Google" start it
+#### 4c. Make "Hey Google" start it
 
 1. In Tasker, tap the **3 dots** at the top right, then **Preferences**.
 2. Tap the **Misc** tab.
@@ -407,7 +456,7 @@ press and hold your home screen, tap **Widgets**, find **Tasker**, drag the
 
 ---
 
-## How to talk to it
+### How to talk to it
 
 When it asks "Which group, and what should I say?", say:
 
@@ -427,7 +476,7 @@ Tips:
 
 ---
 
-## Optional: nicknames for groups
+### Optional: nicknames for groups
 
 If a group has a long or hard-to-say name, give it a nickname.
 
@@ -447,7 +496,7 @@ Now "family that says hello" always goes to group 12345678.
 
 ---
 
-## Something not working?
+### Something not working?
 
 | What happens | What to do |
 |---|---|
@@ -460,17 +509,21 @@ Now "family that says hello" always goes to group 12345678.
 
 ---
 
+</details>
+
+---
+
 ## Is this safe?
 
-- **Phone setup:** your token stays on your phone, in a file only Termux can read.
-- **Watch app:** your token is stored only inside the app on your watch. When you
-  sign in, the web page locks (encrypts) your token with the code shown on your
+- **Phone and watch apps:** your sign-in is stored only inside the app on your device.
+- **Tasker version:** your token stays on your phone, in a file only Termux can read.
+- When you sign in with the code, the web page locks (encrypts) your token with the code shown on your
   watch before sending it, and passes it through a free relay service
   ([ntfy.sh](https://ntfy.sh)) that can't unlock it. The code never leaves your
   phone and watch, and it expires after 10 minutes.
 - Your messages go only to GroupMe.
 - It can only post to groups you're already in, as you.
 - All the code is here if you want to look: [`groupme_send.py`](groupme_send.py)
-  (phone), [`watch-app/`](watch-app/) (watch), [`docs/index.html`](docs/index.html) (sign-in page).
+  (Tasker version), [`watch-app/`](watch-app/) (phone and watch apps), [`docs/index.html`](docs/index.html) (sign-in page).
 
 This project is not made by or connected to GroupMe or Microsoft.

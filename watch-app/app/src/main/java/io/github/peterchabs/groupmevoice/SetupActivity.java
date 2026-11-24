@@ -127,7 +127,11 @@ public class SetupActivity extends Activity {
         if (code != null) stage.showQr(code);
         stage.show(OrbView.Mode.BUSY, "Code: " + link.pretty(),
                 "Scan, or enter it at\npeterchabs.github.io/groupme-voice-android",
-                "Type token instead", (Runnable) () -> showTyping(null));
+                // On a phone the sign-in page can open right here; a watch has no browser.
+                isWatch() ? "Type token instead" : "Sign in on this phone",
+                isWatch() ? (Runnable) () -> showTyping(null) : (Runnable) () -> openPage(link),
+                isWatch() ? null : "Type token instead",
+                isWatch() ? null : (Runnable) () -> showTyping(null));
         final long started = System.currentTimeMillis();
         polling = bg.submit(() -> poll(link, started));
     }
@@ -160,6 +164,18 @@ public class SetupActivity extends Activity {
             } catch (InterruptedException e) {
                 return;
             }
+        }
+    }
+
+    private boolean isWatch() {
+        return getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH);
+    }
+
+    private void openPage(Link link) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link.pageUrl())));
+        } catch (android.content.ActivityNotFoundException e) {
+            showTyping("No web browser found. Type your token instead.");
         }
     }
 

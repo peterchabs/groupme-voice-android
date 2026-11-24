@@ -1,4 +1,4 @@
-name: Watch app
+name: Apps
 
 on:
   push:
@@ -45,12 +45,16 @@ jobs:
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: gradle -p watch-app --no-daemon test assembleRelease
+        run: gradle -p watch-app --no-daemon test assembleWatchRelease assemblePhoneRelease
 
-      - name: Name the APK
-        run: cp watch-app/app/build/outputs/apk/release/app-release.apk GroupMeVoice-watch.apk
+      - name: Name the APKs
+        run: |
+          cp watch-app/app/build/outputs/apk/watch/release/app-watch-release.apk GroupMeVoice-watch.apk
+          cp watch-app/app/build/outputs/apk/phone/release/app-phone-release.apk GroupMeVoice-phone.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GroupMeVoice-watch
-          path: GroupMeVoice-watch.apk
+          name: GroupMeVoice
+          path: |
+            GroupMeVoice-watch.apk
+            GroupMeVoice-phone.apk

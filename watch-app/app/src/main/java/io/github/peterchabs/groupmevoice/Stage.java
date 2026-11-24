@@ -84,6 +84,14 @@ final class Stage {
         hide(live);
         extra.removeAllViews();
         actions.removeAllViews();
+        java.util.List<Object> kept = new java.util.ArrayList<>(); // skip (null, null) slots
+        for (int i = 0; i + 1 < buttons.length; i += 2) {
+            if (buttons[i] != null && buttons[i + 1] != null) {
+                kept.add(buttons[i]);
+                kept.add(buttons[i + 1]);
+            }
+        }
+        buttons = kept.toArray();
         int count = buttons.length / 2;
         // Fit the round screen: 2 buttons sit side by side; 3 = one wide button over a pair.
         actions.setOrientation(count == 2 ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
