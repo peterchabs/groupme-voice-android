@@ -73,9 +73,8 @@ public class SetupActivity extends Activity {
         Link link = Link.create();
         Bitmap code = qr(link.pageUrl());
         if (code != null) stage.showQr(code);
-        stage.show(OrbView.Mode.BUSY, "Sign in on your phone",
-                "Scan this with your phone's camera.\n\nOr go to\npeterchabs.github.io/groupme-voice-android\nand enter:\n\n"
-                        + link.pretty(),
+        stage.show(OrbView.Mode.BUSY, "Code: " + link.pretty(),
+                "Scan with your phone's camera, or enter the code at\npeterchabs.github.io/\ngroupme-voice-android",
                 "New code", (Runnable) this::startLink,
                 "Type token instead", (Runnable) () -> showTyping(null));
         final long started = System.currentTimeMillis();
@@ -126,6 +125,7 @@ public class SetupActivity extends Activity {
         stopPolling();
         stage.showOrb();
         EditText e = new EditText(this);
+        Press.field(e);
         e.setHint("Token");
         e.setSingleLine(true);
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
@@ -155,7 +155,7 @@ public class SetupActivity extends Activity {
                 Store.saveGroups(this, groups);
                 ui.post(() -> stage.show(OrbView.Mode.DONE,
                         name.isEmpty() ? "You're signed in" : "Hi, " + name + "!",
-                        "Found " + groups.size() + " groups.\n\nNext time, just say:\n\"Hey Google, open GroupMe Voice\"",
+                        "Found " + groups.size() + " groups. Now say \"Hey Google, open GroupMe Voice\".",
                         "Try it now", (Runnable) this::goMain));
             } catch (Api.AuthException e) {
                 ui.post(() -> showTyping("GroupMe didn't accept that token. Check it and try again."));
@@ -177,7 +177,7 @@ public class SetupActivity extends Activity {
 
     private Bitmap qr(String text) {
         try {
-            int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.46f);
+            int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.42f);
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.MARGIN, 2); // white border so phone cameras lock on
             BitMatrix m = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, hints);

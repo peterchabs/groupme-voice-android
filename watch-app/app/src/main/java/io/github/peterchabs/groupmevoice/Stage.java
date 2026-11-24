@@ -3,7 +3,6 @@ package io.github.peterchabs.groupmevoice;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
@@ -33,27 +32,28 @@ final class Stage {
     Stage(Activity a) {
         this.a = a;
         int w = a.getResources().getDisplayMetrics().widthPixels;
-        int pad = (int) (w * 0.13f);
+        int pad = (int) (w * 0.12f);
 
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.setPadding(pad, (int) (w * 0.08f), pad, pad);
+        col.setPadding(pad, (int) (w * 0.07f), pad, (int) (w * 0.2f));
 
         FrameLayout hero = new FrameLayout(a);
         orb = new OrbView(a);
+        Press.attach(orb); // the orb is tappable (tap to talk), so it squishes too
         qr = new ImageView(a);
         qr.setVisibility(View.GONE);
         qr.setAlpha(0f);
-        int orbSize = (int) (w * 0.36f), qrSize = (int) (w * 0.46f);
+        int orbSize = (int) (w * 0.3f), qrSize = (int) (w * 0.42f);
         hero.addView(orb, new FrameLayout.LayoutParams(orbSize, orbSize, Gravity.CENTER));
         hero.addView(qr, new FrameLayout.LayoutParams(qrSize, qrSize, Gravity.CENTER));
         col.addView(hero, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        title = text(col, 17, 0xFFFFFFFF, true);
-        sub = text(col, 13, 0xFFB0BEC5, false);
-        live = text(col, 15, 0xFFFFFFFF, false);
+        title = text(col, 17, 0xFF262626, true);
+        sub = text(col, 13, 0xFF6B7680, false);
+        live = text(col, 15, 0xFF0A8FC4, false);
         live.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.ITALIC));
         live.setVisibility(View.GONE);
 
@@ -66,7 +66,8 @@ final class Stage {
 
         scroll = new ScrollView(a);
         scroll.setFillViewport(true);
-        scroll.setBackgroundColor(0xFF000000);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setBackgroundColor(0xFFFFFFFF);
         scroll.addView(col);
         a.setContentView(scroll);
     }
@@ -75,6 +76,7 @@ final class Stage {
     Stage show(OrbView.Mode mode, String t, String s, Object... buttons) {
         gen++;
         if (orb.mode() != mode) orb.setMode(mode);
+        title.setTextSize(t != null && t.length() > 34 ? 14 : 17); // long titles shrink to fit the round screen
         swap(title, t);
         swap(sub, s);
         hide(live);
@@ -171,17 +173,14 @@ final class Stage {
         b.setText(label);
         b.setAllCaps(false);
         b.setTextSize(14);
-        b.setTextColor(primary ? 0xFF0B1620 : 0xFFFFFFFF);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(999f);
-        bg.setColor(primary ? OrbView.ACCENT : 0xFF263238);
-        b.setBackground(bg);
+        b.setTextColor(primary ? 0xFFFFFFFF : 0xFF00AFF0);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setBackground(Press.button(a, primary));
         b.setStateListAnimator(null);
-        b.setOnClickListener(v -> {
-            v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(70)
-                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()).start();
-            onTap.run();
-        });
+        int padV = (int) (a.getResources().getDisplayMetrics().density * 10);
+        b.setPadding(b.getPaddingLeft(), padV, b.getPaddingRight(), padV + (int) (a.getResources().getDisplayMetrics().density * 4));
+        Press.attach(b);
+        b.setOnClickListener(v -> onTap.run());
         LinearLayout.LayoutParams lp = full();
         lp.topMargin = (int) (a.getResources().getDisplayMetrics().density * 6);
         actions.addView(b, lp);

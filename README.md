@@ -7,6 +7,11 @@ It listens, and your words appear on screen as you talk:
 **"Weekend Crew that says I'm running 10 minutes late"**
 It shows who it's sending to, counts down 3 seconds (so you can cancel), then sends.
 
+<p align="center">
+  <img src="docs/images/watch-send-flow.png" alt="Galaxy Watch showing GroupMe Voice listening, counting down, then sent" width="760">
+</p>
+<p align="center"><sub>Listening, then 3 seconds to cancel, then sent. These are the real app screens.</sub></p>
+
 The message goes out from **your own GroupMe account**, to **your own groups**,
 with **whatever words you say each time**. You don't need to know how to code.
 
@@ -146,6 +151,10 @@ On your watch, go to **Settings** > **Developer options** and turn off
 ---
 
 ### Step 5: Sign in to GroupMe
+
+<p align="center">
+  <img src="docs/images/watch-sign-in.png" alt="Sign-in code on the watch, the signed-in screen, and the screen asking which group you meant" width="760">
+</p>
 
 1. On your watch, open your apps list and tap **GroupMe Voice** (the blue microphone).
 2. The watch shows a **QR code** and a **10-character code** like `K7Q2M-9XAPZ`.

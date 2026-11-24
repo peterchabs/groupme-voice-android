@@ -43,10 +43,13 @@ android {
 
     testOptions {
         unitTests.returnDefaultValues = true
+        unitTests.includeAndroidResources = true
+        unitTests.all { environment 'SCREENSHOTS_DIR', System.getenv('SCREENSHOTS_DIR') ?: '' }
     }
 }
 
 dependencies {
     implementation 'com.google.zxing:core:3.5.3'   // draws the sign-in QR code
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.13'   // renders README screenshots
 }

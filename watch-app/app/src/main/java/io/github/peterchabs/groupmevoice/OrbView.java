@@ -21,7 +21,8 @@ import android.view.animation.OvershootInterpolator;
 public class OrbView extends View {
     public enum Mode { IDLE, LISTEN, BUSY, COUNTDOWN, DONE, ERROR }
 
-    static final int ACCENT = 0xFF4FC3F7, OK = 0xFF43A047, BAD = 0xFFE53935, CORE = 0xFF1C2733;
+    // GroupMe's brand blue (#00AFF0, from groupme.com) on white.
+    static final int ACCENT = 0xFF00AFF0, OK = 0xFF00AFF0, BAD = 0xFFE53935, CORE = 0xFFE6F7FE;
 
     private Mode mode = Mode.IDLE;
     private float level, phase, progress;
@@ -87,11 +88,17 @@ public class OrbView extends View {
         once.start();
     }
 
+    private ObjectAnimator popAnim;
+
+    /** Little bounce. Uses its own animator so it never cancels a fade running on this view. */
     private void pop() {
-        animate().cancel();
-        setScaleX(0.86f);
-        setScaleY(0.86f);
-        animate().scaleX(1f).scaleY(1f).setDuration(380).setInterpolator(new OvershootInterpolator(2.2f)).start();
+        if (popAnim != null) popAnim.cancel();
+        popAnim = ObjectAnimator.ofPropertyValuesHolder(this,
+                android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 0.86f, 1f),
+                android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.86f, 1f));
+        popAnim.setDuration(380);
+        popAnim.setInterpolator(new OvershootInterpolator(2.2f));
+        popAnim.start();
     }
 
     @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); loop.start(); }
@@ -118,7 +125,7 @@ public class OrbView extends View {
                 }
                 fill.setColor(ACCENT);
                 c.drawCircle(cx, cy, r * (0.96f + 0.1f * level), fill);
-                mic(c, cx, cy, r, 0xFF0B1620);
+                mic(c, cx, cy, r, 0xFFFFFFFF);
                 break;
             }
             case BUSY: {
@@ -132,7 +139,7 @@ public class OrbView extends View {
             case COUNTDOWN: {
                 core(c, cx, cy, r);
                 inset(cx, cy, r);
-                stroke.setColor(0x33FFFFFF);
+                stroke.setColor(0x2200AFF0);
                 c.drawArc(oval, 0, 360, false, stroke);
                 stroke.setColor(ACCENT);
                 c.drawArc(oval, -90f, 360f * (1f - progress), false, stroke);
@@ -170,7 +177,7 @@ public class OrbView extends View {
                 stroke.setColor(ACCENT);
                 stroke.setAlpha(150);
                 c.drawCircle(cx, cy, r * (1f + b), stroke);
-                mic(c, cx, cy, r, 0xFFFFFFFF);
+                mic(c, cx, cy, r, ACCENT);
             }
         }
     }
@@ -201,6 +208,7 @@ public class OrbView extends View {
     }
 
     private void arrow(Canvas c, float cx, float cy, float r) {
+        glyph.setColor(ACCENT);
         glyph.setStyle(Paint.Style.FILL);
         path.reset();
         path.moveTo(cx - r * 0.34f, cy - r * 0.3f);
@@ -209,5 +217,6 @@ public class OrbView extends View {
         path.lineTo(cx - r * 0.2f, cy);
         path.close();
         c.drawPath(path, glyph);
+        glyph.setColor(0xFFFFFFFF);
     }
 }

@@ -202,6 +202,7 @@ public class MainActivity extends Activity {
 
     private void showTyping() {
         EditText e = new EditText(this);
+        Press.field(e);
         e.setHint("Family that says hi");
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         stage.show(OrbView.Mode.IDLE, "Type or dictate", "Voice isn't available on this watch.",
