@@ -60,6 +60,11 @@ public class ScreenshotTest {
     }
 
     private void save(Activity a, String name) throws Exception {
+        save(a, name, true);
+    }
+
+    /** checkFit=false for scrolling lists, which run past the edge by design. */
+    private void save(Activity a, String name, boolean checkFit) throws Exception {
         shadowOf(Looper.getMainLooper());
         View root = a.getWindow().getDecorView();
         int size = 450;
@@ -67,7 +72,7 @@ public class ScreenshotTest {
                 View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, size, size);
         java.util.List<String> bad = new java.util.ArrayList<>();
-        outside(root, root, size / 2f, bad);
+        if (checkFit) outside(root, root, size / 2f, bad);
         Bitmap b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         root.draw(new Canvas(b));
         try (FileOutputStream os = new FileOutputStream(new File(out, name + ".png"))) {
@@ -199,5 +204,54 @@ public class ScreenshotTest {
                 "Say more of the name. Nothing was sent.", "Try again", (Runnable) () -> { }, "Settings", (Runnable) () -> { });
         advance(700);
         save(a, "6-which-one");
+    }
+
+    private static final java.util.List<Phrase.Group> GROUPS = java.util.Arrays.asList(
+            new Phrase.Group("1", "Weekend Crew"), new Phrase.Group("2", "Family"),
+            new Phrase.Group("3", "Book Club"), new Phrase.Group("4", "Soccer Parents"),
+            new Phrase.Group("5", "Roommates"));
+
+    @Test public void listeningWithDefault() throws Exception {
+        Context c = org.robolectric.RuntimeEnvironment.getApplication();
+        Store.setDefaultGroup(c, GROUPS.get(1));
+        Activity a = main();
+        Stage s = stageOf(a);
+        s.show(OrbView.Mode.LISTEN, "Listening", "Say your message for Family, or [group] that says [message]");
+        advance(500);
+        s.live("picking up pizza on the way home");
+        s.orb.setLevel(8f);
+        advance(80);
+        save(a, "7-default-listening");
+        Store.setDefaultGroup(c, null);
+    }
+
+    @Test public void settings() throws Exception {
+        Context c = org.robolectric.RuntimeEnvironment.getApplication();
+        signIn(c);
+        Store.setDefaultGroup(c, GROUPS.get(1));
+        Activity a = Robolectric.buildActivity(SetupActivity.class).setup().get();
+        advance(900);
+        save(a, "8-settings");
+        Store.setDefaultGroup(c, null);
+    }
+
+    @Test public void picker() throws Exception {
+        Context c = org.robolectric.RuntimeEnvironment.getApplication();
+        signIn(c);
+        Store.saveGroups(c, GROUPS);
+        Store.setDefaultGroup(c, GROUPS.get(1));
+        Activity a = Robolectric.buildActivity(SetupActivity.class).setup().get();
+        java.lang.reflect.Method m = SetupActivity.class.getDeclaredMethod("pickDefault");
+        m.setAccessible(true);
+        m.invoke(a);
+        advance(900);
+        View root = a.getWindow().getDecorView(); // lay out at watch size so the list scrolls to Family
+        root.measure(View.MeasureSpec.makeMeasureSpec(450, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(450, View.MeasureSpec.EXACTLY));
+        root.layout(0, 0, 450, 450);
+        m.invoke(a);
+        advance(900);
+        save(a, "9-default-picker", false);
+        Store.setDefaultGroup(c, null);
     }
 }

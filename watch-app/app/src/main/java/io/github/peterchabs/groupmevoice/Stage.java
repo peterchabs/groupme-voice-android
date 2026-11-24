@@ -85,12 +85,38 @@ final class Stage {
         extra.removeAllViews();
         actions.removeAllViews();
         int count = buttons.length / 2;
-        // two buttons sit side by side (saves a row on the round screen); otherwise stacked
+        // Fit the round screen: 2 buttons sit side by side; 3 = one wide button over a pair.
         actions.setOrientation(count == 2 ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+        LinearLayout target = actions;
         for (int i = 0; i + 1 < buttons.length; i += 2) {
-            addButton((String) buttons[i], (Runnable) buttons[i + 1], i == 0, i / 2, count == 2);
+            int n = i / 2;
+            boolean pair = count == 2 || (count == 3 && n > 0);
+            if (count == 3 && n == 1) {
+                target = new LinearLayout(a);
+                target.setOrientation(LinearLayout.HORIZONTAL);
+                target.setGravity(Gravity.CENTER_HORIZONTAL);
+                actions.addView(target, full());
+            }
+            addButton(target, (String) buttons[i], (Runnable) buttons[i + 1], i == 0, n, pair);
         }
         scroll.smoothScrollTo(0, 0);
+        return this;
+    }
+
+    /** A stacked list of choices (always one per row); {@code selected} is drawn as the filled button. */
+    Stage showList(OrbView.Mode mode, String t, String s, String[] labels, Runnable[] taps, int selected) {
+        show(mode, t, s);
+        actions.setOrientation(LinearLayout.VERTICAL);
+        Button chosen = null;
+        for (int i = 0; i < labels.length; i++) {
+            Button b = addButton(actions, labels[i], taps[i], i == selected, i, false);
+            if (i == selected) chosen = b;
+        }
+        if (chosen != null && selected > 0) { // open the list scrolled to the current choice
+            final Button c = chosen;
+            scroll.post(() -> scroll.smoothScrollTo(0,
+                    Math.max(0, actions.getTop() + c.getTop() - scroll.getHeight() / 2 + c.getHeight() / 2)));
+        }
         return this;
     }
 
@@ -173,7 +199,7 @@ final class Stage {
                 .setInterpolator(EASE).start();
     }
 
-    private void addButton(String label, Runnable onTap, boolean primary, int index, boolean pair) {
+    private Button addButton(LinearLayout into, String label, Runnable onTap, boolean primary, int index, boolean pair) {
         Button b = new Button(a);
         b.setText(label);
         b.setAllCaps(false);
@@ -188,6 +214,7 @@ final class Stage {
         int padH = (int) (a.getResources().getDisplayMetrics().density * 6);
         b.setPadding(padH, padV, padH, padV + (int) (a.getResources().getDisplayMetrics().density * 4));
         b.setSingleLine(true); // labels never wrap or break mid-word
+        b.setEllipsize(android.text.TextUtils.TruncateAt.END); // long group names end in ...
         Press.attach(b);
         b.setOnClickListener(v -> onTap.run());
         // narrower than the screen so the pill's ends never meet the round edge
@@ -200,8 +227,9 @@ final class Stage {
             lp.leftMargin = (int) (dp * 2);
             lp.rightMargin = (int) (dp * 2);
         }
-        actions.addView(b, lp);
+        into.addView(b, lp);
         enter(b, index + 1);
+        return b;
     }
 
     private TextView text(LinearLayout col, int sp, int color, boolean bold) {

@@ -23,6 +23,17 @@ final class Store {
 
     static void setName(Context c, String n) { p(c).edit().putString("name", n == null ? "" : n).apply(); }
 
+    /** The group your message goes to when you don't name one. Null when none is set. */
+    static Phrase.Group defaultGroup(Context c) {
+        String id = p(c).getString("default_id", "");
+        return id.isEmpty() ? null : new Phrase.Group(id, p(c).getString("default_name", ""));
+    }
+
+    static void setDefaultGroup(Context c, Phrase.Group g) {
+        if (g == null) p(c).edit().remove("default_id").remove("default_name").apply();
+        else p(c).edit().putString("default_id", g.id).putString("default_name", g.name).apply();
+    }
+
     static void clear(Context c) { p(c).edit().clear().apply(); }
 
     static long groupsAgeMs(Context c) {

@@ -57,13 +57,65 @@ public class SetupActivity extends Activity {
         stopPolling();
         stage.showOrb();
         String who = Store.name(this);
-        stage.show(OrbView.Mode.DONE, who.isEmpty() ? "Signed in" : "Signed in as " + who, null,
-                "Back", (Runnable) this::goMain,
-                "Switch account", (Runnable) this::startLink,
+        Phrase.Group d = Store.defaultGroup(this);
+        stage.show(OrbView.Mode.DONE, who.isEmpty() ? "Signed in" : "Signed in as " + who,
+                "Default group: " + (d == null ? "none" : d.name),
+                // no Back button: swiping right goes back on Wear OS, and four buttons don't fit
+                "Default group", (Runnable) this::pickDefault,
+                "Switch", (Runnable) this::startLink,
                 "Sign out", (Runnable) () -> {
                     Store.clear(this);
                     startLink();
                 });
+    }
+
+    // ---------------- default group ----------------
+
+    /** Pick the group messages go to when you don't say one. */
+    private void pickDefault() {
+        List<Phrase.Group> cached = Store.groups(this);
+        if (!cached.isEmpty()) {
+            showPicker(cached);
+            return;
+        }
+        stage.show(OrbView.Mode.BUSY, "Getting your groups", null);
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                List<Phrase.Group> fresh = Api.listGroups(token);
+                Store.saveGroups(this, fresh);
+                ui.post(() -> showPicker(fresh));
+            } catch (IOException e) {
+                ui.post(() -> stage.show(OrbView.Mode.ERROR, "Couldn't reach GroupMe",
+                        "Check that your watch is connected.", "Back", (Runnable) this::showAccount));
+            }
+        });
+    }
+
+    private void showPicker(List<Phrase.Group> groups) {
+        Phrase.Group current = Store.defaultGroup(this);
+        List<Phrase.Group> sorted = new java.util.ArrayList<>(groups);
+        sorted.sort((x, y) -> x.name.compareToIgnoreCase(y.name));
+        String[] labels = new String[sorted.size() + 1];
+        Runnable[] taps = new Runnable[sorted.size() + 1];
+        int selected = 0;
+        labels[0] = "No default";
+        taps[0] = () -> choose(null);
+        for (int i = 0; i < sorted.size(); i++) {
+            Phrase.Group g = sorted.get(i);
+            labels[i + 1] = g.name;
+            taps[i + 1] = () -> choose(g);
+            if (current != null && current.id.equals(g.id)) selected = i + 1;
+        }
+        stage.showList(OrbView.Mode.IDLE, "Default group",
+                "Where messages go when you don't say a group", labels, taps, selected);
+    }
+
+    private void choose(Phrase.Group g) {
+        Store.setDefaultGroup(this, g);
+        stage.show(OrbView.Mode.DONE, g == null ? "No default group" : "Default: " + g.name,
+                g == null ? "Say a group before each message." : "Now just say your message.",
+                "Done", (Runnable) this::showAccount);
     }
 
     // ---------------- sign in from your phone ----------------

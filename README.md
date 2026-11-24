@@ -177,7 +177,9 @@ That's it. You're set up.
 ### Step 6: Use it
 
 1. Say **"Hey Google, open GroupMe Voice"** to your watch.
-   (Or just tap the app.)
+   (Or just tap the app.) It starts listening as soon as it opens, so you can
+   pause for a second and keep talking. "Hey Google" only opens the app; it
+   can't take your message in the same breath.
 2. The first time only, it asks to use the microphone. Tap **Allow**.
 3. When the circle starts pulsing, say:
 
@@ -200,6 +202,28 @@ That's it. You're set up.
 | Green circle with a check | Sent |
 | Red circle that shakes | Something's wrong. The words under it say what, and nothing was sent |
 
+### Optional: set a default group
+
+If you mostly message the same group, set it as your default. Then you can skip
+the group name and just say your message.
+
+<p align="center">
+  <img src="docs/images/watch-default-group.png" alt="Settings screen, picking Family as the default group, then listening with just a message" width="760">
+</p>
+
+1. In the app, tap **Settings**.
+2. Tap **Default group** and pick the group.
+3. Now just say your message, like **"picking up pizza on the way home"**. It goes to your default group.
+
+You can still send to any other group by saying its name first:
+**"Weekend Crew that says running late"**. The 3-second countdown always shows
+which group it's going to, so you can tap **Cancel** if it's wrong.
+
+If you say a group name it can't find, it **sends nothing**. It never falls back
+to your default group, so a misheard name can't send to the wrong place.
+
+To turn it off, go to **Settings** > **Default group** > **No default**.
+
 **Tips**
 
 - You only need part of the group name. "Crew" finds "Weekend Crew".
@@ -210,7 +234,7 @@ That's it. You're set up.
 - **Want a button for it?** On many Galaxy Watches: **Settings** > **Advanced features** >
   **Customize buttons** > **Double press** > pick **GroupMe Voice**.
 - Your watch needs internet, either through your phone (Bluetooth), Wi-Fi, or LTE.
-- To switch accounts or sign out, tap **Settings** in the app.
+- To switch accounts or sign out, tap **Settings** in the app. Swipe right to go back.
 
 ---
 

@@ -117,7 +117,7 @@ public class MainActivity extends Activity {
             rec = SpeechRecognizer.createSpeechRecognizer(this);
             rec.setRecognitionListener(new Listener());
         }
-        stage.show(OrbView.Mode.LISTEN, "Listening", "Say: [group] that says [message]");
+        stage.show(OrbView.Mode.LISTEN, "Listening", hint());
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
@@ -179,7 +179,7 @@ public class MainActivity extends Activity {
 
     /** The watch's built-in voice screen, for watches where in-app listening isn't available. */
     private void systemListen() {
-        stage.show(OrbView.Mode.LISTEN, "Listening", "Say: [group] that says [message]");
+        stage.show(OrbView.Mode.LISTEN, "Listening", hint());
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_PROMPT, "Which group, and what should I say?");
@@ -212,9 +212,27 @@ public class MainActivity extends Activity {
 
     // ---------------- understanding + sending ----------------
 
+    /** What to say, shown while listening. */
+    private String hint() {
+        Phrase.Group d = Store.defaultGroup(this);
+        return d == null ? "Say: [group] that says [message]"
+                : "Say your message for " + d.name + ", or [group] that says [message]";
+    }
+
     private void handle(String heard) {
         Phrase p = Phrase.parse(heard);
         if (p == null) {
+            // No group named. With a default group set, everything you said is the message.
+            Phrase.Group d = Store.defaultGroup(this);
+            String text = heard == null ? "" : heard.trim();
+            if (d != null && !text.isEmpty()) {
+                if (text.length() > MAX_TEXT) {
+                    showRetry("That's too long.", "GroupMe allows " + MAX_TEXT + " characters.");
+                    return;
+                }
+                confirm(d, text);
+                return;
+            }
             showRetry("Say it like this:", "\"Family that says on my way\"\n\nI heard: \"" + heard + "\"");
             return;
         }
@@ -233,32 +251,39 @@ public class MainActivity extends Activity {
                     m = Phrase.match(fresh, p.group);
                 }
                 final Phrase.Match match = m;
-                ui.post(() -> confirm(p, match));
+                ui.post(() -> confirm(p.text, match));
             } catch (IOException e) {
                 ui.post(() -> showError(e));
             }
         });
     }
 
-    private void confirm(Phrase p, Phrase.Match m) {
+    private void confirm(String text, Phrase.Match m) {
         if (isFinishing()) return;
         if (m.group == null) {
+            // A group was named but not found: never fall back to the default group.
             showRetry(m.problem, m.problem.startsWith("Which one")
                     ? "Say more of the name. Nothing was sent." : "Nothing was sent.");
             return;
         }
-        stage.show(OrbView.Mode.COUNTDOWN, "To " + m.group.name, "“" + p.text + "”",
+        confirm(m.group, text);
+    }
+
+    /** Shows who it's going to while the ring counts down; Cancel stops it. */
+    private void confirm(Phrase.Group g, String text) {
+        if (isFinishing()) return;
+        stage.show(OrbView.Mode.COUNTDOWN, "To " + g.name, "\u201C" + text + "\u201D",
                 "Cancel", (Runnable) () -> {
                     cancelPending();
                     showRetry("Cancelled", "Nothing was sent.");
                 },
                 "Send now", (Runnable) () -> {
                     cancelPending();
-                    send(m.group, p.text);
+                    send(g, text);
                 });
         pendingSend = () -> {
             pendingSend = null;
-            send(m.group, p.text);
+            send(g, text);
         };
         ui.postDelayed(pendingSend, SEND_DELAY_MS);
     }
