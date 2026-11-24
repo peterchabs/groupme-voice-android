@@ -1,5 +1,7 @@
 # GroupMe Voice
 
+> **Not affiliated with GroupMe or Microsoft.** This is an independent, free, open-source project. GroupMe is a trademark of Microsoft.
+
 Send a GroupMe message just by talking to your **Galaxy Watch** or **Android phone**.
 
 You say: **"Hey Google, open GroupMe Voice"**
@@ -555,4 +557,9 @@ GroupMe sign-in, your groups, or your messages.
   watch apps), [`docs/index.html`](docs/index.html) (sign-in page),
   [`groupme_send.py`](groupme_send.py) (Tasker version).
 
-This project is not made by or connected to GroupMe or Microsoft.
+## Not affiliated with GroupMe or Microsoft
+
+GroupMe Voice is an independent project. It is not made, endorsed, or supported by
+GroupMe or Microsoft. GroupMe is a trademark of Microsoft Corporation, and the name
+is used here only to say which service the app works with. For help with your
+GroupMe account itself, contact GroupMe.

@@ -23,6 +23,7 @@ final class Stage {
     private static final DecelerateInterpolator EASE = new DecelerateInterpolator(1.6f);
 
     final OrbView orb;
+    private final FrameLayout hero;
     private final boolean watch, card;
     private final int unit; // width everything is sized from (the card width on a phone)
     private final float textScale;
@@ -52,7 +53,7 @@ final class Stage {
         if (!watch) col.setPadding((int) (24 * dp), (int) (22 * dp), (int) (24 * dp), (int) (26 * dp));
         else col.setPadding(pad, (int) (w * 0.1f), pad, (int) (w * 0.1f));
 
-        FrameLayout hero = new FrameLayout(a);
+        hero = new FrameLayout(a);
         orb = new OrbView(a);
         Press.attach(orb); // the orb is tappable (tap to talk), so it squishes too
         qr = new ImageView(a);
@@ -113,6 +114,7 @@ final class Stage {
     /** Change the whole screen. Buttons are pairs of (label, Runnable); the first is the main one. */
     Stage show(OrbView.Mode mode, String t, String s, Object... buttons) {
         gen++;
+        hero.setVisibility(View.VISIBLE);
         if (orb.mode() != mode) orb.setMode(mode);
         title.setTextSize((t != null && t.length() > 34 ? 13 : 15) * textScale); // long titles shrink to fit the round screen
         swap(title, t);
@@ -165,6 +167,12 @@ final class Stage {
             scroll.post(() -> scroll.smoothScrollTo(0,
                     Math.max(0, actions.getTop() + c.getTop() - scroll.getHeight() / 2 + c.getHeight() / 2)));
         }
+        return this;
+    }
+
+    /** Hide the orb/QR for this screen only (room for more text on a round watch). */
+    Stage hideHero() {
+        hero.setVisibility(View.GONE);
         return this;
     }
 

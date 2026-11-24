@@ -82,7 +82,7 @@ public class SetupActivity extends Activity {
         String who = Store.name(this);
         Phrase.Group d = Store.defaultGroup(this);
         stage.show(OrbView.Mode.DONE, who.isEmpty() ? "Signed in" : "Signed in as " + who,
-                "Default group: " + (d == null ? "none" : d.name),
+                "Default group: " + (d == null ? "none" : d.name) + "\nNot affiliated with GroupMe or Microsoft",
                 // no Back button: swiping right goes back on Wear OS, and four buttons don't fit
                 "Default group", (Runnable) this::pickDefault,
                 "Switch", (Runnable) this::startLink,
@@ -90,6 +90,7 @@ public class SetupActivity extends Activity {
                     Store.clear(this);
                     startLink();
                 });
+        if (isWatch()) stage.hideHero(); // room for the not-affiliated line on a round screen
     }
 
     // ---------------- default group ----------------
@@ -152,7 +153,8 @@ public class SetupActivity extends Activity {
             stage.showOrb();
             stage.show(OrbView.Mode.IDLE, "Sign in to GroupMe",
                     "Sign in with GroupMe is easiest. It returns through a page hosted on GitHub,"
-                            + " which receives your sign-in in its logs. Pasting your token avoids that.",
+                            + " which receives your sign-in in its logs. Pasting your token avoids that."
+                            + "\n\nNot affiliated with GroupMe or Microsoft.",
                     "Sign in with GroupMe", (Runnable) () -> {
                         openPage(link);
                         final long started = System.currentTimeMillis();
