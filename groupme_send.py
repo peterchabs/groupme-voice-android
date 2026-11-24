@@ -116,6 +116,8 @@ SPLIT = re.compile(r"\s+(?:that says|saying|which says|and say|message)\s*[:,]?\
 
 
 def parse_phrase(phrase):
+    # AutoWear (watch) can deliver "groupme=:=<what you said>"; drop the tag.
+    phrase = re.sub(r"^\s*[\w-]+=:=\s*", "", phrase)
     rest = LEAD.sub("", phrase, count=1)
     parts = SPLIT.split(rest, maxsplit=1)
     if len(parts) != 2:
