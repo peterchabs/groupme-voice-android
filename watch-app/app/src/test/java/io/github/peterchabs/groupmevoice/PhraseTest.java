@@ -53,4 +53,38 @@ public class PhraseTest {
         assertNull(Phrase.match(GROUPS, "twins").group);                   // duplicate names
         assertNull(Phrase.match(GROUPS, "soccer").group);                  // not a group
     }
+
+    @Test public void understandsReplies() {
+        assertEquals("on my way", Phrase.parseReply("reply saying on my way"));
+        assertEquals("sounds good", Phrase.parseReply("Respond to that message saying sounds good"));
+        assertEquals("see you at 7", Phrase.parseReply("reply back with see you at 7"));
+        assertEquals("I'm in", Phrase.parseReply("reply to the last message I'm in"));
+        assertEquals("yes", Phrase.parseReply("Hey Google, reply: yes"));
+        assertNull(Phrase.parseReply("Weekend Crew that says reply soon"));
+        assertNull(Phrase.parseReply("picking up pizza"));
+        assertNull(Phrase.parseReply("reply"));
+        assertNull(Phrase.parseReply("answer is yes"));
+    }
+
+    @Test public void understandsLikes() {
+        org.junit.Assert.assertTrue(Phrase.parseLike("like that"));
+        org.junit.Assert.assertTrue(Phrase.parseLike("Heart that message"));
+        org.junit.Assert.assertTrue(Phrase.parseLike("like the last message"));
+        org.junit.Assert.assertTrue(Phrase.parseLike("react to that with a heart"));
+        org.junit.Assert.assertFalse(Phrase.parseLike("like that pizza place on 5th"));
+        org.junit.Assert.assertFalse(Phrase.parseLike("Family that says I like that"));
+    }
+
+    @Test public void understandsDirectMessages() {
+        Phrase p = Phrase.parseDm("DM Sam saying on my way");
+        assertEquals("Sam", p.group);
+        assertEquals("on my way", p.text);
+        p = Phrase.parseDm("direct message Jordan Lee that says call me");
+        assertEquals("Jordan Lee", p.group);
+        assertEquals("call me", p.text);
+        p = Phrase.parseDm("D.M. Sam saying hi");
+        assertEquals("Sam", p.group);
+        assertNull(Phrase.parseDm("Weekend Crew that says DM me"));
+        assertNull(Phrase.parseDm("DM Sam"));
+    }
 }

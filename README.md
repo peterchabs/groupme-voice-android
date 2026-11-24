@@ -202,6 +202,27 @@ That's it. You're set up.
 | Green circle with a check | Sent |
 | Red circle that shakes | Something's wrong. The words under it say what, and nothing was sent |
 
+### More things you can say
+
+<p align="center">
+  <img src="docs/images/watch-reply-like-dm.png" alt="Replying to Sam, liking Sam's message, and sending Jordan a direct message" width="760">
+</p>
+
+| Say | What happens |
+|---|---|
+| **"Weekend Crew that says running late"** | Sends to that group |
+| **"Reply saying I've got 4"** | Replies to the newest message someone sent you (group or direct), quoting it |
+| **"Like that"** or **"Heart that message"** | Hearts the newest message someone sent you |
+| **"DM Jordan saying call me"** | Sends Jordan a private message |
+| **"Jordan that says call me"** | Same thing, if you don't have a group called Jordan |
+| **"picking up pizza"** (just the message) | Goes to your default group, if you set one (below) |
+
+Every one of these shows the 3-second countdown first, with who it's going to
+or what you're replying to, so you can tap **Cancel** if it's wrong.
+
+"The newest message" means the newest one from someone else, so if a GroupMe
+notification just came in, "reply saying..." answers that one.
+
 ### Optional: set a default group
 
 If you mostly message the same group, set it as your default. Then you can skip

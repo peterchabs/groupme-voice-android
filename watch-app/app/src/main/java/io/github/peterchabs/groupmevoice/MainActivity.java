@@ -219,84 +219,179 @@ public class MainActivity extends Activity {
                 : "Say your message for " + d.name + ", or [group] that says [message]";
     }
 
+    /** What happens when the countdown ends: send, reply, DM or like. Runs off the UI thread. */
+    private interface Action {
+        void run(String token) throws IOException;
+    }
+
+    private static String quote(String t) { return "\u201C" + t + "\u201D"; }
+
+    private boolean tooLong(String text) {
+        if (text.length() <= MAX_TEXT) return false;
+        showRetry("That's too long.", "GroupMe allows " + MAX_TEXT + " characters.");
+        return true;
+    }
+
     private void handle(String heard) {
-        Phrase p = Phrase.parse(heard);
+        if (Phrase.parseLike(heard)) {           // "like that", "heart that message"
+            withLatest(null);
+            return;
+        }
+        String reply = Phrase.parseReply(heard); // "reply saying on my way"
+        if (reply != null) {
+            if (!tooLong(reply)) withLatest(reply);
+            return;
+        }
+        Phrase dm = Phrase.parseDm(heard);       // "DM Sam saying hi"
+        if (dm != null) {
+            if (!tooLong(dm.text)) find(dm, true);
+            return;
+        }
+        Phrase p = Phrase.parse(heard);          // "Weekend Crew that says hi"
         if (p == null) {
             // No group named. With a default group set, everything you said is the message.
             Phrase.Group d = Store.defaultGroup(this);
             String text = heard == null ? "" : heard.trim();
             if (d != null && !text.isEmpty()) {
-                if (text.length() > MAX_TEXT) {
-                    showRetry("That's too long.", "GroupMe allows " + MAX_TEXT + " characters.");
-                    return;
-                }
-                confirm(d, text);
+                if (!tooLong(text)) confirmGroup(d, text);
                 return;
             }
             showRetry("Say it like this:", "\"Family that says on my way\"\n\nI heard: \"" + heard + "\"");
             return;
         }
-        if (p.text.length() > MAX_TEXT) {
-            showRetry("That's too long.", "GroupMe allows " + MAX_TEXT + " characters.");
-            return;
-        }
-        stage.show(OrbView.Mode.BUSY, "Finding " + p.group, "“" + p.text + "”");
+        if (!tooLong(p.text)) find(p, false);
+    }
+
+    /**
+     * Finds who you named: your groups first, then people you have direct messages with.
+     * A name that matches nothing never falls back to the default group.
+     */
+    private void find(Phrase p, boolean dmOnly) {
+        stage.show(OrbView.Mode.BUSY, "Finding " + p.group, quote(p.text));
         final String token = Store.token(this);
         bg.execute(() -> {
             try {
-                Phrase.Match m = Phrase.match(Store.groups(this), p.group);
-                if (m.group == null || Store.groupsAgeMs(this) > GROUP_CACHE_MS) {
-                    List<Phrase.Group> fresh = Api.listGroups(token);
-                    Store.saveGroups(this, fresh);
-                    m = Phrase.match(fresh, p.group);
+                Phrase.Match g = null;
+                if (!dmOnly) {
+                    g = Phrase.match(Store.groups(this), p.group);
+                    if (g.group == null || Store.groupsAgeMs(this) > GROUP_CACHE_MS) {
+                        List<Phrase.Group> fresh = Api.listGroups(token);
+                        Store.saveGroups(this, fresh);
+                        g = Phrase.match(fresh, p.group);
+                    }
+                    final Phrase.Match found = g;
+                    if (found.group != null) {
+                        ui.post(() -> confirmGroup(found.group, p.text));
+                        return;
+                    }
+                    if (found.problem.startsWith("Which one") || found.problem.startsWith("You have")) {
+                        ui.post(() -> showRetry(found.problem, "Say more of the name. Nothing was sent."));
+                        return;
+                    }
                 }
-                final Phrase.Match match = m;
-                ui.post(() -> confirm(p.text, match));
+                Phrase.Match c = Phrase.match(Store.contacts(this), p.group);
+                if (c.group == null || Store.contactsAgeMs(this) > GROUP_CACHE_MS) {
+                    List<Phrase.Group> fresh = Api.listContacts(token);
+                    Store.saveContacts(this, fresh);
+                    c = Phrase.match(fresh, p.group);
+                }
+                final Phrase.Match person = c;
+                final String problem = dmOnly || g == null ? person.problem
+                        .replace("a group called", "anyone called").replace("groups named", "people named") : g.problem;
+                ui.post(() -> {
+                    if (person.group != null) confirmDm(person.group, p.text);
+                    else showRetry(problem, "Nothing was sent.");
+                });
             } catch (IOException e) {
                 ui.post(() -> showError(e));
             }
         });
     }
 
-    private void confirm(String text, Phrase.Match m) {
-        if (isFinishing()) return;
-        if (m.group == null) {
-            // A group was named but not found: never fall back to the default group.
-            showRetry(m.problem, m.problem.startsWith("Which one")
-                    ? "Say more of the name. Nothing was sent." : "Nothing was sent.");
-            return;
-        }
-        confirm(m.group, text);
+    /** Reply to (replyText != null) or like (replyText == null) the newest message someone sent you. */
+    private void withLatest(String replyText) {
+        stage.show(OrbView.Mode.BUSY, "Finding the last message", replyText == null ? null : quote(replyText));
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                String myId = Store.myId(this);
+                if (myId.isEmpty()) { // signed in before this existed
+                    myId = Api.me(token)[0];
+                    Store.setMyId(this, myId);
+                }
+                Api.Incoming in = Api.latestIncoming(token, myId);
+                ui.post(() -> {
+                    if (in == null) {
+                        showRetry(replyText == null ? "No message to like" : "No message to reply to", "Nothing was sent.");
+                    } else if (replyText == null) {
+                        confirmLike(in);
+                    } else {
+                        confirmReply(in, replyText);
+                    }
+                });
+            } catch (IOException e) {
+                ui.post(() -> showError(e));
+            }
+        });
     }
 
-    /** Shows who it's going to while the ring counts down; Cancel stops it. */
-    private void confirm(Phrase.Group g, String text) {
+    private static String where(Api.Incoming in) { return in.isDm ? "Direct" : in.groupName; }
+
+    private static String clip(String t) { return t.length() > 60 ? t.substring(0, 57) + "..." : t; }
+
+    private void confirmGroup(Phrase.Group g, String text) {
+        countdown("To " + g.name, quote(text), "Send now", "Sending", "Sent to " + g.name,
+                t -> Api.send(t, g.id, text, null));
+    }
+
+    private void confirmDm(Phrase.Group person, String text) {
+        countdown("To " + person.name + " (direct)", quote(text), "Send now", "Sending", "Sent to " + person.name,
+                t -> Api.sendDm(t, person.id, text));
+    }
+
+    private void confirmReply(Api.Incoming in, String text) {
+        countdown("Reply to " + in.sender, where(in) + ": " + quote(clip(in.text)) + "\nYou: " + quote(text),
+                "Send now", "Sending", "Replied to " + in.sender,
+                t -> {
+                    if (in.isDm) Api.sendDm(t, in.otherUserId, text);
+                    else Api.send(t, in.groupId, text, in.id);
+                });
+    }
+
+    private void confirmLike(Api.Incoming in) {
+        countdown("Like " + in.sender + "'s message", where(in) + ": " + quote(clip(in.text)),
+                "Like now", "Liking", "Liked",
+                t -> Api.like(t, in.conversationId, in.id));
+    }
+
+    /** Shows what's about to happen while the ring counts down. Cancel (or leaving) stops it. */
+    private void countdown(String title, String body, String nowLabel, String busy, String done, Action action) {
         if (isFinishing()) return;
-        stage.show(OrbView.Mode.COUNTDOWN, "To " + g.name, "\u201C" + text + "\u201D",
+        stage.show(OrbView.Mode.COUNTDOWN, title, body,
                 "Cancel", (Runnable) () -> {
                     cancelPending();
                     showRetry("Cancelled", "Nothing was sent.");
                 },
-                "Send now", (Runnable) () -> {
+                nowLabel, (Runnable) () -> {
                     cancelPending();
-                    send(g, text);
+                    run(busy, done, action);
                 });
         pendingSend = () -> {
             pendingSend = null;
-            send(g, text);
+            run(busy, done, action);
         };
         ui.postDelayed(pendingSend, SEND_DELAY_MS);
     }
 
-    private void send(Phrase.Group g, String text) {
-        stage.show(OrbView.Mode.BUSY, "Sending", "“" + text + "”");
+    private void run(String busy, String done, Action action) {
+        stage.show(OrbView.Mode.BUSY, busy, null);
         final String token = Store.token(this);
         bg.execute(() -> {
             try {
-                Api.send(token, g.id, text);
+                action.run(token);
                 ui.post(() -> {
                     buzz();
-                    stage.show(OrbView.Mode.DONE, "Sent to " + g.name, null);
+                    stage.show(OrbView.Mode.DONE, done, null);
                     ui.postDelayed(() -> {
                         finish();
                         overridePendingTransition(0, android.R.anim.fade_out);

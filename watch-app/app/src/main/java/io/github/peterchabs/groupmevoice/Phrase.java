@@ -29,6 +29,50 @@ public final class Phrase {
     private static final Pattern ON_GROUPME = Pattern.compile("\\s+on groupme$", CI);
     private static final Pattern GROUP_WORD = Pattern.compile("\\s+(?:group|chat)$", CI);
 
+    private static final Pattern REPLY = Pattern.compile(
+            "^\\s*(?:hey google[,\\s]*)?(?:please\\s+)?(?:respond|reply)(?:\\s+back)?"
+            + "(?:\\s+to\\s+(?:that|the last|the latest|the|their|his|her)(?:\\s+(?:message|text|one))?)?"
+            + "(?:\\s+(?:saying|that says|with|and say|say))?\\s*[:,]?\\s+(.+)$", CI);
+
+    /**
+     * "reply saying on my way", "respond to that message saying sounds good":
+     * returns the words to send, or null if this isn't a reply.
+     */
+    public static String parseReply(String heard) {
+        if (heard == null) return null;
+        java.util.regex.Matcher m = REPLY.matcher(PREFIX.matcher(heard).replaceFirst(""));
+        if (!m.matches()) return null;
+        String text = m.group(1).trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private static final Pattern LIKE = Pattern.compile(
+            "^\\s*(?:hey google[,\\s]*)?(?:please\\s+)?(?:like|heart|react to|react with a heart to)"
+            + "(?:\\s+(?:that|this|it|the last|the latest|their|his|her))?"
+            + "(?:\\s+(?:message|text|one|post))?(?:\\s+with a heart)?\\s*[.!]?\\s*$", CI);
+
+    /** "like that", "heart that message", "react to that with a heart". */
+    public static boolean parseLike(String heard) {
+        return heard != null && LIKE.matcher(PREFIX.matcher(heard).replaceFirst("")).matches();
+    }
+
+    private static final Pattern DM = Pattern.compile(
+            "^\\s*(?:hey google[,\\s]*)?(?:please\\s+)?"
+            + "(?:d\\.?\\s?m\\.?|direct message|private message|privately message|message privately)"
+            + "(?:\\s+to)?\\s+(.+)$", CI);
+
+    /** "DM Sam saying hi", "direct message Sam that says hi": person + message, or null. */
+    public static Phrase parseDm(String heard) {
+        if (heard == null) return null;
+        java.util.regex.Matcher m = DM.matcher(PREFIX.matcher(heard).replaceFirst(""));
+        if (!m.matches()) return null;
+        String[] parts = SPLIT.split(m.group(1), 2);
+        if (parts.length != 2) return null;
+        String who = strip(parts[0], " ,.:");
+        String text = parts[1].trim();
+        return who.isEmpty() || text.isEmpty() ? null : new Phrase(who, text);
+    }
+
     /** Returns null when the phrase has no "that says" (or similar) between group and message. */
     public static Phrase parse(String heard) {
         if (heard == null) return null;

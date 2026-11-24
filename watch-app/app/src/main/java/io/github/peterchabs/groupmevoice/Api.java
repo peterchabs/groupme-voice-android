@@ -39,11 +39,141 @@ final class Api {
         return out;
     }
 
-    /** Your GroupMe display name. Also proves the token works. */
-    static String myName(String token) throws IOException {
+    /** {id, name} of the signed-in GroupMe user. Also proves the token works. */
+    static String[] me(String token) throws IOException {
         JSONObject r = call("GET", "/users/me", token, null);
         JSONObject me = r.optJSONObject("response");
-        return me == null ? "" : me.optString("name", "");
+        if (me == null) return new String[]{"", ""};
+        return new String[]{me.optString("id", me.optString("user_id", "")), me.optString("name", "")};
+    }
+
+    /** The newest message someone else sent in one of your groups. */
+    static final class Incoming {
+        final String id, groupId, groupName, sender, text;
+        final boolean isDm;
+        final String otherUserId;    // for a DM: who to answer
+        final String conversationId; // group id, or "lowerId+higherId" for a DM (used for likes)
+
+        /** A message in a group. */
+        Incoming(String id, String groupId, String groupName, String sender, String text) {
+            this(id, groupId, groupName, sender, text, false, "", groupId);
+        }
+
+        Incoming(String id, String groupId, String groupName, String sender, String text,
+                 boolean isDm, String otherUserId, String conversationId) {
+            this.id = id;
+            this.groupId = groupId;
+            this.groupName = groupName;
+            this.sender = sender;
+            this.text = text;
+            this.isDm = isDm;
+            this.otherUserId = otherUserId;
+            this.conversationId = conversationId;
+        }
+    }
+
+    /** GroupMe names a DM conversation by both user ids, smaller first, joined with "+". */
+    static String dmConversationId(String a, String b) {
+        try {
+            return Long.parseLong(a) < Long.parseLong(b) ? a + "+" + b : b + "+" + a;
+        } catch (NumberFormatException e) {
+            return a.compareTo(b) < 0 ? a + "+" + b : b + "+" + a;
+        }
+    }
+
+    /** People you have direct messages with. Group.id holds their user id. */
+    static List<Phrase.Group> listContacts(String token) throws IOException {
+        List<Phrase.Group> out = new ArrayList<>();
+        for (int page = 1; page < 20; page++) {
+            JSONObject r = call("GET", "/chats?per_page=100&page=" + page, token, null);
+            JSONArray a = r.optJSONArray("response");
+            if (a == null) break;
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.optJSONObject(i);
+                JSONObject u = o == null ? null : o.optJSONObject("other_user");
+                if (u != null) out.add(new Phrase.Group(u.optString("id"), u.optString("name")));
+            }
+            if (a.length() < 100) break;
+        }
+        return out;
+    }
+
+    static void sendDm(String token, String userId, String text) throws IOException {
+        try {
+            JSONObject dm = new JSONObject()
+                    .put("source_guid", UUID.randomUUID().toString())
+                    .put("recipient_id", userId)
+                    .put("text", text);
+            call("POST", "/direct_messages", token, new JSONObject().put("direct_message", dm).toString());
+        } catch (JSONException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /** Hearts a message (GroupMe's "like"). */
+    static void like(String token, String conversationId, String messageId) throws IOException {
+        call("POST", "/messages/" + URLEncoder.encode(conversationId, "UTF-8") + "/"
+                + URLEncoder.encode(messageId, "UTF-8") + "/like", token, "{}");
+    }
+
+    /**
+     * Looks at your most recently active groups (GroupMe lists them newest first) and returns
+     * the newest message that wasn't sent by you, or null if there isn't one.
+     */
+    static Incoming latestIncoming(String token, String myId) throws IOException {
+        JSONObject r = call("GET", "/groups?per_page=4&omit=memberships", token, null);
+        JSONArray groups = r.optJSONArray("response");
+        if (groups == null) return null;
+        Incoming best = null;
+        long bestAt = -1;
+        for (int i = 0; i < groups.length(); i++) {
+            JSONObject g = groups.optJSONObject(i);
+            if (g == null) continue;
+            String gid = g.optString("id");
+            JSONObject m = call("GET", "/groups/" + URLEncoder.encode(gid, "UTF-8") + "/messages?limit=8", token, null);
+            JSONObject resp = m.optJSONObject("response");
+            JSONArray msgs = resp == null ? null : resp.optJSONArray("messages");
+            if (msgs == null) continue;
+            for (int j = 0; j < msgs.length(); j++) { // newest first
+                JSONObject x = msgs.optJSONObject(j);
+                if (x == null || x.optBoolean("system", false)) continue;
+                String sender = x.optString("sender_id", x.optString("user_id", ""));
+                if (sender.equals(myId) || "system".equals(x.optString("sender_type"))) continue;
+                long at = x.optLong("created_at", 0);
+                if (at > bestAt) {
+                    bestAt = at;
+                    String text = x.isNull("text") ? "" : x.optString("text", "");
+                    if (text.isEmpty()) text = "(photo or attachment)";
+                    best = new Incoming(x.optString("id"), gid, g.optString("name"), x.optString("name"), text);
+                }
+                break;
+            }
+        }
+        // direct messages too: the newest DM conversations, newest first
+        JSONObject cr = call("GET", "/chats?per_page=3", token, null);
+        JSONArray chats = cr.optJSONArray("response");
+        if (chats != null) {
+            for (int i = 0; i < chats.length(); i++) {
+                JSONObject ch = chats.optJSONObject(i);
+                JSONObject last = ch == null ? null : ch.optJSONObject("last_message");
+                JSONObject other = ch == null ? null : ch.optJSONObject("other_user");
+                if (last == null || other == null) continue;
+                String sender = last.optString("sender_id", last.optString("user_id", ""));
+                if (sender.equals(myId)) continue;
+                long at = last.optLong("created_at", 0);
+                if (at > bestAt) {
+                    bestAt = at;
+                    String otherId = other.optString("id");
+                    String text = last.isNull("text") ? "" : last.optString("text", "");
+                    if (text.isEmpty()) text = "(photo or attachment)";
+                    String conv = last.optString("conversation_id", "");
+                    if (conv.isEmpty()) conv = dmConversationId(myId, otherId);
+                    best = new Incoming(last.optString("id"), "", "", other.optString("name"), text,
+                            true, otherId, conv);
+                }
+            }
+        }
+        return best;
     }
 
     /** Encrypted sign-in messages waiting on the relay topic (see Link). Newest last. */
@@ -71,10 +201,19 @@ final class Api {
     }
 
     static void send(String token, String groupId, String text) throws IOException {
+        send(token, groupId, text, null);
+    }
+
+    /** replyTo = a message id to quote (GroupMe's "reply"), or null for a normal message. */
+    static void send(String token, String groupId, String text, String replyTo) throws IOException {
         try {
             JSONObject msg = new JSONObject()
                     .put("source_guid", UUID.randomUUID().toString())
                     .put("text", text);
+            if (replyTo != null) {
+                msg.put("attachments", new JSONArray().put(new JSONObject()
+                        .put("type", "reply").put("reply_id", replyTo).put("base_reply_id", replyTo)));
+            }
             String path = "/groups/" + URLEncoder.encode(groupId, "UTF-8") + "/messages";
             call("POST", path, token, new JSONObject().put("message", msg).toString());
         } catch (JSONException e) {

@@ -254,4 +254,40 @@ public class ScreenshotTest {
         save(a, "9-default-picker", false);
         Store.setDefaultGroup(c, null);
     }
+
+    /** Calls a private MainActivity method, then freezes the countdown so it stays on screen. */
+    private Activity countdownShot(String method, Class<?>[] types, Object... args) throws Exception {
+        Activity a = main();
+        java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod(method, types);
+        m.setAccessible(true);
+        m.invoke(a, args);
+        java.lang.reflect.Method cancel = MainActivity.class.getDeclaredMethod("cancelPending");
+        cancel.setAccessible(true);
+        cancel.invoke(a); // keep the timer from firing during the picture
+        advance(400);
+        Stage s = stageOf(a);
+        Field once = OrbView.class.getDeclaredField("once");
+        once.setAccessible(true);
+        ((android.animation.ValueAnimator) once.get(s.orb)).cancel();
+        Field pf = OrbView.class.getDeclaredField("progress");
+        pf.setAccessible(true);
+        pf.setFloat(s.orb, 0.4f);
+        s.orb.invalidate();
+        return a;
+    }
+
+    @Test public void reply() throws Exception {
+        save(countdownShot("confirmReply", new Class<?>[]{Api.Incoming.class, String.class},
+                new Api.Incoming("m1", "1", "Weekend Crew", "Sam", "Who's bringing chairs?"), "I've got 4"), "10-reply");
+    }
+
+    @Test public void like() throws Exception {
+        save(countdownShot("confirmLike", new Class<?>[]{Api.Incoming.class},
+                new Api.Incoming("m2", "1", "Weekend Crew", "Sam", "Game moved to 3pm")), "11-like");
+    }
+
+    @Test public void directMessage() throws Exception {
+        save(countdownShot("confirmDm", new Class<?>[]{Phrase.Group.class, String.class},
+                new Phrase.Group("u1", "Jordan"), "call me when you're free"), "12-dm");
+    }
 }

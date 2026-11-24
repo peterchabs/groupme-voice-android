@@ -199,10 +199,12 @@ public class SetupActivity extends Activity {
         stage.show(OrbView.Mode.BUSY, "Checking with GroupMe", null);
         bg.execute(() -> {
             try {
-                String name = Api.myName(token);
+                String[] me = Api.me(token);
+                String name = me[1];
                 List<Phrase.Group> groups = Api.listGroups(token);
                 Store.setToken(this, token);
                 Store.setName(this, name);
+                Store.setMyId(this, me[0]);
                 Store.saveGroups(this, groups);
                 ui.post(() -> stage.show(OrbView.Mode.DONE,
                         name.isEmpty() ? "You're signed in" : "Hi, " + name + "!",
