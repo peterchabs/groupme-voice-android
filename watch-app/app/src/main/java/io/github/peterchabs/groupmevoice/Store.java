@@ -38,6 +38,11 @@ final class Store {
         else p(c).edit().putString("default_id", g.id).putString("default_name", g.name).apply();
     }
 
+    /** The one-time sign-in code while you're signing in (survives the trip to the browser). */
+    static String pendingCode(Context c) { return p(c).getString("pending_code", ""); }
+
+    static void setPendingCode(Context c, String code) { p(c).edit().putString("pending_code", code).apply(); }
+
     static void clear(Context c) { p(c).edit().clear().apply(); }
 
     /** People you have direct messages with (id = their user id). */

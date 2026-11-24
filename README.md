@@ -162,12 +162,15 @@ On your watch, go to **Settings** > **Developer options** and turn off
    Tap the link that pops up.
    - Camera won't scan it? On your phone, go to
      **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
-4. On the page, tap **Sign in with GroupMe**, log in with your normal GroupMe
-   account, and tap **Authorize** (or **Allow**).
-   - The page sends your sign-in to your watch by itself. You'll see a green check.
-   - **Backup way**, if that button doesn't work: follow the steps under it to copy
-     your **Access Token** from dev.groupme.com (it works like a password, so never
-     share it), tap **Paste**, then **Send to my watch**.
+4. On the page, pick one of the two ways:
+   - **Sign in with GroupMe** (easiest): log in with your normal GroupMe account
+     and tap **Authorize**. *Note:* GroupMe sends you back to that page with your
+     sign-in in the web address, so GitHub, which hosts the page, receives it in
+     its normal logs.
+   - **Paste your token** (keeps it away from GitHub): follow the steps on the
+     page to copy your token from dev.groupme.com, then paste it.
+   - Either way, the page locks your sign-in with the code from your watch and
+     sends it over. You'll see a green check.
 5. Within a few seconds your watch says **"Hi, [your name]!"** and how many groups it found.
 
 That's it. You're set up.
@@ -275,7 +278,13 @@ To turn it off, go to **Settings** > **Default group** > **No default**.
 
 ## Android phone app
 
-The same app, for your phone. Free, and no computer needed.
+The same app, for your phone. Free, and no computer needed. It opens as a card
+over whatever you're doing, then gets out of the way.
+
+<p align="center">
+  <img src="docs/images/phone-screens.png" alt="GroupMe Voice on an Android phone: sign-in, then listening, countdown and sent cards over the home screen" width="760">
+</p>
+<p align="center"><sub>Real app screens. The card slides up over your current app and closes itself after sending.</sub></p>
 
 **Works on:** Android 8 or newer.
 
@@ -301,11 +310,17 @@ The same app, for your phone. Free, and no computer needed.
 
 ### Step 3: Sign in to GroupMe
 
-1. In the app, tap **Sign in on this phone**. Your browser opens.
-2. Tap **Sign in with GroupMe**, log in with your normal GroupMe account, and tap
-   **Authorize** (or **Allow**).
-3. When you see the green check, switch back to the **GroupMe Voice** app.
-   Within a few seconds it says **"Hi, [your name]!"**
+The app gives you two ways. Pick either one:
+
+- **Sign in with GroupMe** (easiest): tap it, log in with your normal GroupMe
+  account, and tap **Authorize**. Your phone brings you right back to the app.
+  *Note:* GroupMe sends you back through a sign-in page hosted on GitHub, with
+  your sign-in in the web address, so GitHub receives it in its normal logs.
+- **Paste token instead** (keeps it away from GitHub): in your browser, go to
+  **dev.groupme.com**, log in, tap **Access Token**, and copy the long code.
+  Back in the app, press and hold the box, tap **Paste**, then **Save**.
+
+Either way, the app checks with GroupMe and says **"Hi, [your name]!"**
 
 ### Step 4: Use it
 
@@ -513,17 +528,31 @@ Now "family that says hello" always goes to group 12345678.
 
 ---
 
-## Is this safe?
+## Is this safe? Where does my information go?
 
-- **Phone and watch apps:** your sign-in is stored only inside the app on your device.
-- **Tasker version:** your token stays on your phone, in a file only Termux can read.
-- When you sign in with the code, the web page locks (encrypts) your token with the code shown on your
-  watch before sending it, and passes it through a free relay service
-  ([ntfy.sh](https://ntfy.sh)) that can't unlock it. The code never leaves your
-  phone and watch, and it expires after 10 minutes.
-- Your messages go only to GroupMe.
-- It can only post to groups you're already in, as you.
-- All the code is here if you want to look: [`groupme_send.py`](groupme_send.py)
-  (Tasker version), [`watch-app/`](watch-app/) (phone and watch apps), [`docs/index.html`](docs/index.html) (sign-in page).
+**There is no server of ours.** Nobody running this project ever sees your
+GroupMe sign-in, your groups, or your messages.
+
+- **Your messages** go straight from your phone or watch to GroupMe, and nowhere else.
+- **Your voice** is turned into text by your phone's or watch's built-in speech
+  service (Google's, the same one used when you dictate a text). Only the text
+  is sent, and only to GroupMe.
+- **Your sign-in** is stored only inside the app on your device. Signing out
+  deletes it.
+- **When you sign in**, you choose:
+  - **Sign in with GroupMe**: GroupMe returns you to the sign-in page with your
+    sign-in in the web address. That page is hosted on GitHub, so GitHub receives
+    it in its normal web logs. The page then locks it right away and clears it
+    from the address bar.
+  - **Paste your token**: it never reaches GitHub. On a phone you paste it
+    straight into the app. On a watch, the page locks it with the code shown on
+    your watch before it leaves your phone.
+- **Sign-in to a watch** travels through a free relay ([ntfy.sh](https://ntfy.sh))
+  in locked form. The relay can't unlock it; only your watch has the key, and the
+  code expires after 10 minutes.
+- **The Tasker version** keeps your token in a file on your phone that only Termux can read.
+- All the code is here if you want to look: [`watch-app/`](watch-app/) (phone and
+  watch apps), [`docs/index.html`](docs/index.html) (sign-in page),
+  [`groupme_send.py`](groupme_send.py) (Tasker version).
 
 This project is not made by or connected to GroupMe or Microsoft.

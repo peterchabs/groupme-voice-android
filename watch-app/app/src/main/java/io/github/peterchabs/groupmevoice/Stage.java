@@ -3,6 +3,7 @@ package io.github.peterchabs.groupmevoice;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
@@ -22,6 +23,9 @@ final class Stage {
     private static final DecelerateInterpolator EASE = new DecelerateInterpolator(1.6f);
 
     final OrbView orb;
+    private final boolean watch, card;
+    private final int unit; // width everything is sized from (the card width on a phone)
+    private final float textScale;
     private final Activity a;
     private final ScrollView scroll;
     private final ImageView qr;
@@ -31,13 +35,22 @@ final class Stage {
 
     Stage(Activity a) {
         this.a = a;
-        int w = a.getResources().getDisplayMetrics().widthPixels;
+        float dp = a.getResources().getDisplayMetrics().density;
+        watch = isWatchBuild();
+        // On a phone the voice screen is a card over your current app, so size it like one.
+        card = !watch && a instanceof MainActivity;
+        // a watch uses its whole round screen; a phone uses a comfortable centered column
+        int w = watch ? a.getResources().getDisplayMetrics().widthPixels
+                : Math.min(a.getResources().getDisplayMetrics().widthPixels, (int) (330 * dp));
+        textScale = watch ? 1f : 1.3f;
+        unit = w;
         int pad = (int) (w * 0.11f);
 
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER); // middle of the circle is where a round screen is widest
-        col.setPadding(pad, (int) (w * 0.1f), pad, (int) (w * 0.1f));
+        if (!watch) col.setPadding((int) (24 * dp), (int) (22 * dp), (int) (24 * dp), (int) (26 * dp));
+        else col.setPadding(pad, (int) (w * 0.1f), pad, (int) (w * 0.1f));
 
         FrameLayout hero = new FrameLayout(a);
         orb = new OrbView(a);
@@ -45,7 +58,7 @@ final class Stage {
         qr = new ImageView(a);
         qr.setVisibility(View.GONE);
         qr.setAlpha(0f);
-        int orbSize = (int) (w * 0.24f), qrSize = (int) (w * 0.29f);
+        int orbSize = (int) (w * (watch ? 0.24f : 0.26f)), qrSize = (int) (w * (watch ? 0.29f : 0.5f));
         hero.addView(orb, new FrameLayout.LayoutParams(orbSize, orbSize, Gravity.CENTER));
         hero.addView(qr, new FrameLayout.LayoutParams(qrSize, qrSize, Gravity.CENTER));
         col.addView(hero, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -66,19 +79,42 @@ final class Stage {
         col.addView(actions, full());
 
         scroll = new ScrollView(a);
-        scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(false);
-        scroll.setBackgroundColor(0xFFFFFFFF);
+        if (!card) {
+            scroll.setFillViewport(true);
+            scroll.setBackgroundColor(0xFFFFFFFF);
+            scroll.addView(col, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT,
+                    ScrollView.LayoutParams.MATCH_PARENT));
+            a.setContentView(scroll);
+            return;
+        }
+        // Phone: a white card that slides up from the bottom; your app stays visible above it.
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xFFFFFFFF);
+        float r = 26 * dp;
+        bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+        scroll.setBackground(bg);
+        scroll.setElevation(16 * dp);
+        scroll.setClickable(true); // taps on the card stay on the card
         scroll.addView(col, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.MATCH_PARENT));
-        a.setContentView(scroll);
+                ScrollView.LayoutParams.WRAP_CONTENT));
+        FrameLayout shade = new FrameLayout(a);
+        shade.setOnClickListener(v -> a.finish()); // tap outside the card to dismiss
+        shade.addView(scroll, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+        a.setContentView(shade);
+        scroll.setTranslationY(600 * dp);
+        scroll.animate().translationY(0f).setDuration(340).setInterpolator(EASE).start();
     }
+
+    /** The watch download always acts as a watch app, the phone download as a phone app. */
+    static boolean isWatchBuild() { return "watch".equals(BuildConfig.FLAVOR); }
 
     /** Change the whole screen. Buttons are pairs of (label, Runnable); the first is the main one. */
     Stage show(OrbView.Mode mode, String t, String s, Object... buttons) {
         gen++;
         if (orb.mode() != mode) orb.setMode(mode);
-        title.setTextSize(t != null && t.length() > 34 ? 13 : 15); // long titles shrink to fit the round screen
+        title.setTextSize((t != null && t.length() > 34 ? 13 : 15) * textScale); // long titles shrink to fit the round screen
         swap(title, t);
         swap(sub, s);
         hide(live);
@@ -93,6 +129,10 @@ final class Stage {
         }
         buttons = kept.toArray();
         int count = buttons.length / 2;
+        boolean shortLabels = true; // side by side only when every label is short
+        // only the buttons that would share a row matter (with 3, the first one has its own row)
+        for (int i = count == 3 ? 2 : 0; i < buttons.length; i += 2) shortLabels &= ((String) buttons[i]).length() <= 10;
+        if (!shortLabels && count > 1) count = 99; // stack them all
         // Fit the round screen: 2 buttons sit side by side; 3 = one wide button over a pair.
         actions.setOrientation(count == 2 ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
         LinearLayout target = actions;
@@ -211,7 +251,7 @@ final class Stage {
         Button b = new Button(a);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(13);
+        b.setTextSize(13 * textScale);
         b.setMinHeight(0);
         b.setMinimumHeight(0);
         b.setTextColor(primary ? 0xFFFFFFFF : 0xFF00AFF0);
@@ -226,10 +266,10 @@ final class Stage {
         Press.attach(b);
         b.setOnClickListener(v -> onTap.run());
         // narrower than the screen so the pill's ends never meet the round edge
-        int sw = a.getResources().getDisplayMetrics().widthPixels;
+        int sw = unit;
         float dp = a.getResources().getDisplayMetrics().density;
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                (int) (sw * (pair ? 0.35f : 0.62f)), LinearLayout.LayoutParams.WRAP_CONTENT);
+                (int) (sw * (pair ? (watch ? 0.35f : 0.42f) : (watch ? 0.62f : 0.84f))), LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = (int) (dp * 6);
         if (pair) {
             lp.leftMargin = (int) (dp * 2);
@@ -242,7 +282,7 @@ final class Stage {
 
     private TextView text(LinearLayout col, int sp, int color, boolean bold) {
         TextView t = new TextView(a);
-        t.setTextSize(sp);
+        t.setTextSize(sp * textScale);
         t.setTextColor(color);
         t.setGravity(Gravity.CENTER);
         t.setPadding(0, (int) (a.getResources().getDisplayMetrics().density * 3), 0, 0);

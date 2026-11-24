@@ -23,6 +23,8 @@
 
         <activity
             android:name=".MainActivity"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.GMV.Voice"
             android:exported="true"
             android:launchMode="singleTask"
             android:taskAffinity="">
@@ -34,7 +36,17 @@
 
         <activity
             android:name=".SetupActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <!-- The sign-in page sends the browser back here (phone). The data is encrypted
+                 with a key only this app holds, so another app catching the link learns nothing. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="groupmevoice" android:host="signin" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

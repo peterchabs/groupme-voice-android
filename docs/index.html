@@ -126,6 +126,9 @@
       <div class="step"><span class="num">2</span> Your GroupMe sign-in</div>
       <div id="oauthBox" class="hidden">
         <button id="oauth" class="wide">Sign in with GroupMe</button>
+        <p class="hint">Easiest. GroupMe sends you back to this page with your sign-in in the web
+          address, so GitHub, which hosts this page, receives it in its normal logs. To avoid that,
+          paste your token below instead. It's locked on this page and never reaches GitHub.</p>
         <div class="or">or paste your token</div>
       </div>
       <ol>
@@ -160,7 +163,8 @@
       <path d="M25 43 l11 11 l23 -24" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <h1 style="margin-top:14px">Sent!</h1>
-    <p class="lead" style="margin:0">Look at your watch. In a few seconds it will say hi to you by name.<br><br>You can close this page.</p>
+    <p class="lead" id="doneText" style="margin:0">Look at your watch. In a few seconds it will say hi to you by name.<br><br>You can close this page.</p>
+    <a id="backToApp" class="btn wide hidden" style="margin-top:18px">Open GroupMe Voice</a>
   </section>
 </main>
 
@@ -201,7 +205,7 @@ function say(msg, bad) {
   setTimeout(() => { s.textContent = msg; s.className = bad ? "bad" : ""; s.style.opacity = 1; }, 120);
 }
 
-async function deliver(code, token) {
+async function deliver(code, token, phone) {
   code = clean(code);
   token = (token || "").replace(/\s+/g, "");
   if (!validCode(code)) { say("Check the code. It's the 10 letters and numbers on your watch.", true); $("code").focus(); return; }
@@ -210,6 +214,19 @@ async function deliver(code, token) {
   say("Sending...");
   try {
     const { topic, payload } = await seal(code, token);
+    if (phone) {
+      // Same phone as the app: hand the locked sign-in straight back to it.
+      const back = "groupmevoice://signin?p=" + encodeURIComponent(payload);
+      fetch(RELAY + topic, { method: "POST", body: payload }).catch(() => {}); // backup route
+      $("token").value = "";
+      $("form").classList.add("hidden");
+      $("done").classList.remove("hidden");
+      $("doneText").innerHTML = "Taking you back to the app...<br><br>If nothing happens, tap the button below.";
+      $("backToApp").href = back;
+      $("backToApp").classList.remove("hidden");
+      setTimeout(() => { location.href = back; }, 600);
+      return;
+    }
     const r = await fetch(RELAY + topic, { method: "POST", body: payload });
     if (!r.ok) throw new Error("relay " + r.status);
     $("token").value = "";
@@ -223,7 +240,9 @@ async function deliver(code, token) {
 }
 
 // --- wire up ---
-const fromHash = clean(location.hash.slice(1));
+const rawHash = location.hash.slice(1);
+const phoneMode = /\.p$/i.test(rawHash);            // opened from the phone app
+const fromHash = clean(rawHash.replace(/\.p$/i, ""));
 const remembered = clean(sessionStorage.getItem("gmv-code"));
 $("code").value = pretty(fromHash || remembered);
 $("code").addEventListener("input", e => { e.target.value = pretty(clean(e.target.value).slice(0, 10)); });
@@ -232,7 +251,7 @@ $("paste").addEventListener("click", async () => {
   try { $("token").value = (await navigator.clipboard.readText()).trim(); say(""); }
   catch { $("token").focus(); say("Press and hold in the box, then tap Paste.", false); }
 });
-$("send").addEventListener("click", () => deliver($("code").value, $("token").value));
+$("send").addEventListener("click", () => deliver($("code").value, $("token").value, phoneMode));
 
 if (GROUPME_CLIENT_ID) {
   $("oauthBox").classList.remove("hidden");
@@ -240,8 +259,16 @@ if (GROUPME_CLIENT_ID) {
     const code = clean($("code").value);
     if (!validCode(code)) { say("Enter the code from your watch first.", true); return; }
     sessionStorage.setItem("gmv-code", code);
+    sessionStorage.setItem("gmv-phone", phoneMode ? "1" : "");
     location.href = "https://oauth.groupme.com/oauth/authorize?client_id=" + encodeURIComponent(GROUPME_CLIENT_ID);
   });
+}
+
+// Phone app tapped "Sign in with GroupMe": go straight to GroupMe's login.
+if (phoneMode && GROUPME_CLIENT_ID && !new URLSearchParams(location.search).get("access_token") && validCode(fromHash)) {
+  sessionStorage.setItem("gmv-code", fromHash);
+  sessionStorage.setItem("gmv-phone", "1");
+  location.replace("https://oauth.groupme.com/oauth/authorize?client_id=" + encodeURIComponent(GROUPME_CLIENT_ID));
 }
 
 // Coming back from "Sign in with GroupMe": GroupMe adds ?access_token=... to this page.
@@ -249,8 +276,10 @@ const back = new URLSearchParams(location.search).get("access_token");
 if (back) {
   history.replaceState(null, "", location.pathname); // take the token out of the address bar
   const code = clean(sessionStorage.getItem("gmv-code"));
+  const phone = sessionStorage.getItem("gmv-phone") === "1";
   sessionStorage.removeItem("gmv-code");
-  if (code) deliver(code, back);
+  sessionStorage.removeItem("gmv-phone");
+  if (code) deliver(code, back, phone);
   else { $("token").value = back; say("Signed in. Now enter the code from your watch and tap Send.", false); }
 }
 </script>

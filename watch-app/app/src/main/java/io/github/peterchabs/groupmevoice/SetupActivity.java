@@ -42,8 +42,31 @@ public class SetupActivity extends Activity {
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         stage = new Stage(this);
+        if (fromBrowser(getIntent())) return;
         if (Store.token(this).isEmpty()) startLink();
         else showAccount();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        fromBrowser(intent);
+    }
+
+    /** groupmevoice://signin?p=... from the sign-in page: unlock it with our pending code. */
+    private boolean fromBrowser(Intent intent) {
+        android.net.Uri u = intent == null ? null : intent.getData();
+        if (u == null || !"groupmevoice".equals(u.getScheme())) return false;
+        String code = Store.pendingCode(this);
+        String payload = u.getQueryParameter("p");
+        String token = code.isEmpty() || payload == null ? null : new Link(code).open(payload, System.currentTimeMillis());
+        if (token == null) {
+            stage.show(OrbView.Mode.ERROR, "That sign-in didn't work", "Please try again.",
+                    "Try again", (Runnable) this::startLink);
+        } else {
+            verify(token);
+        }
+        return true;
     }
 
     @Override
@@ -123,15 +146,27 @@ public class SetupActivity extends Activity {
     private void startLink() {
         stopPolling();
         Link link = Link.create();
+        Store.setPendingCode(this, link.code);
+        if (!isWatch()) {
+            // Phone: no QR or code. One tap to GroupMe's login, and the browser comes back here.
+            stage.showOrb();
+            stage.show(OrbView.Mode.IDLE, "Sign in to GroupMe",
+                    "Sign in with GroupMe is easiest. It returns through a page hosted on GitHub,"
+                            + " which receives your sign-in in its logs. Pasting your token avoids that.",
+                    "Sign in with GroupMe", (Runnable) () -> {
+                        openPage(link);
+                        final long started = System.currentTimeMillis();
+                        stopPolling();
+                        polling = bg.submit(() -> poll(link, started)); // backup if the browser doesn't return
+                    },
+                    "Paste token instead", (Runnable) () -> showTyping(null));
+            return;
+        }
         Bitmap code = qr(link.pageUrl());
         if (code != null) stage.showQr(code);
         stage.show(OrbView.Mode.BUSY, "Code: " + link.pretty(),
                 "Scan, or enter it at\npeterchabs.github.io/groupme-voice-android",
-                // On a phone the sign-in page can open right here; a watch has no browser.
-                isWatch() ? "Type token instead" : "Sign in on this phone",
-                isWatch() ? (Runnable) () -> showTyping(null) : (Runnable) () -> openPage(link),
-                isWatch() ? null : "Type token instead",
-                isWatch() ? null : (Runnable) () -> showTyping(null));
+                "Type token instead", (Runnable) () -> showTyping(null));
         final long started = System.currentTimeMillis();
         polling = bg.submit(() -> poll(link, started));
     }
@@ -168,12 +203,12 @@ public class SetupActivity extends Activity {
     }
 
     private boolean isWatch() {
-        return getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH);
+        return Stage.isWatchBuild();
     }
 
     private void openPage(Link link) {
         try {
-            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link.pageUrl())));
+            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link.phoneUrl())));
         } catch (android.content.ActivityNotFoundException e) {
             showTyping("No web browser found. Type your token instead.");
         }
@@ -197,10 +232,11 @@ public class SetupActivity extends Activity {
         e.setSingleLine(true);
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); // no autocorrect: typed exactly
-        stage.show(error == null ? OrbView.Mode.IDLE : OrbView.Mode.ERROR, "Type your token",
-                error != null ? error : "From dev.groupme.com > Access Token. Every letter matters.",
+        stage.show(error == null ? OrbView.Mode.IDLE : OrbView.Mode.ERROR, isWatch() ? "Type your token" : "Paste your token",
+                error != null ? error : isWatch() ? "From dev.groupme.com > Access Token. Every letter matters."
+                        : "Copy it from dev.groupme.com > Access Token, then press and hold the box to paste.",
                 "Save", (Runnable) () -> verify(e.getText().toString().replaceAll("\\s+", "")),
-                "Use my phone instead", (Runnable) this::startLink).extra(e);
+                isWatch() ? "Use my phone instead" : "Back", (Runnable) this::startLink).extra(e);
     }
 
     // ---------------- check with GroupMe, then save ----------------
@@ -221,6 +257,7 @@ public class SetupActivity extends Activity {
                 Store.setToken(this, token);
                 Store.setName(this, name);
                 Store.setMyId(this, me[0]);
+                Store.setPendingCode(this, ""); // one-time code is used up
                 Store.saveGroups(this, groups);
                 ui.post(() -> stage.show(OrbView.Mode.DONE,
                         name.isEmpty() ? "You're signed in" : "Hi, " + name + "!",
@@ -246,7 +283,7 @@ public class SetupActivity extends Activity {
 
     private Bitmap qr(String text) {
         try {
-            int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.29f);
+            int size = Stage.isWatchBuild() ? (int) (getResources().getDisplayMetrics().widthPixels * 0.29f) : (int) (Math.min(getResources().getDisplayMetrics().widthPixels, 330 * getResources().getDisplayMetrics().density) * 0.5f);
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.MARGIN, 2); // white border so phone cameras lock on
             BitMatrix m = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, hints);
