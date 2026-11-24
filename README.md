@@ -1,23 +1,21 @@
-# GroupMe Voice for Android
+# GroupMe Voice
 
-Send a GroupMe message just by talking to your phone.
+Send a GroupMe message just by talking to your **Galaxy Watch** or **Android phone**.
 
 You say: **"Hey Google, open GroupMe Voice"**
-Your phone asks: *"Which group, and what should I say?"*
-You say: **"Weekend Crew that says I'm running 10 minutes late"**
-Your phone says: *"Sent to Weekend Crew."*
+It listens, and your words appear on screen as you talk:
+**"Weekend Crew that says I'm running 10 minutes late"**
+It shows who it's sending to, counts down 3 seconds (so you can cancel), then sends.
 
 The message goes out from **your own GroupMe account**, to **your own groups**,
-with **whatever words you say each time**.
-
-You do not need to know how to code.
+with **whatever words you say each time**. You don't need to know how to code.
 
 ## Pick one
 
-| I want to talk to... | Use | Cost | Setup time |
+| I want to talk to... | Use | Cost | Time |
 |---|---|---|---|
-| **My Galaxy Watch** | [The watch app](#galaxy-watch-app) | Free | about 15 minutes |
-| **My Android phone** | [The phone setup](#phone-setup) | About $3.50 (Tasker) | about 15 minutes |
+| **My Galaxy Watch** | [The watch app](#galaxy-watch-app) | Free | about 20 minutes, once |
+| **My Android phone** | [The phone setup](#phone-setup) | About $3.50 (Tasker) | about 15 minutes, once |
 
 You can set up both. They don't need each other.
 
@@ -25,70 +23,200 @@ You can set up both. They don't need each other.
 
 ## Galaxy Watch app
 
-A small app that goes on your watch. It talks to GroupMe by itself, so you
-don't need any of the phone setup.
+A small app that lives on your watch and talks to GroupMe by itself.
 
-**Works on:** Galaxy Watch 4 or newer (any watch with Wear OS 3 or newer).
+### What you need
 
-### W1. Get your GroupMe token
+- A **Galaxy Watch 4 or newer** (or any watch with Wear OS 3 or newer).
+- **A computer** (Windows or Mac), only for installing the app one time.
+- Your computer and your watch on the **same Wi-Fi**.
+- **A phone** (any kind, even an iPhone) to sign in to GroupMe.
+- Your GroupMe email or phone number and password.
 
-Follow [Part 2](#part-2-get-your-groupme-token) below, but instead of copying
-the token, **write it down** or leave it open on your phone screen. You will
-type it into your watch.
+You only do Steps 1 to 5 once. After that it's just "Hey Google".
 
-### W2. Turn on "install apps" mode on your watch
+---
 
-You only do this once, to install the app.
+### Step 1: Download the files to your computer
 
-1. On your watch, open **Settings** > **About watch** > **Software information**.
-2. Tap **Software version** 5 times, until it says developer mode is on.
-3. Go back to **Settings**. Open the new **Developer options** at the bottom.
-4. Turn on **ADB debugging**.
-5. Turn on **Wireless debugging** and tap **Allow**. (Your watch must be on the
-   same Wi-Fi as your phone. Turn on Wi-Fi in **Settings** > **Connections** > **Wi-Fi**.)
+You need two downloads. Both are free.
 
-### W3. Install the app
+**A. The watch app**
 
-1. On your phone, open this page and tap the file to download it:
-   **[GroupMeVoice-watch.apk](https://github.com/peterchabs/groupme-voice-android/releases/latest/download/GroupMeVoice-watch.apk)**
-2. Open the **Play Store** on your phone and search **"Wear OS APK installer"**.
-   Install one of the free ones.
-3. Open it and follow its steps. It will ask for a **pairing code** and an
-   **IP address**. Find both on your watch in **Developer options** >
-   **Wireless debugging** > **Pair new device**.
-4. Choose the **GroupMeVoice-watch.apk** file you downloaded and tap **Install**.
+1. On your computer, open this link:
+   **https://github.com/peterchabs/groupme-voice-android/releases/latest**
+2. Scroll down to the **Assets** section.
+3. Click **GroupMeVoice-watch.apk**. It saves to your **Downloads** folder.
 
-**Have a computer?** Instead of steps 2 to 4, follow Google's guide to
-[installing an app over Wi-Fi](https://developer.android.com/training/wearables/get-started/debug-wifi),
-then run `adb install GroupMeVoice-watch.apk`.
+> Don't use the green **Code** button or **Download ZIP** on the main page.
+> That's the source code, not the app. You only need the one file above.
 
-**When it's installed:** go back to **Developer options** on your watch and
-turn **ADB debugging** off again. It's safer that way.
+**B. Google's free install tool ("Platform Tools")**
 
-### W4. Set it up
+1. Download the ZIP for your computer:
+   - **Windows:** https://dl.google.com/android/repository/platform-tools-latest-windows.zip
+   - **Mac:** https://dl.google.com/android/repository/platform-tools-latest-darwin.zip
+2. Open your **Downloads** folder and unzip it:
+   - **Windows:** right-click the ZIP, click **Extract All**, then **Extract**.
+   - **Mac:** double-click the ZIP.
+3. You now have a folder called **platform-tools**.
+4. **Move the watch app into that folder:** drag **GroupMeVoice-watch.apk**
+   into the **platform-tools** folder.
 
-1. On your watch, find **GroupMe Voice** in your apps and open it.
-2. Type your token. Take your time: every letter matters.
-3. Tap **Save**. It checks the token with GroupMe and shows how many groups it found.
+---
 
-### W5. Use it
+### Step 2: Turn on "install apps" mode on your watch
 
-Say **"Hey Google, open GroupMe Voice"** to your watch. When it starts
-listening, say:
+1. On your watch, open **Settings**.
+2. Scroll down and tap **About watch**, then **Software information**.
+3. Tap **Software version** about 7 times, until a message says developer mode is on.
+4. Go back to the main **Settings** screen. Scroll to the bottom and tap the
+   new **Developer options**.
+5. Turn on **ADB debugging**. Tap **OK** if asked.
+6. Make sure your watch is on Wi-Fi: **Settings** > **Connections** > **Wi-Fi**,
+   and pick the **same Wi-Fi network** your computer is on.
+7. Back in **Developer options**, tap **Wireless debugging** and turn it on.
+   Tap **Allow** if asked.
 
-> **[group name]** that says **[your message]**
+Keep your watch screen on the **Wireless debugging** page. You'll need it next.
 
-It shows who it's sending to for 3 seconds. Tap **Cancel** if it heard you
-wrong. Otherwise it sends, buzzes, and says **Sent**.
+---
 
-Tips:
+### Step 3: Open a command window inside the platform-tools folder
 
-- **Your watch uses Bixby instead?** Say "Hi Bixby, open GroupMe Voice", or
-  set Google as your assistant in the watch's **Settings** > **Buttons**.
-- **Want a shortcut button?** In **Settings** > **Buttons** > **Double press**,
-  pick **GroupMe Voice**. Now double-pressing the top button opens it.
-- Your watch needs internet: either connected to your phone by Bluetooth, or on Wi-Fi or LTE.
-- Need to change your token? In the app, tap **Settings**.
+**Windows**
+
+1. Open the **platform-tools** folder.
+2. Click once in the **address bar** at the top of the window (where it shows the folder path).
+3. Type `cmd` and press **Enter**. A black window opens. That's the command window.
+
+**Mac**
+
+1. Open **Terminal** (press **Command + Space**, type `Terminal`, press **Enter**).
+2. Type `cd ` (the letters c, d, and a space). Don't press Enter yet.
+3. Drag the **platform-tools** folder into the Terminal window, then press **Enter**.
+
+> **Mac users:** in the commands below, type `./adb` instead of `adb`.
+
+---
+
+### Step 4: Install the app on your watch
+
+**4a. Pair your computer with your watch**
+
+1. On your watch, on the **Wireless debugging** page, tap **Pair new device**.
+   It shows a **6-digit code** and an address like `192.168.1.23:41235`.
+2. In the command window, type `adb pair ` followed by **that address**, then press **Enter**. Example:
+
+   ```
+   adb pair 192.168.1.23:41235
+   ```
+
+3. When it asks for the pairing code, type the **6-digit code** from your watch and press **Enter**.
+4. You should see **"Successfully paired"**.
+
+**4b. Connect**
+
+1. On your watch, go back one screen to the main **Wireless debugging** page.
+   Under **IP address & port** it shows another address (the last number is different
+   from the pairing one).
+2. Type `adb connect ` followed by **that address**, then press **Enter**. Example:
+
+   ```
+   adb connect 192.168.1.23:38741
+   ```
+
+3. You should see **"connected to ..."**. If your watch asks **Allow debugging?**, tap **Allow**.
+
+**4c. Install**
+
+1. Type this and press **Enter**:
+
+   ```
+   adb install GroupMeVoice-watch.apk
+   ```
+
+2. Wait until it says **Success**. The app is now on your watch.
+
+**4d. Turn install mode back off (recommended)**
+
+On your watch, go to **Settings** > **Developer options** and turn off
+**Wireless debugging** and **ADB debugging**. The app stays installed.
+
+---
+
+### Step 5: Sign in to GroupMe
+
+1. On your watch, open your apps list and tap **GroupMe Voice** (the blue microphone).
+2. The watch shows a **QR code** and a **10-character code** like `K7Q2M-9XAPZ`.
+3. On your phone, open the **camera** and point it at the QR code on your watch.
+   Tap the link that pops up.
+   - Camera won't scan it? On your phone, go to
+     **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
+4. The page walks you through it:
+   1. Tap **Open GroupMe** and log in with your normal GroupMe account.
+   2. At the top right of that page, tap **Access Token**. (Don't see it? In your
+      browser menu, turn on **Desktop site**.)
+   3. Copy the long code it shows. This is your **token**. It works like a password,
+      so never share it with anyone.
+   4. Go back to the first tab, tap **Paste**, then tap **Send to my watch**.
+5. Within a few seconds your watch says **"Hi, [your name]!"** and how many groups it found.
+
+That's it. You're set up.
+
+---
+
+### Step 6: Use it
+
+1. Say **"Hey Google, open GroupMe Voice"** to your watch.
+   (Or just tap the app.)
+2. The first time only, it asks to use the microphone. Tap **Allow**.
+3. When the circle starts pulsing, say:
+
+   > **[group name]** that says **[your message]**
+
+   For example: **"Family that says I'm picking up pizza"**.
+4. Your words appear as you speak. Then it shows the group and your message,
+   and a ring counts down **3 seconds**.
+   - Heard you wrong? Tap **Cancel**. Nothing is sent.
+   - In a hurry? Tap **Send now**.
+5. A green check and a buzz mean it's **sent**.
+
+**What the screen shows:**
+
+| You see | It means |
+|---|---|
+| Blue circle with rings that grow when you talk | Listening |
+| Spinning ring | Working on it |
+| Ring that shrinks to nothing | Sending in a moment (tap Cancel to stop) |
+| Green circle with a check | Sent |
+| Red circle that shakes | Something's wrong. The words under it say what, and nothing was sent |
+
+**Tips**
+
+- You only need part of the group name. "Crew" finds "Weekend Crew".
+  If two groups match, it asks which one and **sends nothing**. It never guesses.
+- **"Hey Google" doesn't work?** Many Galaxy Watches come set to Bixby.
+  Try **"Hi Bixby, open GroupMe Voice"**, or install **Google Assistant** (or
+  **Gemini**) from the Play Store on your watch and make it your assistant.
+- **Want a button for it?** On many Galaxy Watches: **Settings** > **Advanced features** >
+  **Customize buttons** > **Double press** > pick **GroupMe Voice**.
+- Your watch needs internet, either through your phone (Bluetooth), Wi-Fi, or LTE.
+- To switch accounts or sign out, tap **Settings** in the app.
+
+---
+
+### Watch: something not working?
+
+| What happens | What to do |
+|---|---|
+| **"adb is not recognized"** or **"command not found"** | Your command window isn't in the platform-tools folder. Redo Step 3. On a Mac, type `./adb`, not `adb`. |
+| **"failed to connect"** or pairing fails | Check the watch and computer are on the same Wi-Fi. The addresses change each time you turn on Wireless debugging, so read them off the watch again. |
+| **"No such file"** when installing | The app file isn't in the platform-tools folder. Drag **GroupMeVoice-watch.apk** in there (Step 1, part B, step 4). |
+| The watch says **"That code expired"** | Codes last 10 minutes. Tap **Get a new code** and scan again. |
+| The page says **"That doesn't look like a GroupMe token"** | Copy the token again from dev.groupme.com. It's one long string of letters and numbers. |
+| **"Please sign in again"** | Your token changed (this happens if you change your GroupMe password). Tap **Sign in** and do Step 5 again. |
+| It can't find your group | Say more of the group's name, a little slower. |
 
 ---
 
@@ -281,9 +409,15 @@ Now "family that says hello" always goes to group 12345678.
 
 ## Is this safe?
 
-- Your token stays on your phone, in a file only Termux can read.
-- Nothing is sent anywhere except to GroupMe.
+- **Phone setup:** your token stays on your phone, in a file only Termux can read.
+- **Watch app:** your token is stored only inside the app on your watch. When you
+  sign in, the web page locks (encrypts) your token with the code shown on your
+  watch before sending it, and passes it through a free relay service
+  ([ntfy.sh](https://ntfy.sh)) that can't unlock it. The code never leaves your
+  phone and watch, and it expires after 10 minutes.
+- Your messages go only to GroupMe.
 - It can only post to groups you're already in, as you.
-- The code is all in [`groupme_send.py`](groupme_send.py) if you want to look.
+- All the code is here if you want to look: [`groupme_send.py`](groupme_send.py)
+  (phone), [`watch-app/`](watch-app/) (watch), [`docs/index.html`](docs/index.html) (sign-in page).
 
 This project is not made by or connected to GroupMe or Microsoft.
