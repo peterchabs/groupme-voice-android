@@ -32,12 +32,12 @@ final class Stage {
     Stage(Activity a) {
         this.a = a;
         int w = a.getResources().getDisplayMetrics().widthPixels;
-        int pad = (int) (w * 0.12f);
+        int pad = (int) (w * 0.11f);
 
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setGravity(Gravity.CENTER_HORIZONTAL);
-        col.setPadding(pad, (int) (w * 0.07f), pad, (int) (w * 0.2f));
+        col.setGravity(Gravity.CENTER); // middle of the circle is where a round screen is widest
+        col.setPadding(pad, (int) (w * 0.1f), pad, (int) (w * 0.1f));
 
         FrameLayout hero = new FrameLayout(a);
         orb = new OrbView(a);
@@ -45,15 +45,15 @@ final class Stage {
         qr = new ImageView(a);
         qr.setVisibility(View.GONE);
         qr.setAlpha(0f);
-        int orbSize = (int) (w * 0.3f), qrSize = (int) (w * 0.42f);
+        int orbSize = (int) (w * 0.24f), qrSize = (int) (w * 0.29f);
         hero.addView(orb, new FrameLayout.LayoutParams(orbSize, orbSize, Gravity.CENTER));
         hero.addView(qr, new FrameLayout.LayoutParams(qrSize, qrSize, Gravity.CENTER));
         col.addView(hero, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        title = text(col, 17, 0xFF262626, true);
-        sub = text(col, 13, 0xFF6B7680, false);
-        live = text(col, 15, 0xFF0A8FC4, false);
+        title = text(col, 15, 0xFF262626, true);
+        sub = text(col, 12, 0xFF6B7680, false);
+        live = text(col, 13, 0xFF0A8FC4, false);
         live.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.ITALIC));
         live.setVisibility(View.GONE);
 
@@ -62,13 +62,15 @@ final class Stage {
         col.addView(extra, full());
         actions = new LinearLayout(a);
         actions.setOrientation(LinearLayout.VERTICAL);
+        actions.setGravity(Gravity.CENTER_HORIZONTAL);
         col.addView(actions, full());
 
         scroll = new ScrollView(a);
         scroll.setFillViewport(true);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setBackgroundColor(0xFFFFFFFF);
-        scroll.addView(col);
+        scroll.addView(col, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.MATCH_PARENT));
         a.setContentView(scroll);
     }
 
@@ -76,14 +78,17 @@ final class Stage {
     Stage show(OrbView.Mode mode, String t, String s, Object... buttons) {
         gen++;
         if (orb.mode() != mode) orb.setMode(mode);
-        title.setTextSize(t != null && t.length() > 34 ? 14 : 17); // long titles shrink to fit the round screen
+        title.setTextSize(t != null && t.length() > 34 ? 13 : 15); // long titles shrink to fit the round screen
         swap(title, t);
         swap(sub, s);
         hide(live);
         extra.removeAllViews();
         actions.removeAllViews();
+        int count = buttons.length / 2;
+        // two buttons sit side by side (saves a row on the round screen); otherwise stacked
+        actions.setOrientation(count == 2 ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
         for (int i = 0; i + 1 < buttons.length; i += 2) {
-            addButton((String) buttons[i], (Runnable) buttons[i + 1], i == 0, i / 2);
+            addButton((String) buttons[i], (Runnable) buttons[i + 1], i == 0, i / 2, count == 2);
         }
         scroll.smoothScrollTo(0, 0);
         return this;
@@ -168,21 +173,33 @@ final class Stage {
                 .setInterpolator(EASE).start();
     }
 
-    private void addButton(String label, Runnable onTap, boolean primary, int index) {
+    private void addButton(String label, Runnable onTap, boolean primary, int index, boolean pair) {
         Button b = new Button(a);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(14);
+        b.setTextSize(13);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
         b.setTextColor(primary ? 0xFFFFFFFF : 0xFF00AFF0);
         b.setTypeface(Typeface.DEFAULT_BOLD);
         b.setBackground(Press.button(a, primary));
         b.setStateListAnimator(null);
-        int padV = (int) (a.getResources().getDisplayMetrics().density * 10);
-        b.setPadding(b.getPaddingLeft(), padV, b.getPaddingRight(), padV + (int) (a.getResources().getDisplayMetrics().density * 4));
+        int padV = (int) (a.getResources().getDisplayMetrics().density * 7);
+        int padH = (int) (a.getResources().getDisplayMetrics().density * 6);
+        b.setPadding(padH, padV, padH, padV + (int) (a.getResources().getDisplayMetrics().density * 4));
+        b.setSingleLine(true); // labels never wrap or break mid-word
         Press.attach(b);
         b.setOnClickListener(v -> onTap.run());
-        LinearLayout.LayoutParams lp = full();
-        lp.topMargin = (int) (a.getResources().getDisplayMetrics().density * 6);
+        // narrower than the screen so the pill's ends never meet the round edge
+        int sw = a.getResources().getDisplayMetrics().widthPixels;
+        float dp = a.getResources().getDisplayMetrics().density;
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                (int) (sw * (pair ? 0.35f : 0.62f)), LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = (int) (dp * 6);
+        if (pair) {
+            lp.leftMargin = (int) (dp * 2);
+            lp.rightMargin = (int) (dp * 2);
+        }
         actions.addView(b, lp);
         enter(b, index + 1);
     }
@@ -192,7 +209,7 @@ final class Stage {
         t.setTextSize(sp);
         t.setTextColor(color);
         t.setGravity(Gravity.CENTER);
-        t.setPadding(0, (int) (a.getResources().getDisplayMetrics().density * 4), 0, 0);
+        t.setPadding(0, (int) (a.getResources().getDisplayMetrics().density * 3), 0, 0);
         if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
         col.addView(t, full());
         return t;

@@ -66,10 +66,63 @@ public class ScreenshotTest {
         root.measure(View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, size, size);
+        java.util.List<String> bad = new java.util.ArrayList<>();
+        outside(root, root, size / 2f, bad);
         Bitmap b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         root.draw(new Canvas(b));
         try (FileOutputStream os = new FileOutputStream(new File(out, name + ".png"))) {
             b.compress(Bitmap.CompressFormat.PNG, 100, os);
+        }
+        if (!bad.isEmpty()) throw new AssertionError(name + ": past the round edge: " + bad);
+    }
+
+
+    /** Collects anything drawn outside the round screen (a circle filling the square). */
+    private static void outside(View v, View root, float r, java.util.List<String> bad) {
+        if (v.getVisibility() != View.VISIBLE || v.getAlpha() == 0f) return;
+        if (v instanceof android.view.ViewGroup && !(v instanceof OrbView)) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) outside(g.getChildAt(i), root, r, bad);
+            return;
+        }
+        float x = 0, y = 0;
+        for (View p = v; p != root && p != null; p = (View) p.getParent()) {
+            x += p.getLeft() - (p == v ? 0 : p.getScrollX());
+            y += p.getTop() - (p == v ? 0 : p.getScrollY());
+            if (!(p.getParent() instanceof View)) break;
+        }
+        float w = v.getWidth(), h = v.getHeight();
+        String label = v.getClass().getSimpleName();
+        if (v instanceof android.widget.TextView) {
+            label += " \"" + ((android.widget.TextView) v).getText() + "\"";
+        }
+        if (v instanceof android.widget.Button) {
+            float k = h / 2f; // pill ends are round
+            check(bad, label, r, x + k, y, x + w - k, y, x + k, y + h, x + w - k, y + h, x, y + k, x + w, y + k);
+        } else if (v instanceof android.widget.TextView && !(v instanceof android.widget.EditText)) {
+            android.widget.TextView t = (android.widget.TextView) v;
+            android.text.Layout l = t.getLayout();
+            if (l == null) return;
+            for (int i = 0; i < l.getLineCount(); i++) {
+                float lx = x + t.getTotalPaddingLeft(), ly = y + t.getTotalPaddingTop();
+                float a = lx + l.getLineLeft(i), b = lx + l.getLineRight(i);
+                float top = ly + l.getLineTop(i) + 4, bot = ly + l.getLineBottom(i) - 4;
+                check(bad, label + " line " + (i + 1), r, a, top, b, top, a, bot, b, bot);
+            }
+        } else if (v instanceof OrbView) {
+            float cx = x + w / 2f - r, cy = y + h / 2f - r;
+            if (Math.hypot(cx, cy) + w / 2f > r) bad.add(label);
+        } else if (w > 0 && h > 0) {
+            check(bad, label, r, x, y, x + w, y, x, y + h, x + w, y + h);
+        }
+    }
+
+    private static void check(java.util.List<String> bad, String label, float r, float... pts) {
+        for (int i = 0; i < pts.length; i += 2) {
+            if (Math.hypot(pts[i] - r, pts[i + 1] - r) > r - 2) {
+                bad.add(label);
+                return;
+            }
         }
     }
 
@@ -142,8 +195,8 @@ public class ScreenshotTest {
     @Test public void notSure() throws Exception {
         Activity a = main();
         Stage s = stageOf(a);
-        s.show(OrbView.Mode.ERROR, "Which one? Book Club or Book Club Planning. Say more of the name.",
-                "Nothing was sent.", "Try again", (Runnable) () -> { }, "Settings", (Runnable) () -> { });
+        s.show(OrbView.Mode.ERROR, "Which one: Book Club or Book Club Planning?",
+                "Say more of the name. Nothing was sent.", "Try again", (Runnable) () -> { }, "Settings", (Runnable) () -> { });
         advance(700);
         save(a, "6-which-one");
     }

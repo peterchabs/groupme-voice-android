@@ -243,7 +243,8 @@ public class MainActivity extends Activity {
     private void confirm(Phrase p, Phrase.Match m) {
         if (isFinishing()) return;
         if (m.group == null) {
-            showRetry(m.problem, "Nothing was sent.");
+            showRetry(m.problem, m.problem.startsWith("Which one")
+                    ? "Say more of the name. Nothing was sent." : "Nothing was sent.");
             return;
         }
         stage.show(OrbView.Mode.COUNTDOWN, "To " + m.group.name, "“" + p.text + "”",

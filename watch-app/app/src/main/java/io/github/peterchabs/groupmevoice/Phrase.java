@@ -95,12 +95,12 @@ public final class Phrase {
                 return new Match(null, "I couldn't find a group called \"" + spoken + "\".");
             }
             if (cands.size() > 1) { // never guess between two groups
-                StringBuilder sb = new StringBuilder("Which one? ");
+                StringBuilder sb = new StringBuilder("Which one: ");
                 for (int i = 0; i < Math.min(3, cands.size()); i++) {
                     if (i > 0) sb.append(" or ");
                     sb.append(byName.get(cands.get(i)).get(0).name);
                 }
-                return new Match(null, sb.append(". Say more of the name.").toString());
+                return new Match(null, sb.append("?").toString());
             }
             hits = byName.get(cands.get(0));
         }

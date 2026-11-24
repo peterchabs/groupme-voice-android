@@ -74,8 +74,7 @@ public class SetupActivity extends Activity {
         Bitmap code = qr(link.pageUrl());
         if (code != null) stage.showQr(code);
         stage.show(OrbView.Mode.BUSY, "Code: " + link.pretty(),
-                "Scan with your phone's camera, or enter the code at\npeterchabs.github.io/\ngroupme-voice-android",
-                "New code", (Runnable) this::startLink,
+                "Scan, or enter it at\npeterchabs.github.io/groupme-voice-android",
                 "Type token instead", (Runnable) () -> showTyping(null));
         final long started = System.currentTimeMillis();
         polling = bg.submit(() -> poll(link, started));
@@ -177,7 +176,7 @@ public class SetupActivity extends Activity {
 
     private Bitmap qr(String text) {
         try {
-            int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.42f);
+            int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.29f);
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.MARGIN, 2); // white border so phone cameras lock on
             BitMatrix m = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, hints);
