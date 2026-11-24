@@ -1,0 +1,4 @@
+token
+aliases.json
+*.txt
+__pycache__/
