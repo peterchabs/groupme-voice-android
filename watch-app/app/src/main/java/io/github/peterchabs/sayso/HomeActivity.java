@@ -926,6 +926,24 @@ public class HomeActivity extends Activity {
         showDraftButtons(null);
     }
 
+    /**
+     * A platform Button pads its text generously and insists on a minimum width, which cuts
+     * words like "Cancel" off in a half-width watch button. Small padding, one line, and the
+     * text shrinks a little rather than ever being cut.
+     */
+    private void fitButtonText(Button b) {
+        b.setPadding(px(4), 0, px(4), 0);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        b.setSingleLine(true);
+        b.setEllipsize(null);
+        float max = b.getTextSize() / getResources().getDisplayMetrics().scaledDensity;
+        b.setAutoSizeTextTypeUniformWithConfiguration(Math.max(8, (int) (max * 0.7f)), (int) Math.ceil(max), 1,
+                android.util.TypedValue.COMPLEX_UNIT_SP);
+    }
+
     /** Swaps the mic for small Cancel / Send buttons (or back, with null). */
     private void showDraftButtons(Runnable[] cancelSend) {
         draftButtons.removeAllViews();
@@ -944,6 +962,7 @@ public class HomeActivity extends Activity {
             b.setTextColor(i == 1 ? Color.WHITE : BLUE);
             b.setBackground(Press.button(this, i == 1));
             b.setStateListAnimator(null);
+            fitButtonText(b);
             Runnable r = cancelSend[i];
             b.setOnClickListener(v -> r.run());
             Press.attach(b);
@@ -2870,6 +2889,7 @@ public class HomeActivity extends Activity {
                 b.setTextColor(primary ? Color.WHITE : BLUE);
                 b.setBackground(Press.button(this, primary));
                 b.setStateListAnimator(null);
+                fitButtonText(b);
                 Runnable r = (Runnable) buttons[i + 1];
                 b.setOnClickListener(v -> r.run());
                 Press.attach(b);
