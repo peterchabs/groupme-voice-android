@@ -66,6 +66,35 @@ public final class Link {
         }
     }
 
+    /**
+     * Locks a token for the watch showing this code (the phone app's side of the hand-off).
+     * Same format as the sign-in page: base64(iv + AES-GCM("v1\n" + ms + "\n" + token)).
+     */
+    public String seal(String token, long nowMs) {
+        try {
+            byte[] iv = new byte[12];
+            new SecureRandom().nextBytes(iv);
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(sha256("gmv-key:" + code), "AES"),
+                    new GCMParameterSpec(128, iv));
+            byte[] ct = c.doFinal(("v1\n" + nowMs + "\n" + token).getBytes(StandardCharsets.UTF_8));
+            byte[] all = new byte[iv.length + ct.length];
+            System.arraycopy(iv, 0, all, 0, iv.length);
+            System.arraycopy(ct, 0, all, iv.length, ct.length);
+            return Base64.getEncoder().encodeToString(all);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** True for a well-formed watch code (10 characters from the alphabet). */
+    public static boolean valid(String s) {
+        String n = s == null ? "" : normalize(s);
+        if (n.length() != LENGTH) return false;
+        for (int i = 0; i < n.length(); i++) if (ALPHABET.indexOf(n.charAt(i)) < 0) return false;
+        return true;
+    }
+
     static byte[] sha256(String s) {
         try {
             return MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));

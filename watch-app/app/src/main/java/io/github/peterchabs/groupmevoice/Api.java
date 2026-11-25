@@ -200,6 +200,24 @@ final class Api {
         }
     }
 
+    /** Drops a locked sign-in on the relay topic for a watch to pick up (see Link.seal). */
+    static void relayPost(String topic, String payload) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(Link.RELAY + topic).openConnection();
+        try {
+            c.setRequestMethod("POST");
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(15000);
+            c.setDoOutput(true);
+            c.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(payload.getBytes(StandardCharsets.UTF_8));
+            }
+            if (c.getResponseCode() >= 300) throw new IOException("relay " + c.getResponseCode());
+        } finally {
+            c.disconnect();
+        }
+    }
+
     static void send(String token, String groupId, String text) throws IOException {
         send(token, groupId, text, null);
     }

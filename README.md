@@ -164,17 +164,21 @@ On your watch, go to **Settings** > **Developer options** and turn off
    Tap the link that pops up.
    - Camera won't scan it? On your phone, go to
      **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
-4. On the page, pick one of the two ways:
-   - **Sign in with GroupMe** (easiest): log in with your normal GroupMe account
-     and tap **Authorize**. *Note:* GroupMe sends you back to that page with your
-     sign-in in the web address, so GitHub, which hosts the page, receives it in
-     its normal logs. If it says **"invalid credentials"**, use the token
-     option. That GroupMe page is an older sign-in that rejects some accounts
-     even when the same login works in the GroupMe app.
-   - **Paste your token** (keeps it away from GitHub): follow the steps on the
-     page to copy your token from dev.groupme.com, then paste it.
-   - Either way, the page locks your sign-in with the code from your watch and
-     sends it over. You'll see a green check.
+4. On the page, pick one way:
+   - **Use the GroupMe Voice phone app** (easiest, needs the
+     [phone app](#android-phone-app) on your phone): the app opens and you log in on
+     GroupMe's own site inside it, with your normal email or phone number and
+     password. The app sends your sign-in to the watch by itself. If the phone app is
+     already signed in, just tap **Send to watch**. (No QR code handy? In the phone
+     app, tap **Settings**, then **Sign in a watch**, and type the code.)
+   - **Paste your token** (no phone app needed): follow the steps on the page to
+     copy your token from dev.groupme.com, then paste it and tap **Send to my watch**.
+   - **Sign in with GroupMe**: GroupMe's older sign-in page. It rejects some
+     accounts with **"invalid credentials"** even when the login is right, and it
+     returns through the GitHub-hosted page, so GitHub receives your sign-in in its
+     normal logs.
+   - Any way you pick, your sign-in is locked with the code from your watch before
+     it's sent, and only your watch can unlock it.
 5. Within a few seconds your watch says **"Hi, [your name]!"** and how many groups it found.
 
 That's it. You're set up.
@@ -558,7 +562,8 @@ GroupMe sign-in, your groups, or your messages.
 - **When you sign in**, you choose:
   - **Sign in with GroupMe (phone app)**: you log in on GroupMe's own site
     inside the app. Your password goes only to GroupMe, and the token goes
-    straight into the app. Nothing passes through GitHub or anyone else.
+    straight into the app. Nothing passes through GitHub. When the phone app
+    signs in a watch, it locks the token with the watch's code first.
   - **Web page sign-in**: GroupMe returns you to the sign-in page with your
     sign-in in the web address. That page is hosted on GitHub, so GitHub receives
     it in its normal web logs. The page then locks it right away and clears it

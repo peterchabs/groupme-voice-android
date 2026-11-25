@@ -46,6 +46,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="groupmevoice" android:host="signin" />
+                <!-- groupmevoice://watch?c=CODE: the page, opened from a watch's QR code, asks
+                     this phone app to sign that watch in. -->
+                <data android:scheme="groupmevoice" android:host="watch" />
             </intent-filter>
         </activity>
 

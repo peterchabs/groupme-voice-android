@@ -57,6 +57,12 @@ public class SetupActivity extends Activity {
     private boolean fromBrowser(Intent intent) {
         android.net.Uri u = intent == null ? null : intent.getData();
         if (u == null || !"groupmevoice".equals(u.getScheme())) return false;
+        if ("watch".equals(u.getHost())) { // the page, opened from a watch's QR code: sign that watch in
+            String c = u.getQueryParameter("c");
+            if (Link.valid(c)) startWatch(c);
+            else enterWatchCode("That watch code didn't come through. Type the code on your watch.");
+            return true;
+        }
         String code = Store.pendingCode(this);
         String payload = u.getQueryParameter("p");
         String token = code.isEmpty() || payload == null ? null : new Link(code).open(payload, System.currentTimeMillis());
@@ -81,17 +87,110 @@ public class SetupActivity extends Activity {
         stage.showOrb();
         String who = Store.name(this);
         Phrase.Group d = Store.defaultGroup(this);
-        stage.show(OrbView.Mode.DONE, who.isEmpty() ? "Signed in" : "Signed in as " + who,
-                "Default group: " + (d == null ? "none" : d.name) + "\nNot affiliated with GroupMe or Microsoft",
-                // no Back button: swiping right goes back on Wear OS, and four buttons don't fit
-                "Default group", (Runnable) this::pickDefault,
-                "Switch", (Runnable) this::startLink,
-                "Sign out", (Runnable) () -> {
-                    MainActivity.unsent = null;
-                    Store.clear(this);
-                    startLink();
-                });
+        String title = who.isEmpty() ? "Signed in" : "Signed in as " + who;
+        String body = "Default group: " + (d == null ? "none" : d.name) + "\nNot affiliated with GroupMe or Microsoft";
+        Runnable signOut = () -> {
+            MainActivity.unsent = null;
+            Store.clear(this);
+            startLink();
+        };
+        if (isWatch()) {
+            // no Back button: swiping right goes back on Wear OS, and four buttons don't fit
+            stage.show(OrbView.Mode.DONE, title, body,
+                    "Default group", (Runnable) this::pickDefault,
+                    "Switch", (Runnable) this::startLink,
+                    "Sign out", signOut);
+        } else {
+            stage.show(OrbView.Mode.DONE, title, body,
+                    "Default group", (Runnable) this::pickDefault,
+                    "Sign in a watch", (Runnable) () -> enterWatchCode(null),
+                    "Switch account", (Runnable) this::startLink,
+                    "Sign out", signOut);
+        }
         if (isWatch()) stage.hideHero(); // room for the not-affiliated line on a round screen
+    }
+
+    // ---------------- sign in a watch from the phone app ----------------
+
+    /** A watch waiting for this phone to sign it in (its 10-character code), or null. */
+    private String watchCode;
+
+    /** Type the code your watch shows (when you didn't come here from its QR code). */
+    private void enterWatchCode(String error) {
+        stage.showOrb();
+        EditText e = new EditText(this);
+        Press.field(e);
+        e.setHint("XXXXX-XXXXX");
+        e.setSingleLine(true);
+        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        stage.show(error == null ? OrbView.Mode.IDLE : OrbView.Mode.ERROR, "Sign in a watch",
+                error != null ? error : "Open GroupMe Voice on your watch and type the code it shows.",
+                "Next", (Runnable) () -> {
+                    String c = e.getText().toString();
+                    if (Link.valid(c)) startWatch(c);
+                    else enterWatchCode("Check the code. It's the 10 letters and numbers on your watch.");
+                },
+                "Back", (Runnable) this::backFromWatch).extra(e);
+    }
+
+    private void startWatch(String code) {
+        stopPolling();
+        watchCode = Link.normalize(code);
+        String pretty = new Link(watchCode).pretty();
+        stage.showOrb();
+        if (!Store.token(this).isEmpty()) {
+            String who = Store.name(this);
+            stage.show(OrbView.Mode.IDLE, "Sign in your watch?",
+                    "Sends " + (who.isEmpty() ? "your" : who + "'s") + " GroupMe sign-in to the watch showing "
+                            + pretty + ". It's locked so only that watch can open it.",
+                    "Send to watch", (Runnable) () -> sendToWatch(Store.token(this)),
+                    "Use another account", (Runnable) this::openDevSignIn,
+                    "Cancel", (Runnable) this::backFromWatch);
+        } else {
+            stage.show(OrbView.Mode.IDLE, "Sign in your watch",
+                    "Log in to GroupMe here on your phone. Your watch (" + pretty + ") finishes"
+                            + " signing in by itself, and this phone is signed in too."
+                            + "\n\nNot affiliated with GroupMe or Microsoft.",
+                    "Sign in with GroupMe", (Runnable) this::openDevSignIn,
+                    "Paste token instead", (Runnable) () -> showTyping(null),
+                    "Cancel", (Runnable) this::backFromWatch);
+        }
+    }
+
+    private void backFromWatch() {
+        watchCode = null;
+        if (Store.token(this).isEmpty()) startLink();
+        else showAccount();
+    }
+
+    /** Locks the token with the watch's code and drops it on the relay; the watch is polling for it. */
+    private void sendToWatch(String token) {
+        final String code = watchCode;
+        if (code == null) {
+            showAccount();
+            return;
+        }
+        stage.showOrb();
+        stage.show(OrbView.Mode.BUSY, "Sending to your watch", null);
+        bg.execute(() -> {
+            try {
+                Link link = new Link(code);
+                Api.relayPost(link.topic(), link.seal(token, System.currentTimeMillis()));
+                ui.post(() -> {
+                    watchCode = null;
+                    stage.show(OrbView.Mode.DONE, "Sent to your watch",
+                            "Your watch finishes signing in within a few seconds. If its code ran out,"
+                                    + " get a new one on the watch and try again.",
+                            "Done", (Runnable) this::showAccount);
+                });
+            } catch (IOException e) {
+                ui.post(() -> stage.show(OrbView.Mode.ERROR, "Couldn't send it",
+                        "Check your phone's internet connection.",
+                        "Try again", (Runnable) () -> sendToWatch(token),
+                        "Cancel", (Runnable) this::backFromWatch));
+            }
+        });
     }
 
     // ---------------- default group ----------------
@@ -268,7 +367,8 @@ public class SetupActivity extends Activity {
                 error != null ? error : isWatch() ? "From dev.groupme.com > Access Token. Every letter matters."
                         : "Copy it from dev.groupme.com > Access Token, then press and hold the box to paste.",
                 "Save", (Runnable) () -> verify(e.getText().toString().replaceAll("\\s+", "")),
-                isWatch() ? "Use my phone instead" : "Back", (Runnable) this::startLink).extra(e);
+                isWatch() ? "Use my phone instead" : "Back",
+                (Runnable) () -> { if (watchCode != null) startWatch(watchCode); else startLink(); }).extra(e);
     }
 
     // ---------------- check with GroupMe, then save ----------------
@@ -294,6 +394,10 @@ public class SetupActivity extends Activity {
                 Phrase.Group d = Store.defaultGroup(this);
                 if (d != null && groups.stream().noneMatch(g -> g.id.equals(d.id))) {
                     Store.setDefaultGroup(this, null); // a different account, or you left that group
+                }
+                if (watchCode != null) { // signed in on the phone to sign a watch in: send it on
+                    ui.post(() -> sendToWatch(token));
+                    return;
                 }
                 MainActivity.Unsent u = MainActivity.unsent;
                 if (u != null && !u.freshFor(me[0])) MainActivity.unsent = null; // someone else, or too old

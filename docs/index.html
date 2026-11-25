@@ -124,9 +124,19 @@
 
     <section class="card">
       <div class="step"><span class="num">2</span> Your GroupMe sign-in</div>
+      <div id="appBox">
+        <button id="useApp" class="wide" type="button">Use the GroupMe Voice phone app</button>
+        <p class="hint">Easiest. You log in to GroupMe in the phone app, right on GroupMe's own site,
+          and it signs your watch in. Your sign-in never touches GitHub.</p>
+        <p id="noApp" class="hint hidden"><b>Nothing opened?</b> Get the phone app first:
+          <a href="https://github.com/peterchabs/groupme-voice-android/releases/latest">download
+          GroupMeVoice-phone.apk</a>, install it, then come back and tap the button again.
+          Or use one of the ways below.</p>
+        <div class="or">or another way</div>
+      </div>
       <div id="oauthBox" class="hidden">
-        <button id="oauth" class="wide">Sign in with GroupMe</button>
-        <p class="hint">Easiest. GroupMe sends you back to this page with your sign-in in the web
+        <button id="oauth" class="wide ghost">Sign in with GroupMe</button>
+        <p class="hint">GroupMe sends you back to this page with your sign-in in the web
           address, so GitHub, which hosts this page, receives it in its normal logs. To avoid that,
           paste your token below instead. It's locked on this page and never reaches GitHub.</p>
         <p class="hint"><b>Says "invalid credentials"?</b> That GroupMe page is an older sign-in
@@ -256,6 +266,19 @@ $("paste").addEventListener("click", async () => {
   catch { $("token").focus(); say("Press and hold in the box, then tap Paste.", false); }
 });
 $("send").addEventListener("click", () => deliver($("code").value, $("token").value, phoneMode));
+
+// Watch QR code: the phone app logs in on GroupMe's site and signs the watch in.
+if (phoneMode) $("appBox").classList.add("hidden");
+$("useApp").addEventListener("click", () => {
+  const code = clean($("code").value);
+  if (!validCode(code)) { say("Enter the code from your watch first.", true); $("code").focus(); return; }
+  let left = false;
+  const away = () => { left = true; };
+  document.addEventListener("visibilitychange", away, { once: true });
+  window.addEventListener("pagehide", away, { once: true });
+  location.href = "groupmevoice://watch?c=" + code;
+  setTimeout(() => { if (!left && document.visibilityState === "visible") $("noApp").classList.remove("hidden"); }, 1600);
+});
 
 if (GROUPME_CLIENT_ID) {
   $("oauthBox").classList.remove("hidden");

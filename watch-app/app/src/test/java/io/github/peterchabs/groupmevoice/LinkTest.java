@@ -26,6 +26,22 @@ public class LinkTest {
         assertNull(new Link(CODE).open("", MADE_AT));
     }
 
+    @Test public void watchReadsWhatThePhoneAppSent() {
+        String token = "abcDEF1234567890abcdef1234567890";
+        String sealed = new Link(CODE).seal(token, MADE_AT);
+        assertEquals(token, new Link(CODE).open(sealed, MADE_AT + 3000));       // the right watch
+        assertNull(new Link("K7Q2M9XAPY").open(sealed, MADE_AT + 3000));         // any other watch
+        org.junit.Assert.assertNotEquals(sealed, new Link(CODE).seal(token, MADE_AT)); // fresh lock each time
+    }
+
+    @Test public void checksCodes() {
+        assertTrue(Link.valid("K7Q2M-9XAPZ"));
+        assertTrue(Link.valid("k7q2m9xapz"));
+        org.junit.Assert.assertFalse(Link.valid("K7Q2M-9XAP"));   // too short
+        org.junit.Assert.assertFalse(Link.valid("K7Q2M-9XAP0"));  // 0 isn't in the alphabet
+        org.junit.Assert.assertFalse(Link.valid(null));
+    }
+
     @Test public void newCodesLookRight() {
         Link l = Link.create();
         assertEquals(10, l.code.length());
