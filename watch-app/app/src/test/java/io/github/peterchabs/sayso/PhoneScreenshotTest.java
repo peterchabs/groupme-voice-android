@@ -1,4 +1,4 @@
-package io.github.peterchabs.groupmevoice;
+package io.github.peterchabs.sayso;
 
 import static org.junit.Assume.assumeTrue;
 

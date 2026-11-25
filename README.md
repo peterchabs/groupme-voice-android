@@ -1,16 +1,16 @@
-# GroupMe Voice
+# Say So
 
 > **Not affiliated with GroupMe or Microsoft.** This is an independent, free, open-source project. GroupMe is a trademark of Microsoft.
 
 Send a GroupMe message just by talking to your **Galaxy Watch** or **Android phone**.
 
-You say: **"Hey Google, open GroupMe Voice"**
+You say: **"Hey Google, open Say So"**
 It listens, and your words appear on screen as you talk:
 **"Weekend Crew that says I'm running 10 minutes late"**
 It shows who it's sending to, counts down 3 seconds (so you can cancel), then sends.
 
 <p align="center">
-  <img src="docs/images/watch-send-flow.png" alt="Galaxy Watch showing GroupMe Voice listening, counting down, then sent" width="760">
+  <img src="docs/images/watch-send-flow.png" alt="Galaxy Watch showing Say So listening, counting down, then sent" width="760">
 </p>
 <p align="center"><sub>Listening, then 3 seconds to cancel, then sent. These are the real app screens.</sub></p>
 
@@ -53,7 +53,7 @@ You need two downloads. Both are free.
 1. On your computer, open this link:
    **https://github.com/peterchabs/groupme-voice-android/releases/latest**
 2. Scroll down to the **Assets** section.
-3. Click **GroupMeVoice-watch.apk**. It saves to your **Downloads** folder.
+3. Click **SaySo-watch.apk**. It saves to your **Downloads** folder.
 
 > Don't use the green **Code** button or **Download ZIP** on the main page.
 > That's the source code, not the app. You only need the one file above.
@@ -67,7 +67,7 @@ You need two downloads. Both are free.
    - **Windows:** right-click the ZIP, click **Extract All**, then **Extract**.
    - **Mac:** double-click the ZIP.
 3. You now have a folder called **platform-tools**.
-4. **Move the watch app into that folder:** drag **GroupMeVoice-watch.apk**
+4. **Move the watch app into that folder:** drag **SaySo-watch.apk**
    into the **platform-tools** folder.
 
 ---
@@ -140,7 +140,7 @@ Keep your watch screen on the **Wireless debugging** page. You'll need it next.
 1. Type this and press **Enter**:
 
    ```
-   adb install GroupMeVoice-watch.apk
+   adb install SaySo-watch.apk
    ```
 
 2. Wait until it says **Success**. The app is now on your watch.
@@ -158,14 +158,14 @@ On your watch, go to **Settings** > **Developer options** and turn off
   <img src="docs/images/watch-sign-in.png" alt="Sign-in code on the watch, the signed-in screen, and the screen asking which group you meant" width="760">
 </p>
 
-1. On your watch, open your apps list and tap **GroupMe Voice** (the blue microphone).
+1. On your watch, open your apps list and tap **Say So** (the blue microphone).
 2. The watch shows a **QR code** and a **10-character code** like `K7Q2M-9XAPZ`.
 3. On your phone, open the **camera** and point it at the QR code on your watch.
    Tap the link that pops up.
    - Camera won't scan it? On your phone, go to
      **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
 4. On the page, pick one way:
-   - **Use the GroupMe Voice phone app** (easiest, needs the
+   - **Use the Say So phone app** (easiest, needs the
      [phone app](#android-phone-app) on your phone): the app opens and you log in on
      GroupMe's own site inside it, with your normal email or phone number and
      password. The app sends your sign-in to the watch by itself. If the phone app is
@@ -187,7 +187,7 @@ That's it. You're set up.
 
 ### Step 6: Use it
 
-1. Say **"Hey Google, open GroupMe Voice"** to your watch.
+1. Say **"Hey Google, open Say So"** to your watch.
    (Or just tap the app.) It starts listening as soon as it opens, so you can
    pause for a second and keep talking. "Hey Google" only opens the app; it
    can't take your message in the same breath.
@@ -202,6 +202,12 @@ That's it. You're set up.
    - Heard you wrong? Tap **Cancel**. Nothing is sent.
    - In a hurry? Tap **Send now**.
 5. A green check and a buzz mean it's **sent**.
+
+**If "Hey Google, open Say So" searches the web instead:** Google can be slow to
+find apps that weren't installed from the Play Store. Set a button to open it
+instead, which works every time: on the watch, open **Settings > Advanced
+features > Customize keys**, choose **Double press**, and pick **Say So**. Now
+double-press the side button and start talking.
 
 **What the screen shows:**
 
@@ -261,10 +267,10 @@ To turn it off, go to **Settings** > **Default group** > **No default**.
 - You only need part of the group name. "Crew" finds "Weekend Crew".
   If two groups match, it asks which one and **sends nothing**. It never guesses.
 - **"Hey Google" doesn't work?** Many Galaxy Watches come set to Bixby.
-  Try **"Hi Bixby, open GroupMe Voice"**, or install **Google Assistant** (or
+  Try **"Hi Bixby, open Say So"**, or install **Google Assistant** (or
   **Gemini**) from the Play Store on your watch and make it your assistant.
 - **Want a button for it?** On many Galaxy Watches: **Settings** > **Advanced features** >
-  **Customize buttons** > **Double press** > pick **GroupMe Voice**.
+  **Customize buttons** > **Double press** > pick **Say So**.
 - Your watch needs internet, either through your phone (Bluetooth), Wi-Fi, or LTE.
 - To switch accounts or sign out, tap **Settings** in the app. Swipe right to go back.
 
@@ -276,7 +282,7 @@ To turn it off, go to **Settings** > **Default group** > **No default**.
 |---|---|
 | **"adb is not recognized"** or **"command not found"** | Your command window isn't in the platform-tools folder. Redo Step 3. On a Mac, type `./adb`, not `adb`. |
 | **"failed to connect"** or pairing fails | Check the watch and computer are on the same Wi-Fi. The addresses change each time you turn on Wireless debugging, so read them off the watch again. |
-| **"No such file"** when installing | The app file isn't in the platform-tools folder. Drag **GroupMeVoice-watch.apk** in there (Step 1, part B, step 4). |
+| **"No such file"** when installing | The app file isn't in the platform-tools folder. Drag **SaySo-watch.apk** in there (Step 1, part B, step 4). |
 | The watch says **"That code expired"** | Codes last 10 minutes. Tap **Get a new code** and scan again. |
 | The page says **"That doesn't look like a GroupMe token"** | Copy the token again from dev.groupme.com. It's one long string of letters and numbers. |
 | **"GroupMe signed you out"** | Your token stopped working (it expired, or you changed your GroupMe password or reset your token). Tap **Sign in again** and do Step 5 again. If you were sending something, tap **Send it now** after signing in. |
@@ -291,7 +297,7 @@ The same app, for your phone. Free, and no computer needed. It opens as a card
 over whatever you're doing, then gets out of the way.
 
 <p align="center">
-  <img src="docs/images/phone-screens.png" alt="GroupMe Voice on an Android phone: sign-in, then listening, countdown and sent cards over the home screen" width="760">
+  <img src="docs/images/phone-screens.png" alt="Say So on an Android phone: sign-in, then listening, countdown and sent cards over the home screen" width="760">
 </p>
 <p align="center"><sub>Real app screens. The card slides up over your current app and closes itself after sending.</sub></p>
 
@@ -301,14 +307,14 @@ over whatever you're doing, then gets out of the way.
 
 1. On your phone, open this link:
    **https://github.com/peterchabs/groupme-voice-android/releases/latest**
-2. Scroll down to **Assets** and tap **GroupMeVoice-phone.apk**.
+2. Scroll down to **Assets** and tap **SaySo-phone.apk**.
 3. If your browser warns that the file might be harmful, tap **Download anyway**.
    (It warns about every app that doesn't come from the Play Store.)
 
 ### Step 2: Install it
 
 1. When the download finishes, tap **Open**. (Or open your **Files** app, go to
-   **Downloads**, and tap **GroupMeVoice-phone.apk**.)
+   **Downloads**, and tap **SaySo-phone.apk**.)
 2. If your phone says it isn't allowed to install apps from this source, tap
    **Settings**, turn on **Allow from this source**, then tap the back arrow.
 3. Tap **Install**.
@@ -345,9 +351,21 @@ you're back in.
 
 ### Step 4: Use it
 
-1. Say **"Hey Google, open GroupMe Voice"**. (Or tap the app.)
+1. Say **"Hey Google, open Say So"**. (Or tap the app.)
 2. The first time only, tap **Allow** so it can use the microphone.
 3. When the circle pulses, say **"[group name] that says [your message]"**.
+
+**If "Hey Google, open Say So" searches the web instead:** Google can be slow to
+find apps that weren't installed from the Play Store. These start Say So every
+time (set them up in the app under **Settings > Voice shortcuts**):
+
+- **Hold the power button:** make Say So your phone's assistant app, and holding
+  the power button (or swiping up from a bottom corner) opens it listening. This
+  replaces Google Assistant for that gesture.
+- **Quick Settings tile:** keep Google Assistant, and swipe down and tap
+  **Say So** instead.
+- **Galaxy phones:** open **Settings > Advanced features > Side button**, turn on
+  **Double press**, choose **Open app**, and pick **Say So**.
 
 Somewhere loud? If it says **"I didn't catch that"**, tap **Type it** and type
 what you'd say instead.
@@ -451,7 +469,7 @@ rm ~/.config/groupme-voice/token
 Open **Tasker**. If it shows a welcome or tips screen, tap through it.
 
 1. Tap the **TASKS** tab at the top.
-2. Tap the **+** button at the bottom. Type the name **GroupMe Voice** and tap the check mark.
+2. Tap the **+** button at the bottom. Type the name **Say So** and tap the check mark.
 
 Now add 3 steps. For each one, tap the **+** at the bottom of the screen.
 
@@ -486,12 +504,12 @@ example: **"Weekend Crew that says this is a test"**.
 
 1. In Tasker, tap the **3 dots** at the top right, then **Preferences**.
 2. Tap the **Misc** tab.
-3. Tap **App Shortcut Tasks** and pick **GroupMe Voice**.
-4. Now say: **"Hey Google, open GroupMe Voice"**
+3. Tap **App Shortcut Tasks** and pick **Say So**.
+4. Now say: **"Hey Google, open Say So"**
 
 If "Hey Google" doesn't start it, you can still use it with one tap:
 press and hold your home screen, tap **Widgets**, find **Tasker**, drag the
-**Task** widget onto your home screen, and pick **GroupMe Voice**.
+**Task** widget onto your home screen, and pick **Say So**.
 
 ---
 
@@ -585,7 +603,7 @@ GroupMe sign-in, your groups, or your messages.
 
 ## Not affiliated with GroupMe or Microsoft
 
-GroupMe Voice is an independent project. It is not made, endorsed, or supported by
+Say So is an independent project. It is not made, endorsed, or supported by
 GroupMe or Microsoft. GroupMe is a trademark of Microsoft Corporation, and the name
 is used here only to say which service the app works with. For help with your
 GroupMe account itself, contact GroupMe.

@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# One-time setup for GroupMe Voice. Run inside Termux:
+# One-time setup for Say So. Run inside Termux:
 #   curl -fsSL https://raw.githubusercontent.com/peterchabs/groupme-voice-android/main/install.sh | bash
 set -e
 

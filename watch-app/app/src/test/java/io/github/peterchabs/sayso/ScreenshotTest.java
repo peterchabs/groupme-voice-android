@@ -1,4 +1,4 @@
-package io.github.peterchabs.groupmevoice;
+package io.github.peterchabs.sayso;
 
 import static org.junit.Assume.assumeTrue;
 
@@ -192,7 +192,7 @@ public class ScreenshotTest {
         Stage s = stageOf(a);
         s.showOrb();
         s.show(OrbView.Mode.DONE, "Hi, Alex!",
-                "Found 12 groups. Now say \"Hey Google, open GroupMe Voice\".",
+                "Found 12 groups. Now say \"Hey Google, open Say So\".",
                 "Try it now", (Runnable) () -> { });
         advance(900);
         save(a, "5-signed-in");

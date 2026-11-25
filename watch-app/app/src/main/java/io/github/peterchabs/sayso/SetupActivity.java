@@ -1,4 +1,4 @@
-package io.github.peterchabs.groupmevoice;
+package io.github.peterchabs.sayso;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -53,10 +53,10 @@ public class SetupActivity extends Activity {
         fromBrowser(intent);
     }
 
-    /** groupmevoice://signin?p=... from the sign-in page: unlock it with our pending code. */
+    /** sayso://signin?p=... from the sign-in page: unlock it with our pending code. */
     private boolean fromBrowser(Intent intent) {
         android.net.Uri u = intent == null ? null : intent.getData();
-        if (u == null || !"groupmevoice".equals(u.getScheme())) return false;
+        if (u == null || !"sayso".equals(u.getScheme())) return false;
         if ("watch".equals(u.getHost())) { // the page, opened from a watch's QR code: sign that watch in
             String c = u.getQueryParameter("c");
             if (Link.valid(c)) startWatch(c);
@@ -103,11 +103,103 @@ public class SetupActivity extends Activity {
         } else {
             stage.show(OrbView.Mode.DONE, title, body,
                     "Default group", (Runnable) this::pickDefault,
+                    "Voice shortcuts", (Runnable) this::showShortcuts,
                     "Sign in a watch", (Runnable) () -> enterWatchCode(null),
                     "Switch account", (Runnable) this::startLink,
                     "Sign out", signOut);
         }
         if (isWatch()) stage.hideHero(); // room for the not-affiliated line on a round screen
+    }
+
+    // ---------------- voice shortcuts (phone) ----------------
+
+    /**
+     * Ways to start Say So that don't depend on Google Assistant finding the app by name
+     * (which it often can't for apps installed outside the Play Store).
+     */
+    private boolean onShortcuts;
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (onShortcuts) showShortcuts(); // back from Android's settings: show the new state
+    }
+
+    private void showShortcuts() {
+        onShortcuts = true;
+        stage.showOrb();
+        boolean isAssistant = isAssistantApp();
+        stage.show(OrbView.Mode.IDLE, "Voice shortcuts",
+                (isAssistant
+                        ? "Say So is your assistant app. Hold the power or home button (or swipe up"
+                        + " from a bottom corner) and it starts listening."
+                        : "Make Say So your assistant app, and holding the power or home button (or"
+                        + " swiping up from a bottom corner) opens it listening. This replaces Google"
+                        + " Assistant for that gesture.")
+                        + "\n\nOr keep Google Assistant and add the Quick Settings tile: swipe down, tap"
+                        + " Say So, talk.",
+                isAssistant ? "Assistant settings" : "Set as assistant", (Runnable) this::openAssistantSettings,
+                "Add the tile", (Runnable) this::addTile,
+                "Back", (Runnable) () -> {
+                    onShortcuts = false;
+                    showAccount();
+                });
+    }
+
+    private boolean isAssistantApp() {
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            android.app.role.RoleManager rm = getSystemService(android.app.role.RoleManager.class);
+            return rm != null && rm.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT);
+        }
+        String s = android.provider.Settings.Secure.getString(getContentResolver(), "assistant");
+        return s != null && s.startsWith(getPackageName() + "/");
+    }
+
+    private void openAssistantSettings() {
+        // The "Digital assistant app" picker. Not every phone has the direct screen, so fall back.
+        String[] actions = {"android.settings.VOICE_INPUT_SETTINGS",
+                android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
+                android.provider.Settings.ACTION_SETTINGS};
+        for (String a : actions) {
+            try {
+                startActivity(new Intent(a));
+                return;
+            } catch (android.content.ActivityNotFoundException ignored) {
+                // try the next one
+            }
+        }
+    }
+
+    private void addTile() {
+        android.content.ComponentName tile = new android.content.ComponentName(this, getPackageName() + ".VoiceTile");
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            android.app.StatusBarManager sb = getSystemService(android.app.StatusBarManager.class);
+            if (sb != null) {
+                sb.requestAddTileService(tile, getString(R.string.app_name),
+                        android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_fg),
+                        getMainExecutor(), result -> ui.post(() -> tileAdded(result)));
+                return;
+            }
+        }
+        tileHowTo();
+    }
+
+    private void tileAdded(int result) {
+        if (result == android.app.StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED
+                || result == android.app.StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED) {
+            stage.show(OrbView.Mode.DONE, "Tile added",
+                    "Swipe down from the top of the screen and tap Say So to talk.",
+                    "Done", (Runnable) this::showShortcuts);
+        } else {
+            tileHowTo();
+        }
+    }
+
+    private void tileHowTo() {
+        stage.show(OrbView.Mode.IDLE, "Add the tile yourself",
+                "Swipe down twice from the top of the screen, tap the pencil (Edit), and drag"
+                        + " Say So into your tiles.",
+                "Back", (Runnable) this::showShortcuts);
     }
 
     // ---------------- sign in a watch from the phone app ----------------
@@ -125,7 +217,7 @@ public class SetupActivity extends Activity {
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
         stage.show(error == null ? OrbView.Mode.IDLE : OrbView.Mode.ERROR, "Sign in a watch",
-                error != null ? error : "Open GroupMe Voice on your watch and type the code it shows.",
+                error != null ? error : "Open Say So on your watch and type the code it shows.",
                 "Next", (Runnable) () -> {
                     String c = e.getText().toString();
                     if (Link.valid(c)) startWatch(c);
@@ -414,7 +506,7 @@ public class SetupActivity extends Activity {
                                 });
                     } else {
                         stage.show(OrbView.Mode.DONE, hi,
-                                "Found " + groups.size() + " groups. Now say \"Hey Google, open GroupMe Voice\".",
+                                "Found " + groups.size() + " groups. Now say \"Hey Google, open Say So\".",
                                 "Try it now", (Runnable) () -> goMain(false));
                     }
                 });

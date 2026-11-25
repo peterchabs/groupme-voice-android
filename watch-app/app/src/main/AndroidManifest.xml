@@ -32,6 +32,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Lets you choose Say So as the phone's digital assistant app, so the
+                 assistant gesture (hold power or home, or swipe from a bottom corner) opens it
+                 listening. Works for any install; no Google lookup involved. -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <activity
@@ -45,10 +52,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="groupmevoice" android:host="signin" />
-                <!-- groupmevoice://watch?c=CODE: the page, opened from a watch's QR code, asks
+                <data android:scheme="sayso" android:host="signin" />
+                <!-- sayso://watch?c=CODE: the page, opened from a watch's QR code, asks
                      this phone app to sign that watch in. -->
-                <data android:scheme="groupmevoice" android:host="watch" />
+                <data android:scheme="sayso" android:host="watch" />
             </intent-filter>
         </activity>
 

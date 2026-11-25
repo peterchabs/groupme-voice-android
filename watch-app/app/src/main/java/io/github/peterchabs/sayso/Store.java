@@ -1,4 +1,4 @@
-package io.github.peterchabs.groupmevoice;
+package io.github.peterchabs.sayso;
 
 import android.content.Context;
 import android.content.SharedPreferences;

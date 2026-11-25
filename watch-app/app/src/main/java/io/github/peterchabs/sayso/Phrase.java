@@ -1,4 +1,4 @@
-package io.github.peterchabs.groupmevoice;
+package io.github.peterchabs.sayso;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

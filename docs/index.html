@@ -4,16 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Connect your watch</title>
-<meta name="description" content="Sign your GroupMe Voice watch app in to your GroupMe account.">
+<meta name="description" content="Sign your Say So watch app in to your GroupMe account.">
 <meta name="referrer" content="no-referrer">
 <meta property="og:type" content="website">
-<meta property="og:title" content="GroupMe Voice">
+<meta property="og:title" content="Say So">
 <meta property="og:description" content="Send GroupMe messages from your Galaxy Watch, just by talking.">
 <meta property="og:url" content="https://peterchabs.github.io/groupme-voice-android/">
 <meta property="og:image" content="https://peterchabs.github.io/groupme-voice-android/images/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="Three Galaxy Watches showing GroupMe Voice listening, counting down, and sent">
+<meta property="og:image:alt" content="Three Galaxy Watches showing Say So listening, counting down, and sent">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://peterchabs.github.io/groupme-voice-android/images/social-preview.png">
 <style>
@@ -114,7 +114,7 @@
 <main>
   <div id="form">
     <h1>Connect your watch</h1>
-    <p class="lead">This signs the GroupMe Voice app on your watch in to your GroupMe account.</p>
+    <p class="lead">This signs the Say So app on your watch in to your GroupMe account.</p>
 
     <section class="card">
       <div class="step"><span class="num">1</span> The code on your watch</div>
@@ -125,12 +125,12 @@
     <section class="card">
       <div class="step"><span class="num">2</span> Your GroupMe sign-in</div>
       <div id="appBox">
-        <button id="useApp" class="wide" type="button">Use the GroupMe Voice phone app</button>
+        <button id="useApp" class="wide" type="button">Use the Say So phone app</button>
         <p class="hint">Easiest. You log in to GroupMe in the phone app, right on GroupMe's own site,
           and it signs your watch in. Your sign-in never touches GitHub.</p>
         <p id="noApp" class="hint hidden"><b>Nothing opened?</b> Get the phone app first:
           <a href="https://github.com/peterchabs/groupme-voice-android/releases/latest">download
-          GroupMeVoice-phone.apk</a>, install it, then come back and tap the button again.
+          SaySo-phone.apk</a>, install it, then come back and tap the button again.
           Or use one of the ways below.</p>
         <div class="or">or another way</div>
       </div>
@@ -166,7 +166,7 @@
       <div id="status" role="status" aria-live="polite"></div>
     </section>
 
-    <p class="fine"><b>Not affiliated with GroupMe or Microsoft.</b> GroupMe Voice is an independent, open-source project.</p>
+    <p class="fine"><b>Not affiliated with GroupMe or Microsoft.</b> Say So is an independent, open-source project.</p>
     <p class="fine">Your token is locked with your watch's code before it leaves this page, and only your
       watch can unlock it. It's never stored here. <a href="https://github.com/peterchabs/groupme-voice-android">How it works</a></p>
   </div>
@@ -178,7 +178,7 @@
     </svg>
     <h1 style="margin-top:14px">Sent!</h1>
     <p class="lead" id="doneText" style="margin:0">Look at your watch. In a few seconds it will say hi to you by name.<br><br>You can close this page.</p>
-    <a id="backToApp" class="btn wide hidden" style="margin-top:18px">Open GroupMe Voice</a>
+    <a id="backToApp" class="btn wide hidden" style="margin-top:18px">Open Say So</a>
   </section>
 </main>
 
@@ -230,7 +230,7 @@ async function deliver(code, token, phone) {
     const { topic, payload } = await seal(code, token);
     if (phone) {
       // Same phone as the app: hand the locked sign-in straight back to it.
-      const back = "groupmevoice://signin?p=" + encodeURIComponent(payload);
+      const back = "sayso://signin?p=" + encodeURIComponent(payload);
       fetch(RELAY + topic, { method: "POST", body: payload }).catch(() => {}); // backup route
       $("token").value = "";
       $("form").classList.add("hidden");
@@ -276,7 +276,7 @@ $("useApp").addEventListener("click", () => {
   const away = () => { left = true; };
   document.addEventListener("visibilitychange", away, { once: true });
   window.addEventListener("pagehide", away, { once: true });
-  location.href = "groupmevoice://watch?c=" + code;
+  location.href = "sayso://watch?c=" + code;
   setTimeout(() => { if (!left && document.visibilityState === "visible") $("noApp").classList.remove("hidden"); }, 1600);
 });
 

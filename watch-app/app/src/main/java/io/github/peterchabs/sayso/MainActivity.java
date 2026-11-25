@@ -1,4 +1,4 @@
-package io.github.peterchabs.groupmevoice;
+package io.github.peterchabs.sayso;
 
 import android.Manifest;
 import android.app.Activity;
@@ -23,7 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * "Hey Google, open GroupMe Voice" lands here. It listens right away, with the orb reacting
+ * "Hey Google, open Say So" lands here. It listens right away, with the orb reacting
  * to your voice and your words appearing as you say them. It reads "[group] that says
  * [message]", shows who it's sending to while a ring counts down 3 seconds (tap Cancel to
  * stop), then sends.
@@ -70,7 +70,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent); // "Hey Google, open GroupMe Voice" while already open
+        super.onNewIntent(intent); // "Hey Google, open Say So" while already open
         cancelPending();
         if (!Store.token(this).isEmpty() && !resend(intent)) begin();
     }

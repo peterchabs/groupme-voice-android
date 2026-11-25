@@ -1,4 +1,4 @@
-package io.github.peterchabs.groupmevoice;
+package io.github.peterchabs.sayso;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;

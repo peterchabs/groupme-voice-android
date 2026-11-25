@@ -6,17 +6,17 @@ plugins {
 def ks = System.getenv("KEYSTORE_FILE")
 
 android {
-    namespace 'io.github.peterchabs.groupmevoice'
+    namespace 'io.github.peterchabs.sayso'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'io.github.peterchabs.groupmevoice'
+        applicationId 'io.github.peterchabs.sayso'
         targetSdk 34
         versionCode Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
         versionName System.getenv("VERSION_NAME") ?: "1.0"
     }
 
-    // One codebase, two apps: GroupMeVoice-watch.apk and GroupMeVoice-phone.apk
+    // One codebase, two apps: SaySo-watch.apk and SaySo-phone.apk
     flavorDimensions = ["device"]
     productFlavors {
         watch {
