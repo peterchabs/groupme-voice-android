@@ -168,7 +168,9 @@ On your watch, go to **Settings** > **Developer options** and turn off
    - **Sign in with GroupMe** (easiest): log in with your normal GroupMe account
      and tap **Authorize**. *Note:* GroupMe sends you back to that page with your
      sign-in in the web address, so GitHub, which hosts the page, receives it in
-     its normal logs.
+     its normal logs. If it says **"invalid credentials"** and you log in to
+     GroupMe with Microsoft, Apple, Google or Facebook, use the token option.
+     That GroupMe page only takes an email and password.
    - **Paste your token** (keeps it away from GitHub): follow the steps on the
      page to copy your token from dev.groupme.com, then paste it.
    - Either way, the page locks your sign-in with the code from your watch and
@@ -318,6 +320,9 @@ The app gives you two ways. Pick either one:
   account, and tap **Authorize**. Your phone brings you right back to the app.
   *Note:* GroupMe sends you back through a sign-in page hosted on GitHub, with
   your sign-in in the web address, so GitHub receives it in its normal logs.
+  If it says **"invalid credentials"** and you log in to GroupMe with Microsoft,
+  Apple, Google or Facebook, use the token option. That GroupMe page only takes
+  an email and password.
 - **Paste token instead** (keeps it away from GitHub): in your browser, go to
   **dev.groupme.com**, log in, tap **Access Token**, and copy the long code.
   Back in the app, press and hold the box, tap **Paste**, then **Save**.
