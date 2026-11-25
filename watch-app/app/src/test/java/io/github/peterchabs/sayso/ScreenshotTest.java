@@ -225,6 +225,22 @@ public class ScreenshotTest {
         save(a, "15-no-voice");
     }
 
+    @Test public void micUnavailable() throws Exception {
+        Activity a = main();
+        java.lang.reflect.Field f = MainActivity.class.getDeclaredField("listening");
+        f.setAccessible(true);
+        f.setBoolean(a, true);
+        java.lang.reflect.Field r = MainActivity.class.getDeclaredField("rec");
+        r.setAccessible(true);
+        Class<?> lc = Class.forName("io.github.peterchabs.sayso.MainActivity$Listener");
+        java.lang.reflect.Constructor<?> k = lc.getDeclaredConstructor(MainActivity.class);
+        k.setAccessible(true);
+        android.speech.RecognitionListener l = (android.speech.RecognitionListener) k.newInstance(a);
+        l.onError(android.speech.SpeechRecognizer.ERROR_AUDIO);
+        advance(700);
+        save(a, "16-mic-unavailable");
+    }
+
     @Test public void typeIt() throws Exception {
         Activity a = main();
         java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod("showTyping", String.class);

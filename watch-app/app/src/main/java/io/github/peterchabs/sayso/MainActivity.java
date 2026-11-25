@@ -178,6 +178,14 @@ public class MainActivity extends Activity {
                 case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
                     showRetry("No connection", "Check that your watch is connected to your phone or Wi-Fi.");
                     break;
+                case SpeechRecognizer.ERROR_AUDIO:
+                    resetRecognizer();
+                    stage.show(OrbView.Mode.ERROR, "Can't hear the mic",
+                            Stage.isWatchBuild() ? "Another app may be using it. Try again, or type it."
+                                    : "Another app may be using the microphone. Try again, or type it.",
+                            "Try again", (Runnable) MainActivity.this::begin,
+                            "Type it", (Runnable) () -> showTyping(null));
+                    break;
                 case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
                 case SpeechRecognizer.ERROR_CLIENT:
                     resetRecognizer(); // a stuck recognizer: start fresh next time
