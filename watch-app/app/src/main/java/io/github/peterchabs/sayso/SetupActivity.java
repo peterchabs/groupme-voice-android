@@ -37,13 +37,28 @@ public class SetupActivity extends Activity {
     private final ExecutorService bg = Executors.newSingleThreadExecutor();
     private Stage stage;
     private Future<?> polling;
+    /** Waiting on the relay gets its own threads, so a slow, stale wait never holds up a new one. */
+    private final ExecutorService waiters = Executors.newCachedThreadPool();
+    /** The code the watch is listening for right now; any wait for another code just ends. */
+    private volatile Link waitingFor;
+
+    /** Opened from the Chats settings panel: "default", "shortcuts" or "watch". */
+    static final String EXTRA_OPEN = "open";
+    /** Back (or finishing) returns to Chats instead of the talk screen. */
+    static final String EXTRA_FROM_HOME = "from_home";
+    private boolean fromHome;
 
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         stage = new Stage(this);
         if (fromBrowser(getIntent())) return;
+        fromHome = getIntent().getBooleanExtra(EXTRA_FROM_HOME, false);
+        String open = getIntent().getStringExtra(EXTRA_OPEN);
         if (Store.token(this).isEmpty()) startLink();
+        else if ("default".equals(open)) pickDefault();
+        else if ("shortcuts".equals(open) && !isWatch()) showShortcuts();
+        else if ("watch".equals(open) && !isWatch()) enterWatchCode(null);
         else showAccount();
     }
 
@@ -63,21 +78,13 @@ public class SetupActivity extends Activity {
             else enterWatchCode("That watch code didn't come through. Type the code on your watch.");
             return true;
         }
-        String code = Store.pendingCode(this);
-        String payload = u.getQueryParameter("p");
-        String token = code.isEmpty() || payload == null ? null : new Link(code).open(payload, System.currentTimeMillis());
-        if (token == null) {
-            stage.show(OrbView.Mode.ERROR, "That sign-in didn't work", "Please try again.",
-                    "Try again", (Runnable) this::startLink);
-        } else {
-            verify(token);
-        }
-        return true;
+        return false; // the only other link was GroupMe's older sign-in page, which is gone
     }
 
     @Override
     protected void onDestroy() {
         stopPolling();
+        waiters.shutdownNow();
         bg.shutdownNow();
         super.onDestroy();
     }
@@ -92,6 +99,7 @@ public class SetupActivity extends Activity {
         Runnable signOut = () -> {
             MainActivity.unsent = null;
             Store.clear(this);
+            PushService.sync(this); // signed out: stop listening
             startLink();
         };
         if (isWatch()) {
@@ -278,8 +286,10 @@ public class SetupActivity extends Activity {
                             "Done", (Runnable) this::showAccount);
                 });
             } catch (IOException e) {
+                boolean busy = e instanceof Api.BusyException;
                 ui.post(() -> stage.show(OrbView.Mode.ERROR, "Couldn't send it",
-                        "Check your phone's internet connection.",
+                        busy ? "The sign-in relay is busy right now. Wait a minute, then try again."
+                                : "Check your phone's internet connection.",
                         "Try again", (Runnable) () -> sendToWatch(token),
                         "Cancel", (Runnable) this::backFromWatch));
             }
@@ -330,6 +340,11 @@ public class SetupActivity extends Activity {
 
     private void choose(Phrase.Group g) {
         Store.setDefaultGroup(this, g);
+        if (fromHome) { // back to Chats, which shows the new default in its settings panel
+            finish();
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+            return;
+        }
         stage.show(OrbView.Mode.DONE, g == null ? "No default group" : "Default: " + g.name,
                 g == null ? "Say a group before each message." : "Now just say your message.",
                 "Talk now", (Runnable) () -> goMain(false),
@@ -339,7 +354,10 @@ public class SetupActivity extends Activity {
     /** Back (or a swipe on the watch) from Settings returns to talking instead of closing the app. */
     @Override
     public void onBackPressed() {
-        if (!Store.token(this).isEmpty()) goMain(false);
+        if (fromHome && !Store.token(this).isEmpty()) {
+            finish();
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        } else if (!Store.token(this).isEmpty()) goMain(false);
         else super.onBackPressed();
     }
 
@@ -359,8 +377,7 @@ public class SetupActivity extends Activity {
                             + " stays on this phone."
                             + "\n\nNot affiliated with GroupMe or Microsoft.",
                     "Sign in with GroupMe", (Runnable) this::openDevSignIn,
-                    "Paste token instead", (Runnable) () -> showTyping(null),
-                    "Web page sign-in", (Runnable) () -> showWebPageNote(link));
+                    "Paste token instead", (Runnable) () -> showTyping(null));
             return;
         }
         Bitmap code = qr(link.pageUrl());
@@ -369,7 +386,8 @@ public class SetupActivity extends Activity {
                 "Scan, or enter it at\npeterchabs.github.io/groupme-voice-android",
                 "Type token instead", (Runnable) () -> showTyping(null));
         final long started = System.currentTimeMillis();
-        polling = bg.submit(() -> poll(link, started));
+        waitingFor = link;
+        polling = waiters.submit(() -> poll(link, started));
     }
 
     private static final int REQ_DEV = 41;
@@ -388,46 +406,42 @@ public class SetupActivity extends Activity {
         // cancelled: the sign-in choices are still on screen
     }
 
-    /** The older way, kept as a last choice: GroupMe's sign-in page, returning through GitHub. */
-    private void showWebPageNote(Link link) {
-        stage.show(OrbView.Mode.IDLE, "Web page sign-in",
-                "Uses GroupMe's older sign-in page, which rejects some accounts with \"invalid"
-                        + " credentials\". It returns through a page hosted on GitHub, which receives"
-                        + " your sign-in in its logs.",
-                "Open it", (Runnable) () -> {
-                    openPage(link);
-                    final long started = System.currentTimeMillis();
-                    stopPolling();
-                    polling = bg.submit(() -> poll(link, started)); // backup if the browser doesn't return
-                },
-                "Back", (Runnable) this::startLink);
-    }
-
     private void poll(Link link, long started) {
         long sinceSec = started / 1000 - 5;
-        while (!Thread.currentThread().isInterrupted()) {
+        while (waitingFor == link) {
             if (System.currentTimeMillis() - started > CODE_LIFE_MS) {
                 ui.post(() -> {
+                    if (waitingFor != link) return; // the screen moved on
+                    waitingFor = null;
                     stage.showOrb();
                     stage.show(OrbView.Mode.ERROR, "That code expired", "Codes last 10 minutes.",
                             "Get a new code", (Runnable) this::startLink);
                 });
                 return;
             }
+            long pause = POLL_MS;
             try {
-                List<String> msgs = Api.relayMessages(link.topic(), sinceSec);
+                long left = CODE_LIFE_MS - (System.currentTimeMillis() - started);
+                List<String> msgs = Api.relayWait(link.topic(), sinceSec, Math.min(50000, Math.max(1000, left)));
                 for (int i = msgs.size() - 1; i >= 0; i--) { // newest first
                     String token = link.open(msgs.get(i), System.currentTimeMillis());
                     if (token != null) {
-                        ui.post(() -> verify(token));
+                        ui.post(() -> {
+                            if (waitingFor != link) return;
+                            waitingFor = null;
+                            verify(token);
+                        });
                         return;
                     }
                 }
+            } catch (Api.BusyException e) {
+                pause = 15000; // the relay is limiting this address: back off, then wait again
             } catch (IOException ignored) {
-                // relay hiccup or no connection yet: keep waiting
+                // relay hiccup, no connection yet, or stopPolling closed it: the loop check decides
             }
+            if (waitingFor != link) return;
             try {
-                Thread.sleep(POLL_MS);
+                Thread.sleep(pause);
             } catch (InterruptedException e) {
                 return;
             }
@@ -438,15 +452,9 @@ public class SetupActivity extends Activity {
         return Stage.isWatchBuild();
     }
 
-    private void openPage(Link link) {
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link.phoneUrl())));
-        } catch (android.content.ActivityNotFoundException e) {
-            showTyping("No web browser found. Type your token instead.");
-        }
-    }
-
     private void stopPolling() {
+        waitingFor = null;
+        Api.abortRelayWait(); // close the open connection now instead of when it next hears something
         if (polling != null) {
             polling.cancel(true);
             polling = null;
@@ -468,8 +476,9 @@ public class SetupActivity extends Activity {
                 error != null ? error : isWatch() ? "From dev.groupme.com > Access Token. Every letter matters."
                         : "Copy it from dev.groupme.com > Access Token, then press and hold the box to paste.",
                 "Save", (Runnable) () -> verify(e.getText().toString().replaceAll("\\s+", "")),
-                isWatch() ? "Use my phone instead" : "Back",
+                isWatch() ? "Use my phone" : "Back",
                 (Runnable) () -> { if (watchCode != null) startWatch(watchCode); else startLink(); }).extra(e);
+        if (isWatch()) stage.hideHero(); // the field and both buttons fit the circle without the icon
     }
 
     // ---------------- check with GroupMe, then save ----------------
@@ -490,6 +499,7 @@ public class SetupActivity extends Activity {
                 Store.setToken(this, token);
                 Store.setName(this, name);
                 Store.setMyId(this, me[0]);
+                Store.setAvatar(this, me[2]);
                 Store.setPendingCode(this, ""); // one-time code is used up
                 Store.saveGroups(this, groups);
                 Phrase.Group d = Store.defaultGroup(this);

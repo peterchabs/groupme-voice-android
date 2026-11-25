@@ -2,4 +2,10 @@
 <resources>
     <!-- Watch: full screen, like any watch app. -->
     <style name="Theme.GMV.Voice" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
+    <!-- Chats move sideways between the list, a chat and a photo, so the system's
+         swipe-right-to-close would fight them. Back is a swipe right on the list. -->
+    <style name="Theme.GMV.Chats" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowSwipeToDismiss">false</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
 </resources>

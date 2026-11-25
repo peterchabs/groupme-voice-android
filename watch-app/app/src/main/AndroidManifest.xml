@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- new-message notifications (only when switched on in Chats settings) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <intent>
@@ -58,6 +63,29 @@
                 <data android:scheme="sayso" android:host="watch" />
             </intent-filter>
         </activity>
+
+        <!-- New-message notifications: GroupMe's live feed, kept open while they're on. -->
+        <service
+            android:name=".PushService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+        <receiver android:name=".ReplyReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Chats: groups, DMs, messages with photos and videos, and a mic in each chat.
+             It handles its own sideways swipes, so the watch's swipe-to-close is off here. -->
+        <activity
+            android:name=".HomeActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.GMV.Chats"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- Phone sign-in: GroupMe's developer site inside the app (see DevSignInActivity). -->
         <activity

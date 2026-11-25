@@ -36,6 +36,7 @@ final class Stage {
 
     Stage(Activity a) {
         this.a = a;
+        Palette.apply(a); // light or dark, from settings
         float dp = a.getResources().getDisplayMetrics().density;
         watch = isWatchBuild();
         // On a phone the voice screen is a card over your current app, so size it like one.
@@ -65,9 +66,9 @@ final class Stage {
         col.addView(hero, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        title = text(col, 15, 0xFF262626, true);
-        sub = text(col, 12, 0xFF6B7680, false);
-        live = text(col, 13, 0xFF0A8FC4, false);
+        title = text(col, 15, Palette.INK, true);
+        sub = text(col, 12, Palette.SUB, false);
+        live = text(col, 13, Palette.LIVE, false);
         live.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.ITALIC));
         live.setVisibility(View.GONE);
 
@@ -83,7 +84,7 @@ final class Stage {
         scroll.setVerticalScrollBarEnabled(false);
         if (!card) {
             scroll.setFillViewport(true);
-            scroll.setBackgroundColor(0xFFFFFFFF);
+            scroll.setBackgroundColor(Palette.BG);
             scroll.addView(col, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT,
                     ScrollView.LayoutParams.MATCH_PARENT));
             a.setContentView(scroll);
@@ -91,7 +92,7 @@ final class Stage {
         }
         // Phone: a white card that slides up from the bottom; your app stays visible above it.
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xFFFFFFFF);
+        bg.setColor(Palette.CARD);
         float r = 26 * dp;
         bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
         scroll.setBackground(bg);

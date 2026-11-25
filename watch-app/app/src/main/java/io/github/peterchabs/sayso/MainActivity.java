@@ -55,7 +55,21 @@ public class MainActivity extends Activity {
             openSetup();
             return;
         }
-        if (!resend(getIntent())) begin();
+        if (!resend(getIntent()) && !talkInChat()) begin();
+    }
+
+    /**
+     * With a default group, talking happens right in that group's chat (Chats screen): you see the
+     * conversation and your words type out in a bubble as you speak.
+     */
+    private boolean talkInChat() {
+        if (Store.defaultGroup(this) == null) return false;
+        startActivity(new Intent(this, HomeActivity.class)
+                .putExtra(HomeActivity.EXTRA_VOICE, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        finish();
+        return true;
     }
 
     /** Back from signing in again: count down the message that didn't go out, same as before. */
@@ -72,7 +86,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); // "Hey Google, open Say So" while already open
         cancelPending();
-        if (!Store.token(this).isEmpty() && !resend(intent)) begin();
+        if (!Store.token(this).isEmpty() && !resend(intent) && !talkInChat()) begin();
     }
 
     @Override
@@ -80,7 +94,7 @@ public class MainActivity extends Activity {
         if (listening && rec != null) {
             listening = false;
             rec.cancel();
-            stage.show(OrbView.Mode.IDLE, "Tap to talk", null, "Settings", (Runnable) this::openSetup);
+            stage.show(OrbView.Mode.IDLE, "Tap to talk", null, "Chats", (Runnable) this::openChats);
         }
         super.onStop(); // a countdown keeps going if the screen dims; Cancel or Back stops it
     }
@@ -93,6 +107,26 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    /** Every group and DM, with their messages (HomeActivity). */
+    private void openChats() {
+        cancelPending();
+        startActivity(new Intent(this, HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        finish();
+    }
+
+    /** A watch's extra (programmable) buttons: press to talk, press again to finish. */
+    @Override
+    public boolean onKeyDown(int code, android.view.KeyEvent e) {
+        if ((code == android.view.KeyEvent.KEYCODE_STEM_1 || code == android.view.KeyEvent.KEYCODE_STEM_2
+                || code == android.view.KeyEvent.KEYCODE_STEM_3) && e.getRepeatCount() == 0) {
+            if (listening && rec != null) rec.stopListening();
+            else begin();
+            return true;
+        }
+        return super.onKeyDown(code, e);
+    }
+
     private void openSetup() {
         startActivity(new Intent(this, SetupActivity.class));
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
@@ -103,6 +137,7 @@ public class MainActivity extends Activity {
 
     private void begin() {
         cancelPending();
+        autoRetried = false; // each tap of Try again gets its own quiet retry
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             stage.show(OrbView.Mode.IDLE, "Allow the microphone", "So I can hear your message.");
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
@@ -130,19 +165,29 @@ public class MainActivity extends Activity {
             rec = SpeechRecognizer.createSpeechRecognizer(this);
             rec.setRecognitionListener(new Listener());
         }
-        stage.show(OrbView.Mode.LISTEN, "Listening", hint());
+        ready = false;
+        if (!quietRetry) stage.show(OrbView.Mode.LISTEN, "Listening", hint(), "Chats", (Runnable) this::openChats);
+        quietRetry = false;
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                // punctuation and capitals from the speech service itself (Android 13+)
+                .putExtra("android.speech.extra.ENABLE_FORMATTING", "quality")
+                // say it how you said it: no "f***" masking
+                .putExtra("android.speech.extra.PROFANITY_FILTER", false)
+                .putExtra("android.speech.extra.MASK_OFFENSIVE_WORDS", false)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
         listening = true;
         rec.startListening(i);
     }
 
+    /** Set once the speech service has the mic open; a refusal before that gets one quiet retry. */
+    private boolean ready, autoRetried, quietRetry;
+
     private final class Listener implements RecognitionListener {
-        @Override public void onReadyForSpeech(Bundle b) { }
-        @Override public void onBeginningOfSpeech() { }
+        @Override public void onReadyForSpeech(Bundle b) { ready = true; }
+        @Override public void onBeginningOfSpeech() { ready = true; }
         @Override public void onBufferReceived(byte[] b) { }
         @Override public void onEvent(int t, Bundle b) { }
 
@@ -163,12 +208,25 @@ public class MainActivity extends Activity {
             listening = false;
             String heard = first(b);
             if (heard == null) didntCatch();
-            else handle(heard);
+            else {
+                spoken = true;
+                handle(heard);
+            }
         }
 
         @Override public void onError(int code) {
             if (!listening) return; // some watches report a late error after results
             listening = false;
+            if (!ready && !autoRetried && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
+                    && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+                // refused before the mic even opened (the last listen hadn't let go): start once
+                // more with a fresh recognizer, so one tap of Try again is enough
+                autoRetried = true;
+                resetRecognizer();
+                quietRetry = true;
+                getWindow().getDecorView().postDelayed(MainActivity.this::listen, 350);
+                return;
+            }
             switch (code) {
                 case SpeechRecognizer.ERROR_NO_MATCH:
                 case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
@@ -231,7 +289,7 @@ public class MainActivity extends Activity {
         stage.show(OrbView.Mode.ERROR, "I didn't catch that.", "Nothing was sent.",
                 "Try again", (Runnable) this::begin,
                 "Type it", (Runnable) () -> showTyping(null),
-                "Settings", (Runnable) this::openSetup);
+                "Chats", (Runnable) this::openChats);
     }
 
     /** Type the same thing you'd say. Goes through exactly the same steps as speech. */
@@ -248,6 +306,7 @@ public class MainActivity extends Activity {
             String t = e.getText().toString().trim();
             if (t.isEmpty()) return;
             hideKeyboard(e);
+            spoken = false; // typed: sent exactly as typed
             handle(t);
         };
         e.setOnEditorActionListener((v, action, ev) -> {
@@ -316,6 +375,11 @@ public class MainActivity extends Activity {
         showRetry("That's too long.", "GroupMe allows " + MAX_TEXT + " characters.");
         return true;
     }
+
+    /** Whether the words came from the mic (tidied: capital, ending mark) or were typed (left as is). */
+    private boolean spoken = true;
+
+    private String out(String text) { return spoken ? Tidy.spoken(text) : text; }
 
     private void handle(String heard) {
         if (Phrase.parseLike(heard)) {           // "like that", "heart that message"
@@ -424,17 +488,20 @@ public class MainActivity extends Activity {
 
     private static String clip(String t) { return t.length() > 60 ? t.substring(0, 57) + "..." : t; }
 
-    private void confirmGroup(Phrase.Group g, String text) {
+    private void confirmGroup(Phrase.Group g, String raw) {
+        final String text = out(raw);
         countdown("To " + g.name, quote(text), "Send now", "Sending", "Sent to " + g.name,
                 t -> Api.send(t, g.id, text, null));
     }
 
-    private void confirmDm(Phrase.Group person, String text) {
+    private void confirmDm(Phrase.Group person, String raw) {
+        final String text = out(raw);
         countdown("To " + person.name + " (direct)", quote(text), "Send now", "Sending", "Sent to " + person.name,
                 t -> Api.sendDm(t, person.id, text));
     }
 
-    private void confirmReply(Api.Incoming in, String text) {
+    private void confirmReply(Api.Incoming in, String raw) {
+        final String text = out(raw);
         countdown("Reply to " + in.sender, where(in) + ": " + quote(clip(in.text)) + "\nYou: " + quote(text),
                 "Send now", "Sending", "Replied to " + in.sender,
                 t -> {
@@ -505,7 +572,7 @@ public class MainActivity extends Activity {
     private void showRetry(String title, String body) {
         stage.show(OrbView.Mode.ERROR, title, body,
                 "Try again", (Runnable) this::begin,
-                "Settings", (Runnable) this::openSetup);
+                "Chats", (Runnable) this::openChats);
     }
 
     private void showError(IOException e) {

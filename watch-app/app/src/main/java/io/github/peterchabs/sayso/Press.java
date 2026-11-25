@@ -56,9 +56,9 @@ final class Press {
     static Drawable button(Context c, boolean primary) {
         float d = c.getResources().getDisplayMetrics().density;
         int lip = Math.round(4 * d);
-        int faceTop = primary ? 0xFF45C8F7 : 0xFFFFFFFF;
-        int faceBottom = primary ? OrbView.ACCENT : 0xFFEAF7FD;
-        int lipColor = primary ? 0xFF0088BC : 0xFFAEE3F8;
+        int faceTop = primary ? 0xFF45C8F7 : Palette.BTN_TOP;
+        int faceBottom = primary ? OrbView.ACCENT : Palette.BTN_BOTTOM;
+        int lipColor = primary ? 0xFF0088BC : Palette.BTN_LIP;
         int stroke = primary ? 0 : Math.round(1.5f * d);
 
         StateListDrawable s = new StateListDrawable();
@@ -91,18 +91,18 @@ final class Press {
         s.setEnterFadeDuration(120);
         s.setExitFadeDuration(120);
         s.addState(new int[]{android.R.attr.state_focused}, well(d, OrbView.ACCENT, 2f));
-        s.addState(new int[]{}, well(d, 0xFFC5D3DC, 1.5f));
+        s.addState(new int[]{}, well(d, Palette.FIELD_EDGE, 1.5f));
         e.setBackground(s);
         int px = Math.round(12 * d), py = Math.round(10 * d);
         e.setPadding(px, py, px, py);
-        e.setTextColor(0xFF262626);
-        e.setHintTextColor(0xFF9AA7B0);
+        e.setTextColor(Palette.FIELD_TEXT);
+        e.setHintTextColor(Palette.FIELD_HINT);
         attach(e);
     }
 
     private static Drawable well(float d, int border, float width) {
         GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xFFE3EBF0, 0xFFF7FAFC, Color.WHITE});
+                new int[]{Palette.FIELD_FILL_TOP, Palette.FIELD_FILL_MID, Palette.dark ? Palette.CARD : Color.WHITE});
         g.setCornerRadius(14 * d);
         g.setStroke(Math.round(width * d), border);
         return g;

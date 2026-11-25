@@ -27,6 +27,26 @@ final class Store {
 
     static void setName(Context c, String n) { p(c).edit().putString("name", n == null ? "" : n).apply(); }
 
+    /** New-message notifications (PushService). Off until you turn them on. */
+    static boolean pushOn(Context c) { return p(c).getBoolean("push", false); }
+
+    static void setPushOn(Context c, boolean on) { p(c).edit().putBoolean("push", on).apply(); }
+
+    /** "light" (default), "dark" or "system" (see Palette). */
+    static String theme(Context c) { return p(c).getString("theme", "light"); }
+
+    static void setTheme(Context c, String t) { p(c).edit().putString("theme", t).apply(); }
+
+    /** Your GroupMe profile picture (may be empty). */
+    static String avatar(Context c) { return p(c).getString("avatar", ""); }
+
+    static void setAvatar(Context c, String url) { p(c).edit().putString("avatar", url == null ? "" : url).apply(); }
+
+    /** Pictures in chats on or off (off saves data on a watch). On unless turned off. */
+    static boolean photosOn(Context c) { return p(c).getBoolean("photos", true); }
+
+    static void setPhotosOn(Context c, boolean on) { p(c).edit().putBoolean("photos", on).apply(); }
+
     /** The group your message goes to when you don't name one. Null when none is set. */
     static Phrase.Group defaultGroup(Context c) {
         String id = p(c).getString("default_id", "");

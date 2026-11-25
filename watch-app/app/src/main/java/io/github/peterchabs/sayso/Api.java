@@ -39,12 +39,13 @@ final class Api {
         return out;
     }
 
-    /** {id, name} of the signed-in GroupMe user. Also proves the token works. */
+    /** {id, name, picture url} of the signed-in GroupMe user. Also proves the token works. */
     static String[] me(String token) throws IOException {
         JSONObject r = call("GET", "/users/me", token, null);
         JSONObject me = r.optJSONObject("response");
-        if (me == null) return new String[]{"", ""};
-        return new String[]{me.optString("id", me.optString("user_id", "")), me.optString("name", "")};
+        if (me == null) return new String[]{"", "", ""};
+        return new String[]{me.optString("id", me.optString("user_id", "")), me.optString("name", ""),
+                me.isNull("image_url") ? "" : me.optString("image_url", "")};
     }
 
     /** The newest message someone else sent in one of your groups. */
@@ -200,8 +201,79 @@ final class Api {
         }
     }
 
+    /** The relay is limiting requests from this internet address for a moment. */
+    static final class BusyException extends IOException {
+        BusyException() { super("relay busy"); }
+    }
+
+    /**
+     * Waits on the relay topic with one open connection (the relay streams each message as it
+     * arrives, and a keepalive every ~45 s), returning messages as soon as any come, or an empty
+     * list after about {@code maxMs}. One request a minute instead of one every few seconds,
+     * which keeps a waiting watch far under the relay's per-address limit.
+     */
+    private static volatile HttpURLConnection relayLive;
+
+    /** Ends a relayWait() in progress right away (from any thread). */
+    static void abortRelayWait() {
+        HttpURLConnection c = relayLive;
+        relayLive = null;
+        if (c != null) new Thread(c::disconnect).start(); // closing a socket is network work: not on the UI thread
+    }
+
+    static List<String> relayWait(String topic, long sinceSec, long maxMs) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(
+                Link.RELAY + topic + "/json?since=" + sinceSec).openConnection();
+        relayLive = c;
+        long end = System.currentTimeMillis() + maxMs;
+        List<String> out = new ArrayList<>();
+        try {
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(60000); // longer than the relay's keepalive
+            int code = c.getResponseCode();
+            if (code == 429) throw new BusyException();
+            if (code != 200) throw new IOException("relay " + code);
+            java.io.BufferedReader r = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8));
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    try {
+                        JSONObject o = new JSONObject(line);
+                        if ("message".equals(o.optString("event"))) out.add(o.optString("message"));
+                    } catch (JSONException ignored) {
+                        // not a message line
+                    }
+                }
+                if (!out.isEmpty() || System.currentTimeMillis() > end) break;
+            }
+            return out;
+        } catch (java.net.SocketTimeoutException e) {
+            return out; // quiet topic: just ask again
+        } finally {
+            if (relayLive == c) relayLive = null;
+            c.disconnect();
+        }
+    }
+
     /** Drops a locked sign-in on the relay topic for a watch to pick up (see Link.seal). */
     static void relayPost(String topic, String payload) throws IOException {
+        for (int attempt = 0; ; attempt++) {
+            try {
+                relayPostOnce(topic, payload);
+                return;
+            } catch (BusyException e) {
+                if (attempt >= 3) throw e;
+                try {
+                    Thread.sleep(4000L * (attempt + 1)); // the relay refills about one request per 5 s
+                } catch (InterruptedException ie) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private static void relayPostOnce(String topic, String payload) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(Link.RELAY + topic).openConnection();
         try {
             c.setRequestMethod("POST");
@@ -212,7 +284,9 @@ final class Api {
             try (OutputStream os = c.getOutputStream()) {
                 os.write(payload.getBytes(StandardCharsets.UTF_8));
             }
-            if (c.getResponseCode() >= 300) throw new IOException("relay " + c.getResponseCode());
+            int code = c.getResponseCode();
+            if (code == 429) throw new BusyException();
+            if (code >= 300) throw new IOException("relay " + code);
         } finally {
             c.disconnect();
         }
@@ -239,7 +313,7 @@ final class Api {
         }
     }
 
-    private static JSONObject call(String method, String path, String token, String body) throws IOException {
+    static JSONObject call(String method, String path, String token, String body) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection();
         try {
             c.setRequestMethod(method);
@@ -256,6 +330,7 @@ final class Api {
             }
             int code = c.getResponseCode();
             if (code == 401) throw new AuthException();
+            if (code == 304) return new JSONObject(); // GroupMe: "no messages" for an empty group
             if (code >= 300) throw new IOException("GroupMe said error " + code + ". Nothing was sent.");
             String s = read(c.getInputStream());
             return s.trim().isEmpty() ? new JSONObject() : new JSONObject(s);

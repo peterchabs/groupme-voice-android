@@ -41,9 +41,6 @@ public final class Link {
 
     public String pageUrl() { return PAGE + "#" + code; }
 
-    /** Phone: the page goes straight to GroupMe's login, then back into the app. */
-    public String phoneUrl() { return PAGE + "#" + code + ".p"; }
-
     public String topic() { return "gmv-" + hex(sha256("gmv-topic:" + code)).substring(0, 32); }
 
     /** Returns the token, or null if this payload isn't a valid, recent one for this code. */

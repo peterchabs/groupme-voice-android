@@ -17,6 +17,8 @@ It shows who it's sending to, counts down 3 seconds (so you can cancel), then se
 The message goes out from **your own GroupMe account**, to **your own groups**,
 with **whatever words you say each time**. You don't need to know how to code.
 
+**[Watch the 2-minute setup and features video](https://github.com/peterchabs/groupme-voice-android/releases/download/watch-v1.8.0/say-so-watch-setup.mp4)**
+
 ## Pick one
 
 | I want to talk to... | Use | Cost | Time |
@@ -215,6 +217,31 @@ double-press the side button and start talking.
 | Ring that shrinks to nothing | Sending in a moment (tap Cancel to stop) |
 | Green circle with a check | Sent |
 | Red circle that shakes | Something's wrong. The words under it say what, and nothing was sent |
+
+### Everything else the watch app does
+
+**[Watch the 2-minute video](https://github.com/peterchabs/groupme-voice-android/releases/download/watch-v1.8.0/say-so-watch-setup.mp4)**
+of setup and every feature, recorded on a real watch screen with captions.
+
+- **Chats:** tap **Chats** to see every group and direct message, newest first.
+  Open one to read it. Photos, videos, links and events show right in the chat.
+- **Talk in a chat:** tap the mic in any chat and talk. Your words type into a blue
+  bubble as you speak, then send.
+- **Members:** swipe left from a group chat. People are grouped by rank: the owner,
+  admins, then everyone else. Tap someone for their profile and a direct message.
+- **Tag people:** on the members page, hold someone, tap more people, then tap
+  **Tag and speak**. GroupMe notifies everyone you tagged.
+- **Photos and videos:** swipe left again for the group's gallery. Tap a photo to
+  see it full screen, then double-tap or pinch to zoom and drag to look around.
+  Videos play right on the watch.
+- **Events:** swipe left once more for the group's upcoming events. Tap an event in
+  the chat to see when, where, and who's going.
+- **Notifications:** new messages pop up on your watch with who sent them. Reply
+  right there, or say **"Hey Google, respond to that message"** to answer with Gemini.
+- **Settings:** pull down from the top of any page. Pick a **default group** (then
+  "Hey Google, open Say So" opens that chat, already listening), turn photos and
+  notifications on or off, switch between **light and dark**, and see how to set a
+  watch button to open Say So.
 
 ### More things you can say
 
