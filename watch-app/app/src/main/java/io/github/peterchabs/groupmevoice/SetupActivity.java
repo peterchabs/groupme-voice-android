@@ -87,6 +87,7 @@ public class SetupActivity extends Activity {
                 "Default group", (Runnable) this::pickDefault,
                 "Switch", (Runnable) this::startLink,
                 "Sign out", (Runnable) () -> {
+                    MainActivity.unsent = null;
                     Store.clear(this);
                     startLink();
                 });
@@ -149,19 +150,17 @@ public class SetupActivity extends Activity {
         Link link = Link.create();
         Store.setPendingCode(this, link.code);
         if (!isWatch()) {
-            // Phone: no QR or code. One tap to GroupMe's login, and the browser comes back here.
+            // Phone: log in on GroupMe's developer site inside the app; it picks up the token.
             stage.showOrb();
-            stage.show(OrbView.Mode.IDLE, "Sign in to GroupMe",
-                    "Sign in with GroupMe is easiest. It returns through a page hosted on GitHub,"
-                            + " which receives your sign-in in its logs. Pasting your token avoids that."
+            boolean again = Store.token(this).isEmpty() && !Store.name(this).isEmpty(); // signed out by GroupMe, not "Switch"
+            stage.show(OrbView.Mode.IDLE, again ? "Sign in again" : "Sign in to GroupMe",
+                    (again ? "GroupMe needs you to sign in again. " : "")
+                            + "You'll log in on GroupMe's own site, right here in the app. Your token"
+                            + " stays on this phone."
                             + "\n\nNot affiliated with GroupMe or Microsoft.",
-                    "Sign in with GroupMe", (Runnable) () -> {
-                        openPage(link);
-                        final long started = System.currentTimeMillis();
-                        stopPolling();
-                        polling = bg.submit(() -> poll(link, started)); // backup if the browser doesn't return
-                    },
-                    "Paste token instead", (Runnable) () -> showTyping(null));
+                    "Sign in with GroupMe", (Runnable) this::openDevSignIn,
+                    "Paste token instead", (Runnable) () -> showTyping(null),
+                    "Web page sign-in", (Runnable) () -> showWebPageNote(link));
             return;
         }
         Bitmap code = qr(link.pageUrl());
@@ -171,6 +170,37 @@ public class SetupActivity extends Activity {
                 "Type token instead", (Runnable) () -> showTyping(null));
         final long started = System.currentTimeMillis();
         polling = bg.submit(() -> poll(link, started));
+    }
+
+    private static final int REQ_DEV = 41;
+
+    private void openDevSignIn() {
+        stopPolling();
+        startActivityForResult(new Intent(this, DevSignInActivity.class), REQ_DEV);
+    }
+
+    @Override
+    protected void onActivityResult(int req, int result, Intent data) {
+        super.onActivityResult(req, result, data);
+        if (req != REQ_DEV) return;
+        String token = data == null ? null : data.getStringExtra(DevSignInActivity.EXTRA_TOKEN);
+        if (result == RESULT_OK && token != null && !token.isEmpty()) verify(token);
+        // cancelled: the sign-in choices are still on screen
+    }
+
+    /** The older way, kept as a last choice: GroupMe's sign-in page, returning through GitHub. */
+    private void showWebPageNote(Link link) {
+        stage.show(OrbView.Mode.IDLE, "Web page sign-in",
+                "Uses GroupMe's older sign-in page, which rejects some accounts with \"invalid"
+                        + " credentials\". It returns through a page hosted on GitHub, which receives"
+                        + " your sign-in in its logs.",
+                "Open it", (Runnable) () -> {
+                    openPage(link);
+                    final long started = System.currentTimeMillis();
+                    stopPolling();
+                    polling = bg.submit(() -> poll(link, started)); // backup if the browser doesn't return
+                },
+                "Back", (Runnable) this::startLink);
     }
 
     private void poll(Link link, long started) {
@@ -261,10 +291,29 @@ public class SetupActivity extends Activity {
                 Store.setMyId(this, me[0]);
                 Store.setPendingCode(this, ""); // one-time code is used up
                 Store.saveGroups(this, groups);
-                ui.post(() -> stage.show(OrbView.Mode.DONE,
-                        name.isEmpty() ? "You're signed in" : "Hi, " + name + "!",
-                        "Found " + groups.size() + " groups. Now say \"Hey Google, open GroupMe Voice\".",
-                        "Try it now", (Runnable) this::goMain));
+                Phrase.Group d = Store.defaultGroup(this);
+                if (d != null && groups.stream().noneMatch(g -> g.id.equals(d.id))) {
+                    Store.setDefaultGroup(this, null); // a different account, or you left that group
+                }
+                MainActivity.Unsent u = MainActivity.unsent;
+                if (u != null && !u.freshFor(me[0])) MainActivity.unsent = null; // someone else, or too old
+                final boolean resend = MainActivity.unsent != null;
+                final String hi = name.isEmpty() ? "You're signed in" : "Hi, " + name + "!";
+                ui.post(() -> {
+                    if (resend) {
+                        stage.show(OrbView.Mode.DONE, hi,
+                                "Your message didn't go out before:\n" + u.title + "\n" + u.body,
+                                "Send it now", (Runnable) () -> goMain(true),
+                                "Not now", (Runnable) () -> {
+                                    MainActivity.unsent = null;
+                                    goMain(false);
+                                });
+                    } else {
+                        stage.show(OrbView.Mode.DONE, hi,
+                                "Found " + groups.size() + " groups. Now say \"Hey Google, open GroupMe Voice\".",
+                                "Try it now", (Runnable) () -> goMain(false));
+                    }
+                });
             } catch (Api.AuthException e) {
                 ui.post(() -> showTyping("GroupMe didn't accept that token. Check it and try again."));
             } catch (IOException e) {
@@ -277,8 +326,8 @@ public class SetupActivity extends Activity {
         });
     }
 
-    private void goMain() {
-        startActivity(new Intent(this, MainActivity.class));
+    private void goMain(boolean resend) {
+        startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_RESEND, resend));
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         finish();
     }

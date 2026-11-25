@@ -45,6 +45,16 @@ final class Store {
 
     static void clear(Context c) { p(c).edit().clear().apply(); }
 
+    /**
+     * GroupMe stopped accepting the token (expired, reset, or signed out elsewhere). Forget it so
+     * the next screen is sign-in, but keep who you were and your default group so signing back
+     * in picks up where you left off.
+     */
+    static void forgetSignIn(Context c) {
+        p(c).edit().remove("token").remove("groups").remove("groups_at")
+                .remove("contacts").remove("contacts_at").apply();
+    }
+
     /** People you have direct messages with (id = their user id). */
     static List<Phrase.Group> contacts(Context c) { return read(c, "contacts"); }
 

@@ -275,7 +275,7 @@ To turn it off, go to **Settings** > **Default group** > **No default**.
 | **"No such file"** when installing | The app file isn't in the platform-tools folder. Drag **GroupMeVoice-watch.apk** in there (Step 1, part B, step 4). |
 | The watch says **"That code expired"** | Codes last 10 minutes. Tap **Get a new code** and scan again. |
 | The page says **"That doesn't look like a GroupMe token"** | Copy the token again from dev.groupme.com. It's one long string of letters and numbers. |
-| **"Please sign in again"** | Your token changed (this happens if you change your GroupMe password). Tap **Sign in** and do Step 5 again. |
+| **"GroupMe signed you out"** | Your token stopped working (it expired, or you changed your GroupMe password or reset your token). Tap **Sign in again** and do Step 5 again. If you were sending something, tap **Send it now** after signing in. |
 | It can't find your group | Say more of the group's name, a little slower. |
 
 ---
@@ -314,20 +314,29 @@ over whatever you're doing, then gets out of the way.
 
 ### Step 3: Sign in to GroupMe
 
-The app gives you two ways. Pick either one:
+1. Tap **Sign in with GroupMe**. GroupMe's own developer site opens inside the app.
+2. Log in with your normal GroupMe email or phone number and password. (If GroupMe
+   asks you to prove you're a person or texts you a code, do that too.)
+3. That's it. The app picks up your token by itself.
 
-- **Sign in with GroupMe** (easiest): tap it, log in with your normal GroupMe
-  account, and tap **Authorize**. Your phone brings you right back to the app.
-  *Note:* GroupMe sends you back through a sign-in page hosted on GitHub, with
-  your sign-in in the web address, so GitHub receives it in its normal logs.
-  If it says **"invalid credentials"**, use the token option. That GroupMe page
-  is an older sign-in that rejects some accounts even when the same login works
-  in the GroupMe app.
-- **Paste token instead** (keeps it away from GitHub): in your browser, go to
-  **dev.groupme.com**, log in, tap **Access Token**, and copy the long code.
+Your password goes only to GroupMe. The token stays on your phone, and the app
+clears GroupMe's site from its memory right after.
+
+**Other ways, if you need them:**
+- **Paste token instead**: in your browser, go to **dev.groupme.com**, log in,
+  tap your picture at the top right (**Access Token**), and copy the long code.
   Back in the app, press and hold the box, tap **Paste**, then **Save**.
+- **Web page sign-in**: GroupMe's older sign-in page. It rejects some accounts
+  with **"invalid credentials"** even when the login is right, and it returns
+  through a page hosted on GitHub, which receives your sign-in in its normal logs.
 
-Either way, the app checks with GroupMe and says **"Hi, [your name]!"**
+Any way you sign in, the app checks with GroupMe and says **"Hi, [your name]!"**
+
+**If GroupMe ever signs you out** (your token expired, you changed your GroupMe
+password, or you reset your token on dev.groupme.com), the app says **"GroupMe
+signed you out"** and nothing is sent. Tap **Sign in again**. If you were in the
+middle of sending something, the app keeps it and offers **Send it now** once
+you're back in.
 
 ### Step 4: Use it
 
@@ -547,7 +556,10 @@ GroupMe sign-in, your groups, or your messages.
 - **Your sign-in** is stored only inside the app on your device. Signing out
   deletes it.
 - **When you sign in**, you choose:
-  - **Sign in with GroupMe**: GroupMe returns you to the sign-in page with your
+  - **Sign in with GroupMe (phone app)**: you log in on GroupMe's own site
+    inside the app. Your password goes only to GroupMe, and the token goes
+    straight into the app. Nothing passes through GitHub or anyone else.
+  - **Web page sign-in**: GroupMe returns you to the sign-in page with your
     sign-in in the web address. That page is hosted on GitHub, so GitHub receives
     it in its normal web logs. The page then locks it right away and clears it
     from the address bar.

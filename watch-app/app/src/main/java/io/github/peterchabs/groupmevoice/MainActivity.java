@@ -55,14 +55,24 @@ public class MainActivity extends Activity {
             openSetup();
             return;
         }
-        begin();
+        if (!resend(getIntent())) begin();
+    }
+
+    /** Back from signing in again: count down the message that didn't go out, same as before. */
+    private boolean resend(Intent intent) {
+        Unsent u = unsent;
+        if (intent == null || !intent.getBooleanExtra(EXTRA_RESEND, false) || u == null) return false;
+        unsent = null;
+        if (!u.freshFor(Store.myId(this))) return false;
+        countdown(u.title, u.body, "Send now", u.busy, u.done, u.action);
+        return true;
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); // "Hey Google, open GroupMe Voice" while already open
         cancelPending();
-        if (!Store.token(this).isEmpty()) begin();
+        if (!Store.token(this).isEmpty() && !resend(intent)) begin();
     }
 
     @Override
@@ -220,9 +230,37 @@ public class MainActivity extends Activity {
     }
 
     /** What happens when the countdown ends: send, reply, DM or like. Runs off the UI thread. */
-    private interface Action {
+    interface Action {
         void run(String token) throws IOException;
     }
+
+    /**
+     * A message that didn't go out because GroupMe signed you out. Kept in memory only (never
+     * saved to storage), so after you sign back in as the same person you can send it with one tap.
+     */
+    static final class Unsent {
+        static final long MAX_AGE_MS = 15 * 60 * 1000L;
+        final String title, body, busy, done, userId;
+        final Action action;
+        final long at = System.currentTimeMillis();
+
+        Unsent(String title, String body, String busy, String done, String userId, Action action) {
+            this.title = title;
+            this.body = body;
+            this.busy = busy;
+            this.done = done;
+            this.userId = userId;
+            this.action = action;
+        }
+
+        boolean freshFor(String user) {
+            return System.currentTimeMillis() - at < MAX_AGE_MS && !userId.isEmpty() && userId.equals(user);
+        }
+    }
+
+    static Unsent unsent;
+    static final String EXTRA_RESEND = "resend";
+    private String shownTitle, shownBody;
 
     private static String quote(String t) { return "\u201C" + t + "\u201D"; }
 
@@ -367,6 +405,8 @@ public class MainActivity extends Activity {
     /** Shows what's about to happen while the ring counts down. Cancel (or leaving) stops it. */
     private void countdown(String title, String body, String nowLabel, String busy, String done, Action action) {
         if (isFinishing()) return;
+        shownTitle = title;
+        shownBody = body;
         stage.show(OrbView.Mode.COUNTDOWN, title, body,
                 "Cancel", (Runnable) () -> {
                     cancelPending();
@@ -398,6 +438,9 @@ public class MainActivity extends Activity {
                     }, 2200);
                 });
             } catch (IOException e) {
+                if (e instanceof Api.AuthException) {
+                    unsent = new Unsent(shownTitle, shownBody, busy, done, Store.myId(this), action);
+                }
                 ui.post(() -> showError(e));
             }
         });
@@ -421,8 +464,14 @@ public class MainActivity extends Activity {
     private void showError(IOException e) {
         if (isFinishing()) return;
         if (e instanceof Api.AuthException) {
-            stage.show(OrbView.Mode.ERROR, "Please sign in again", "GroupMe stopped accepting your sign-in.",
-                    "Sign in", (Runnable) this::openSetup);
+            // Expired, reset on dev.groupme.com, or a changed password. Forget the old token so
+            // "Sign in again" really goes to sign-in, not to the "Signed in as" screen.
+            Store.forgetSignIn(this);
+            stage.show(OrbView.Mode.ERROR, "GroupMe signed you out",
+                    unsent != null
+                            ? "Your sign-in stopped working, so nothing was sent. Sign in again and I'll keep your message ready."
+                            : "Your sign-in stopped working, so nothing was sent. Sign in again, then say it once more.",
+                    "Sign in again", (Runnable) this::openSetup);
             return;
         }
         String msg = e.getMessage();

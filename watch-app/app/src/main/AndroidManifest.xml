@@ -48,5 +48,13 @@
                 <data android:scheme="groupmevoice" android:host="signin" />
             </intent-filter>
         </activity>
+
+        <!-- Phone sign-in: GroupMe's developer site inside the app (see DevSignInActivity). -->
+        <activity
+            android:name=".DevSignInActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>
