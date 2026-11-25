@@ -250,8 +250,11 @@ the group name and just say your message.
 </p>
 
 1. In the app, tap **Settings**.
-2. Tap **Default group** and pick the group.
-3. Now just say your message, like **"picking up pizza on the way home"**. It goes to your default group.
+2. Tap **Default group** (on the watch, **Default**) and pick the group.
+3. Tap **Talk now** and just say your message, like **"picking up pizza on the way home"**. It goes to your default group.
+
+From Settings you can always get back to talking with **Talk**, or by going back
+(swipe right on the watch).
 
 You can still send to any other group by saying its name first:
 **"Weekend Crew that says running late"**. The 3-second countdown always shows
@@ -260,7 +263,7 @@ which group it's going to, so you can tap **Cancel** if it's wrong.
 If you say a group name it can't find, it **sends nothing**. It never falls back
 to your default group, so a misheard name can't send to the wrong place.
 
-To turn it off, go to **Settings** > **Default group** > **No default**.
+To turn it off, go to **Settings** > **Default group** (watch: **Default**) > **No default**.
 
 **Tips**
 

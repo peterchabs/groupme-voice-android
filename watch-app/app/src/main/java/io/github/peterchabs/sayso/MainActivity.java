@@ -2,7 +2,6 @@ package io.github.peterchabs.sayso;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -29,7 +28,7 @@ import java.util.concurrent.Executors;
  * stop), then sends.
  */
 public class MainActivity extends Activity {
-    private static final int REQ_SPEECH = 1, REQ_MIC = 2;
+    private static final int REQ_MIC = 2;
     private static final long SEND_DELAY_MS = 3000;
     private static final long GROUP_CACHE_MS = 6 * 60 * 60 * 1000L;
     private static final int MAX_TEXT = 1000;
@@ -116,12 +115,15 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
         if (req != REQ_MIC) return;
         if (res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED) listen();
-        else systemListen(); // the system voice screen doesn't need our mic permission
+        else stage.show(OrbView.Mode.ERROR, "Microphone is off",
+                "Allow it to talk, or type your message instead.",
+                "Allow", (Runnable) this::begin,
+                "Type it", (Runnable) () -> showTyping(null));
     }
 
     private void listen() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            systemListen();
+            noVoice();
             return;
         }
         if (rec == null) {
@@ -176,8 +178,14 @@ public class MainActivity extends Activity {
                 case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
                     showRetry("No connection", "Check that your watch is connected to your phone or Wi-Fi.");
                     break;
+                case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                case SpeechRecognizer.ERROR_CLIENT:
+                    resetRecognizer(); // a stuck recognizer: start fresh next time
+                    didntCatch();
+                    break;
                 default:
-                    systemListen(); // fall back to the watch's own voice screen
+                    resetRecognizer();
+                    noVoice(); // stay in Say So; never hand off to the system voice screen
             }
         }
     }
@@ -188,28 +196,27 @@ public class MainActivity extends Activity {
         return (r == null || r.isEmpty() || r.get(0).trim().isEmpty()) ? null : r.get(0);
     }
 
-    /** The watch's built-in voice screen, for watches where in-app listening isn't available. */
-    private void systemListen() {
-        stage.show(OrbView.Mode.LISTEN, "Listening", hint());
-        Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Which group, and what should I say?");
-        try {
-            startActivityForResult(i, REQ_SPEECH);
-        } catch (ActivityNotFoundException e) {
-            showTyping("Voice isn't available here. Type what you'd say.");
+    /**
+     * No speech recognizer on this device (or it failed to start). Say So stays on its own screen
+     * instead of opening the system voice screen: try again, or type it.
+     */
+    private void noVoice() {
+        stage.show(OrbView.Mode.ERROR, "Voice isn't set up",
+                Stage.isWatchBuild()
+                        ? "Update Speech Recognition & Synthesis in the watch's Play Store, or type it."
+                        : "Update Speech Services by Google in the Play Store, or type it.",
+                "Type it", (Runnable) () -> showTyping(null),
+                "Try again", (Runnable) this::begin);
+        if (Stage.isWatchBuild()) stage.hideHero(); // room for the explanation on a round screen
+    }
+
+    private void resetRecognizer() {
+        if (rec != null) {
+            rec.destroy();
+            rec = null;
         }
     }
 
-    @Override
-    protected void onActivityResult(int req, int result, Intent data) {
-        super.onActivityResult(req, result, data);
-        if (req != REQ_SPEECH) return;
-        ArrayList<String> heard = (result == RESULT_OK && data != null)
-                ? data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) : null;
-        if (heard == null || heard.isEmpty()) didntCatch();
-        else handle(heard.get(0));
-    }
 
     /** Speech came back empty (noise, too quiet, or the speech service failed): retry or type it. */
     private void didntCatch() {

@@ -95,13 +95,14 @@ public class SetupActivity extends Activity {
             startLink();
         };
         if (isWatch()) {
-            // no Back button: swiping right goes back on Wear OS, and four buttons don't fit
+            // three buttons fit a round screen; swiping right also goes back to talking
             stage.show(OrbView.Mode.DONE, title, body,
-                    "Default group", (Runnable) this::pickDefault,
-                    "Switch", (Runnable) this::startLink,
+                    "Talk", (Runnable) () -> goMain(false),
+                    "Default", (Runnable) this::pickDefault,
                     "Sign out", signOut);
         } else {
             stage.show(OrbView.Mode.DONE, title, body,
+                    "Talk", (Runnable) () -> goMain(false),
                     "Default group", (Runnable) this::pickDefault,
                     "Voice shortcuts", (Runnable) this::showShortcuts,
                     "Sign in a watch", (Runnable) () -> enterWatchCode(null),
@@ -331,7 +332,15 @@ public class SetupActivity extends Activity {
         Store.setDefaultGroup(this, g);
         stage.show(OrbView.Mode.DONE, g == null ? "No default group" : "Default: " + g.name,
                 g == null ? "Say a group before each message." : "Now just say your message.",
-                "Done", (Runnable) this::showAccount);
+                "Talk now", (Runnable) () -> goMain(false),
+                "Settings", (Runnable) this::showAccount);
+    }
+
+    /** Back (or a swipe on the watch) from Settings returns to talking instead of closing the app. */
+    @Override
+    public void onBackPressed() {
+        if (!Store.token(this).isEmpty()) goMain(false);
+        else super.onBackPressed();
     }
 
     // ---------------- sign in from your phone ----------------

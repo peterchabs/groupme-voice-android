@@ -216,6 +216,15 @@ public class ScreenshotTest {
         save(a, "13-didnt-catch");
     }
 
+    @Test public void noVoice() throws Exception {
+        Activity a = main();
+        java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod("noVoice");
+        m.setAccessible(true);
+        m.invoke(a);
+        advance(700);
+        save(a, "15-no-voice");
+    }
+
     @Test public void typeIt() throws Exception {
         Activity a = main();
         java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod("showTyping", String.class);
