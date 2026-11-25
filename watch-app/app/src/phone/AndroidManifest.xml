@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application>
+        <!-- The "Send a GroupMe" shortcut (icon long-press, and Google Assistant > Shortcuts). -->
+        <activity android:name=".MainActivity">
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
         <!-- Quick Settings tile: swipe down, tap Say So, talk. -->
         <service
             android:name=".VoiceTile"
@@ -10,6 +17,25 @@
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Gemini (Android 16+): "use Say So to message Weekend Crew ..." in one request.
+             Only the phone's system assistant may bind to this (BIND_APP_FUNCTION_SERVICE).
+             The class is generated from SaySoFunctions.kt. -->
+        <service
+            android:name=".SaySoAppFunctionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_APP_FUNCTION_SERVICE"
+            tools:targetApi="36">
+            <property
+                android:name="android.app.appfunctions.schema"
+                android:value="app_functions_schema.xsd" />
+            <property
+                android:name="android.app.appfunctions.v2"
+                android:value="sayso_app_functions.xml" />
+            <intent-filter>
+                <action android:name="android.app.appfunctions.AppFunctionService" />
             </intent-filter>
         </service>
     </application>

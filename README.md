@@ -355,9 +355,13 @@ you're back in.
 2. The first time only, tap **Allow** so it can use the microphone.
 3. When the circle pulses, say **"[group name] that says [your message]"**.
 
-**If "Hey Google, open Say So" searches the web instead:** Google can be slow to
-find apps that weren't installed from the Play Store. These start Say So every
-time (set them up in the app under **Settings > Voice shortcuts**):
+This works with **Gemini**, the "Hey Google" assistant on Android phones now,
+even though Say So isn't from the Play Store. Then say your message: two short
+sentences, no hands.
+
+**Phone still on the older Google Assistant?** It may search the web instead of
+opening Say So. These start Say So every time (set them up in the app under
+**Settings > Voice shortcuts**):
 
 - **Hold the power button:** make Say So your phone's assistant app, and holding
   the power button (or swiping up from a bottom corner) opens it listening. This
@@ -366,6 +370,8 @@ time (set them up in the app under **Settings > Voice shortcuts**):
   **Say So** instead.
 - **Galaxy phones:** open **Settings > Advanced features > Side button**, turn on
   **Double press**, choose **Open app**, and pick **Say So**.
+- **Long-press the Say So icon** and tap **Send a GroupMe**, or drag that onto
+  your home screen.
 
 Somewhere loud? If it says **"I didn't catch that"**, tap **Type it** and type
 what you'd say instead.

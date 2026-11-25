@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         stage = new Stage(this);
+        Shortcuts.publish(this); // phone: offer the "Send a GroupMe" shortcut to Google Assistant
         stage.orb.setCountdownMs(SEND_DELAY_MS);
         stage.orb.setOnClickListener(v -> {
             if (listening) rec.stopListening();               // tap to finish early

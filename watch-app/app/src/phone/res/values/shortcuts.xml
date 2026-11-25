@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_talk_short">Send a GroupMe</string>
+    <string name="shortcut_talk_long">Send a GroupMe message</string>
+    <string-array name="talk_names">
+        <item>send a GroupMe</item>
+        <item>GroupMe message</item>
+        <item>send a message</item>
+        <item>talk</item>
+    </string-array>
+</resources>
