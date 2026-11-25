@@ -26,7 +26,7 @@ with **whatever words you say each time**. You don't need to know how to code.
 
 | I want to talk to... | Use | Cost | Time |
 |---|---|---|---|
-| **My Galaxy Watch** | [The watch app](#galaxy-watch-app) | Free | about 20 minutes, once |
+| **My Galaxy Watch** | [The watch app](#galaxy-watch-app) | Free | about 10 minutes, once |
 | **My Android phone** | [The phone app](#android-phone-app) | Free | about 5 minutes, once |
 
 You can set up both. They don't need each other.
