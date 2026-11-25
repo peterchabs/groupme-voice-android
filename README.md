@@ -17,7 +17,7 @@ It shows who it's sending to, counts down 3 seconds (so you can cancel), then se
 The message goes out from **your own GroupMe account**, to **your own groups**,
 with **whatever words you say each time**. You don't need to know how to code.
 
-**[Watch the 2-minute setup and features video](https://github.com/peterchabs/groupme-voice-android/releases/download/watch-v1.8.0/say-so-watch-setup.mp4)**
+**[Watch the 2-minute setup and features video](https://peterchabs.github.io/groupme-voice-android/say-so-watch-setup.mp4)**
 
 ## Pick one
 
@@ -220,7 +220,7 @@ double-press the side button and start talking.
 
 ### Everything else the watch app does
 
-**[Watch the 2-minute video](https://github.com/peterchabs/groupme-voice-android/releases/download/watch-v1.8.0/say-so-watch-setup.mp4)**
+**[Watch the 2-minute video](https://peterchabs.github.io/groupme-voice-android/say-so-watch-setup.mp4)**
 of setup and every feature, recorded on a real watch screen with captions.
 
 - **Chats:** tap **Chats** to see every group and direct message, newest first.
