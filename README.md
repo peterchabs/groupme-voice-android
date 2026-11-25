@@ -281,6 +281,7 @@ To turn it off, go to **Settings** > **Default group** > **No default**.
 | The page says **"That doesn't look like a GroupMe token"** | Copy the token again from dev.groupme.com. It's one long string of letters and numbers. |
 | **"GroupMe signed you out"** | Your token stopped working (it expired, or you changed your GroupMe password or reset your token). Tap **Sign in again** and do Step 5 again. If you were sending something, tap **Send it now** after signing in. |
 | It can't find your group | Say more of the group's name, a little slower. |
+| **"I didn't catch that"** | Tap **Try again** and speak a little closer, or tap **Type it** and type what you'd say (for example **Family that says hi**). Typing works exactly like talking. |
 
 ---
 
@@ -347,6 +348,9 @@ you're back in.
 1. Say **"Hey Google, open GroupMe Voice"**. (Or tap the app.)
 2. The first time only, tap **Allow** so it can use the microphone.
 3. When the circle pulses, say **"[group name] that says [your message]"**.
+
+Somewhere loud? If it says **"I didn't catch that"**, tap **Type it** and type
+what you'd say instead.
 
 Everything in [More things you can say](#more-things-you-can-say) and
 [set a default group](#optional-set-a-default-group) works on the phone too.

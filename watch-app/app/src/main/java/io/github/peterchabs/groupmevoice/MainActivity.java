@@ -159,7 +159,7 @@ public class MainActivity extends Activity {
             if (!listening) return;
             listening = false;
             String heard = first(b);
-            if (heard == null) showRetry("I didn't catch that.", "Nothing was sent.");
+            if (heard == null) didntCatch();
             else handle(heard);
         }
 
@@ -169,7 +169,7 @@ public class MainActivity extends Activity {
             switch (code) {
                 case SpeechRecognizer.ERROR_NO_MATCH:
                 case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-                    showRetry("I didn't catch that.", "Nothing was sent.");
+                    didntCatch();
                     break;
                 case SpeechRecognizer.ERROR_NETWORK:
                 case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
@@ -196,7 +196,7 @@ public class MainActivity extends Activity {
         try {
             startActivityForResult(i, REQ_SPEECH);
         } catch (ActivityNotFoundException e) {
-            showTyping();
+            showTyping("Voice isn't available here. Type what you'd say.");
         }
     }
 
@@ -206,18 +206,49 @@ public class MainActivity extends Activity {
         if (req != REQ_SPEECH) return;
         ArrayList<String> heard = (result == RESULT_OK && data != null)
                 ? data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) : null;
-        if (heard == null || heard.isEmpty()) showRetry("I didn't catch that.", "Nothing was sent.");
+        if (heard == null || heard.isEmpty()) didntCatch();
         else handle(heard.get(0));
     }
 
-    private void showTyping() {
+    /** Speech came back empty (noise, too quiet, or the speech service failed): retry or type it. */
+    private void didntCatch() {
+        stage.show(OrbView.Mode.ERROR, "I didn't catch that.", "Nothing was sent.",
+                "Try again", (Runnable) this::begin,
+                "Type it", (Runnable) () -> showTyping(null),
+                "Settings", (Runnable) this::openSetup);
+    }
+
+    /** Type the same thing you'd say. Goes through exactly the same steps as speech. */
+    private void showTyping(String why) {
+        cancelPending();
         EditText e = new EditText(this);
         Press.field(e);
-        e.setHint("Family that says hi");
+        Phrase.Group d = Store.defaultGroup(this);
+        e.setHint(d != null ? "Your message for " + d.name : "Family that says hi");
+        e.setSingleLine(true);
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        stage.show(OrbView.Mode.IDLE, "Type or dictate", "Voice isn't available on this watch.",
-                "Send", (Runnable) () -> handle(e.getText().toString()),
-                "Settings", (Runnable) this::openSetup).extra(e);
+        e.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEND);
+        Runnable send = () -> {
+            String t = e.getText().toString().trim();
+            if (t.isEmpty()) return;
+            hideKeyboard(e);
+            handle(t);
+        };
+        e.setOnEditorActionListener((v, action, ev) -> {
+            send.run();
+            return true;
+        });
+        stage.show(OrbView.Mode.IDLE, "Type it", why != null ? why
+                        : d != null ? "Your message for " + d.name + ", or [group] that says [message]." : hint(),
+                "Send", send,
+                "Talk", (Runnable) this::begin).extra(e);
+        if (Stage.isWatchBuild()) stage.hideHero(); // room for the field and buttons on a round screen
+        e.requestFocus();
+    }
+
+    private void hideKeyboard(android.view.View v) {
+        android.view.inputmethod.InputMethodManager m = getSystemService(android.view.inputmethod.InputMethodManager.class);
+        if (m != null) m.hideSoftInputFromWindow(v.getWindowToken(), 0);
     }
 
     // ---------------- understanding + sending ----------------

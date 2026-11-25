@@ -207,7 +207,25 @@ public class ScreenshotTest {
         save(a, "6-which-one");
     }
 
-    private static final java.util.List<Phrase.Group> GROUPS = java.util.Arrays.asList(
+    @Test public void didntCatch() throws Exception {
+        Activity a = main();
+        java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod("didntCatch");
+        m.setAccessible(true);
+        m.invoke(a);
+        advance(700);
+        save(a, "13-didnt-catch");
+    }
+
+    @Test public void typeIt() throws Exception {
+        Activity a = main();
+        java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod("showTyping", String.class);
+        m.setAccessible(true);
+        m.invoke(a, (String) null);
+        advance(700);
+        save(a, "14-type-it");
+    }
+
+    private static final java.util.List<Phrase.Group> GROUPS =java.util.Arrays.asList(
             new Phrase.Group("1", "Weekend Crew"), new Phrase.Group("2", "Family"),
             new Phrase.Group("3", "Book Club"), new Phrase.Group("4", "Soccer Parents"),
             new Phrase.Group("5", "Roommates"));
