@@ -176,4 +176,44 @@ public class FeedTest {
         for (Feed.Member m : ms) order.append(m.name).append(m.role.isEmpty() ? "" : "/" + m.role).append(' ');
         assertEquals("Yan/Owner Ann/Admin Bea/Admin Al zed ", order.toString());
     }
+
+    @Test
+    public void reactionsGroupByEmojiAndPlainLikesAreHearts() throws Exception {
+        org.json.JSONObject m = new org.json.JSONObject("{\"id\":\"9\",\"sender_id\":\"1\",\"name\":\"A\",\"text\":\"hi\","
+                + "\"favorited_by\":[\"2\",\"3\",\"4\",\"5\"],"
+                + "\"reactions\":[{\"type\":\"unicode\",\"code\":\"\uD83D\uDE02\",\"user_ids\":[\"2\",\"3\"]},"
+                + "{\"type\":\"emoji\",\"pack_id\":\"2\",\"pack_index\":\"58\",\"user_ids\":[\"4\"]}],"
+                + "\"attachments\":[{\"type\":\"reply\",\"reply_id\":\"7\",\"base_reply_id\":\"7\"}]}");
+        Feed.Msg x = Feed.parseMessage(m);
+        assertEquals("7", x.replyId);
+        assertEquals(3, x.reactions.size());
+        assertEquals("\uD83D\uDE02", x.reactions.get(0).code);
+        assertEquals(2, x.reactions.get(0).userIds.size());
+        boolean heart = false, pack = false;
+        for (Feed.Reaction r : x.reactions) {
+            if (r.code.equals(Feed.Reaction.HEART)) heart = r.userIds.equals(java.util.Collections.singletonList("5"));
+            if (r.code.isEmpty()) pack = r.userIds.equals(java.util.Collections.singletonList("4"));
+        }
+        assertTrue(heart);
+        assertTrue(pack);
+    }
+
+    @Test
+    public void replyAndMentionsTravelTogether() throws Exception {
+        java.util.List<Feed.Member> tags = new java.util.ArrayList<>();
+        tags.add(new Feed.Member("42", "Sam", "", ""));
+        org.json.JSONObject msg = Feed.outgoing(tags, "see you", "777");
+        org.json.JSONArray a = msg.getJSONArray("attachments");
+        assertEquals(2, a.length());
+        assertEquals("mentions", a.getJSONObject(0).getString("type"));
+        assertEquals("reply", a.getJSONObject(1).getString("type"));
+        assertEquals("777", a.getJSONObject(1).getString("reply_id"));
+        assertFalse(Feed.outgoing(new java.util.ArrayList<>(), "plain", "").has("attachments"));
+    }
+
+    @Test
+    public void dmConversationIdPutsTheLowerIdFirst() {
+        assertEquals("5+12", Feed.dmConversationId("12", "5"));
+        assertEquals("5+12", Feed.dmConversationId("5", "12"));
+    }
 }

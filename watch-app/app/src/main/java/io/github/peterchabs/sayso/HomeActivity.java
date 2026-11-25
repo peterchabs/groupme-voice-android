@@ -109,6 +109,12 @@ public class HomeActivity extends Activity {
     private int listBottom;       // the chat list's bottom padding (room for the mic)
     private LinearLayout tagRow;  // the faces of everyone being tagged, under the chat name
     private float micScale = 1f;  // the mic's resting size while it waits beside the chat
+    private Feed.Msg replying;    // long-pressed: the next message answers this one
+    private TextView draftQuote;  // "Replying to ..." above the draft
+    private LinearLayout reactCard; // the emoji row a double-tap brings up
+    private boolean reactTouch;   // this touch began on the emoji row
+    /** The quick reactions a double-tap offers. */
+    private static final String[] REACTIONS = {"\u2764\uFE0F", "\uD83D\uDC4D", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDD25"};
     private String typeTarget = "";
     private int typeShown;
 
@@ -269,7 +275,7 @@ public class HomeActivity extends Activity {
     private void buildList() {
         listWrap = new FrameLayout(this);
         list = new ListView(this);
-        list.setDivider(null);
+        cardList(list);
         list.setVerticalScrollBarEnabled(false);
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); // the top stays put; pulling further opens settings
         list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
@@ -404,6 +410,7 @@ public class HomeActivity extends Activity {
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(px(watch ? 6 : 10), px(watch ? 7 : 10), px(watch ? 6 : 10), px(watch ? 7 : 10));
             row.setBackground(pressable());
+            liftRow(row);
             avatar = new Avatar(watch ? 38 : 48);
             row.addView(avatar.view);
             LinearLayout text = new LinearLayout(HomeActivity.this);
@@ -450,6 +457,10 @@ public class HomeActivity extends Activity {
             img.setScaleType(ImageView.ScaleType.CENTER_CROP);
             view.addView(initials, new FrameLayout.LayoutParams(size, size));
             view.addView(img, new FrameLayout.LayoutParams(size, size));
+            view.setOutlineProvider(new android.view.ViewOutlineProvider() { // round, with a soft shadow
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+            });
+            if (!(Palette.dark && watch)) view.setElevation(px(1.5f));
         }
 
         void set(String name, String url, boolean person) {
@@ -772,12 +783,15 @@ public class HomeActivity extends Activity {
         LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         wl.bottomMargin = px(2);
         draft.addView(who, wl);
+        draftQuote = quoteLabel("", true);
+        draftQuote.setVisibility(View.GONE);
+        LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ql.bottomMargin = px(3);
+        draft.addView(draftQuote, ql);
         draftText = label("", sp(watch ? 13 : 15), Color.WHITE, false);
-        GradientDrawable bubble = new GradientDrawable();
-        bubble.setColor(BLUE);
-        bubble.setCornerRadius(px(14));
-        draftText.setBackground(bubble);
-        draftText.setPadding(px(10), px(6), px(10), px(7));
+        draftText.setBackground(bubbleBg(true));
+        draftText.setPadding(px(12), px(7), px(12), px(8));
+        lift(draftText, true);
         draftText.setMinWidth(px(44)); // grows a line at a time; the chat slides up to make room
         draft.addView(draftText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         draftBar = new View(this);
@@ -904,6 +918,7 @@ public class HomeActivity extends Activity {
         ui.removeCallbacks(typer);
         draftText.setText("\u2026");
         draftNote.setText(note);
+        showReplyQuote();
         draftBar.animate().cancel();
         draftBar.setScaleX(1f);
         draftBar.setVisibility(View.INVISIBLE);
@@ -1026,6 +1041,8 @@ public class HomeActivity extends Activity {
             msgs.clear();
             msgAdapter.notifyDataSetChanged();
         }
+        closeReactions();
+        replying = null;
         hideVoice();
         loadMessages(true);
         ui.removeCallbacks(chatPoll);
@@ -1076,6 +1093,10 @@ public class HomeActivity extends Activity {
                         chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
                         msgAdapter.notifyDataSetChanged();
                         chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
+                    } else if (!reactionsOf(msgs).equals(reactionsOf(fresh))) {
+                        msgs.clear();          // only reactions changed: redraw in place, no scrolling
+                        msgs.addAll(fresh);
+                        msgAdapter.notifyDataSetChanged();
                     }
                     if (fresh.isEmpty()) status("No messages yet. Tap the mic to start.");
                     if (handoff > 0) {
@@ -1089,6 +1110,16 @@ public class HomeActivity extends Activity {
                 ui.post(() -> status("Couldn't reach GroupMe"));
             }
         });
+    }
+
+    /** Every message's reactions as one string, to notice when only those changed. */
+    private static String reactionsOf(List<Feed.Msg> list) {
+        StringBuilder b = new StringBuilder();
+        for (Feed.Msg m : list) {
+            b.append(m.id).append(':');
+            for (Feed.Reaction r : m.reactions) b.append(r.code).append(r.userIds).append(',');
+        }
+        return b.toString();
     }
 
     private final class MsgAdapter extends BaseAdapter {
@@ -1148,39 +1179,45 @@ public class HomeActivity extends Activity {
             row.addView(who);
 
             int maxW = (int) (W * (watch ? 0.74f : 0.72f));
+            if (!m.replyId.isEmpty()) { // the message this answers, quoted small above it
+                int at = indexOf(m.replyId);
+                Feed.Msg orig = at >= 0 ? msgs.get(at) : null;
+                TextView q = quoteLabel(orig == null ? "Reply to an earlier message" : quoteText(orig), false);
+                q.setMaxWidth(maxW);
+                LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                qp.topMargin = px(3);
+                row.addView(q, qp);
+                final String oid = m.replyId; // tap: the original, glowing (fetched if it's older)
+                q.setOnClickListener(v -> jumpTo(oid));
+                Press.attach(q);
+            }
             if (!m.text.isEmpty()) {
                 TextView t = label(m.text, sp(watch ? 13 : 15), mine ? Color.WHITE : INK, false);
-                GradientDrawable bubble = new GradientDrawable();
-                bubble.setColor(mine ? BLUE : Palette.BUBBLE);
-                bubble.setCornerRadius(px(14));
-                t.setBackground(bubble);
-                t.setPadding(px(10), px(6), px(10), px(7));
+                t.setBackground(bubbleBg(mine));
+                t.setPadding(px(12), px(7), px(12), px(8));
                 t.setMaxWidth(maxW);
+                lift(t, mine);
                 LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                tl.topMargin = px(2);
+                tl.topMargin = px(3);
                 row.addView(t, tl);
+                messageGestures(t, m);
                 if (!m.eventId.isEmpty()) { // "created event 'Team breakfast'": tap it for the event itself
                     final String eid = m.eventId;
                     t.setOnClickListener(v -> openEventById(eid));
-                    Press.attach(t);
                     TextView more = label("See event ›", sp(watch ? 10.5f : 12), BLUE, true);
                     more.setPadding(px(4), px(3), px(4), 0);
                     more.setOnClickListener(v -> openEventById(eid));
                     row.addView(more);
                 }
             }
-            for (Feed.Media media : m.media) row.addView(mediaView(media, maxW));
+            for (Feed.Media media : m.media) {
+                View mv = mediaView(media, maxW);
+                messageGestures(mv, m);
+                row.addView(mv);
+            }
             String link = m.media.isEmpty() && photosOn() ? LinkPreview.firstUrl(m.text) : null;
             if (link != null) row.addView(linkCard(link, maxW));
-            if (m.likes > 0) {
-                TextView likes = label(" " + m.likes, sp(10), 0xFFE53950, true);
-                Icons heart = new Icons(Icons.HEART, 0xFFE53950, 0);
-                int hs = px(11);
-                heart.setBounds(0, 0, hs, hs);
-                likes.setCompoundDrawables(heart, null, null, null);
-                likes.setPadding(px(4), px(2), px(4), 0);
-                row.addView(likes);
-            }
+            if (!m.reactions.isEmpty()) row.addView(reactionChips(m, mine));
             if (appearing.remove(m.id)) glideIn(row, 0);
             if (m.id.equals(flashId)) {
                 flashId = null;
@@ -1192,6 +1229,279 @@ public class HomeActivity extends Activity {
             }
             return row;
         }
+    }
+
+    // ---------------- message looks, replies and reactions ----------------
+
+    /**
+     * A message pill. Yours: a soft top-to-bottom blue. Theirs: a light fill with a hairline
+     * edge so it stands off the page. The corner nearest the sender stays tight, like a tail.
+     */
+    private GradientDrawable bubbleBg(boolean mine) {
+        GradientDrawable g;
+        if (mine) {
+            g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{Palette.BLUE_TOP, Palette.BLUE_BOTTOM});
+        } else {
+            g = new GradientDrawable();
+            g.setColor(Palette.BUBBLE);
+            g.setStroke(Math.max(1, px(0.75f)), Palette.BUBBLE_EDGE);
+        }
+        float r = px(18), t = px(5); // corners: top-left, top-right, bottom-right, bottom-left
+        g.setCornerRadii(mine ? new float[]{r, r, r, r, t, t, r, r} : new float[]{r, r, r, r, r, r, t, t});
+        return g;
+    }
+
+    /** A small soft shadow under a pill so it lifts off the page (shadows don't show on black). */
+    private void lift(View v, boolean mine) {
+        if (Palette.dark && watch) return;
+        v.setElevation(px(mine ? 2.5f : 1.5f));
+        v.setOutlineAmbientShadowColor(mine ? 0xFF0077B6 : 0xFF000000);
+        v.setOutlineSpotShadowColor(mine ? 0xFF0077B6 : 0xFF000000);
+    }
+
+    /** The small quoted line for a reply: "↩ Name: what they said". */
+    private TextView quoteLabel(String text, boolean onDraft) {
+        TextView q = label("↩ " + text, sp(watch ? 10.5f : 12), GREY, false);
+        q.setSingleLine(true);
+        q.setEllipsize(TextUtils.TruncateAt.END);
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(Palette.ROW);
+        g.setCornerRadius(px(10));
+        g.setStroke(Math.max(1, px(0.75f)), onDraft ? BLUE : Palette.ROW_EDGE);
+        q.setBackground(g);
+        q.setPadding(px(9), px(4), px(9), px(5));
+        q.setMaxWidth((int) (W * (watch ? 0.7f : 0.68f)));
+        return q;
+    }
+
+    private String quoteText(Feed.Msg m) {
+        String who = m.senderId.equals(Store.myId(this)) ? "You" : m.sender;
+        String what = !m.text.isEmpty() ? m.text : m.media.isEmpty() ? "a message"
+                : m.media.get(0).kind == Feed.Media.VIDEO ? "a video" : "a photo";
+        return who + ": " + what;
+    }
+
+    private void showReplyQuote() {
+        if (replying == null) {
+            draftQuote.setVisibility(View.GONE);
+            return;
+        }
+        draftQuote.setText("↩ Replying to " + quoteText(replying));
+        draftQuote.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Each message answers three touches: one tap does what it always did (opens the photo or
+     * the event), a double tap brings up emoji reactions, and holding it starts a spoken reply.
+     */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private void messageGestures(View v, Feed.Msg m) {
+        if (m.system) return;
+        android.view.GestureDetector g = new android.view.GestureDetector(this, new android.view.GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onDown(MotionEvent e) {
+                v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(90).start();
+                return true;
+            }
+            @Override public boolean onSingleTapConfirmed(MotionEvent e) {
+                if (v.hasOnClickListeners()) v.performClick();
+                return true;
+            }
+            @Override public boolean onDoubleTap(MotionEvent e) {
+                showReactions(m, v);
+                return true;
+            }
+            @Override public void onLongPress(MotionEvent e) {
+                if (dragging || pulling) return;
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                startReply(m);
+            }
+        });
+        g.setIsLongpressEnabled(true);
+        v.setOnTouchListener((view, e) -> {
+            g.onTouchEvent(e);
+            int a = e.getActionMasked();
+            if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f).setDuration(260)
+                        .setInterpolator(new OvershootInterpolator(2.5f)).start();
+            }
+            return true;
+        });
+        // screen readers: the same two actions, by name
+        v.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(R.id.act_reply, "Reply by voice"));
+                info.addAction(new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(R.id.act_react, "React"));
+            }
+            @Override public boolean performAccessibilityAction(View host, int action, Bundle args) {
+                if (action == R.id.act_reply) { startReply(m); return true; }
+                if (action == R.id.act_react) { showReactions(m, host); return true; }
+                return super.performAccessibilityAction(host, action, args);
+            }
+        });
+    }
+
+    /** Hold a message: it glows, and Say So listens for your answer to it. */
+    private void startReply(Feed.Msg m) {
+        if (current == null || m.system) return;
+        closeReactions();
+        replying = m;
+        flashId = m.id;
+        msgAdapter.notifyDataSetChanged();
+        startVoice();
+    }
+
+    /** GroupMe's id for this chat's likes and reactions. */
+    private String conversationId() {
+        return current.isDm ? Feed.dmConversationId(Store.myId(this), current.id) : current.id;
+    }
+
+    /** The emoji under a message, small pills tucked against its bottom edge. Yours is outlined. */
+    private View reactionChips(Feed.Msg m, boolean mine) {
+        LinearLayout chips = new LinearLayout(this);
+        chips.setOrientation(LinearLayout.HORIZONTAL);
+        String me = Store.myId(this);
+        int shown = 0;
+        for (Feed.Reaction r : m.reactions) {
+            if (shown == (watch ? 3 : 5)) break;
+            boolean minePick = r.userIds.contains(me);
+            int n = r.userIds.size();
+            String face = r.code.isEmpty() ? "✦" : r.code; // a GroupMe sticker-pack reaction
+            TextView c = label(n > 1 ? face + " " + n : face, sp(watch ? 11 : 12.5f), INK, true);
+            GradientDrawable g = new GradientDrawable();
+            g.setColor(minePick ? Palette.BADGE : Palette.CARD);
+            g.setCornerRadius(px(12));
+            g.setStroke(Math.max(1, px(minePick ? 1.25f : 0.75f)), minePick ? BLUE : Palette.ROW_EDGE);
+            c.setBackground(g);
+            c.setPadding(px(7), px(2), px(7), px(3));
+            c.setGravity(Gravity.CENTER);
+            if (!(Palette.dark && watch)) c.setElevation(px(3));
+            if (!r.code.isEmpty()) {
+                final String code = r.code;
+                c.setOnClickListener(v -> react(m, minePick ? "" : code)); // tap one: same as picking it
+                Press.attach(c);
+            }
+            c.setContentDescription(face + ", " + n);
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (shown > 0) cl.leftMargin = px(3);
+            chips.addView(c, cl);
+            shown++;
+        }
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        l.topMargin = -px(7); // overlaps the pill's bottom edge a little
+        if (mine) l.rightMargin = px(10);
+        else l.leftMargin = px(10);
+        chips.setLayoutParams(l);
+        return chips;
+    }
+
+    /** Double-tap: a row of emoji pops up beside the message. Your current one is ringed. */
+    private void showReactions(Feed.Msg m, View anchor) {
+        if (current == null || m.system) return;
+        closeReactions();
+        String me = Store.myId(this), mineNow = "";
+        for (Feed.Reaction r : m.reactions) if (r.userIds.contains(me)) mineNow = r.code;
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER);
+        GradientDrawable bgd = new GradientDrawable();
+        bgd.setColor(Palette.CARD);
+        bgd.setCornerRadius(px(40));
+        bgd.setStroke(Math.max(1, px(0.75f)), Palette.ROW_EDGE);
+        card.setBackground(bgd);
+        card.setElevation(px(12));
+        card.setPadding(px(6), px(4), px(6), px(4));
+        int cell = px(watch ? 27 : 44);
+        for (int i = 0; i < REACTIONS.length; i++) {
+            String code = REACTIONS[i];
+            TextView e = new TextView(this);
+            e.setText(code);
+            e.setTextSize(sp(watch ? 17 : 26));
+            e.setGravity(Gravity.CENTER);
+            e.setIncludeFontPadding(false);
+            if (code.equals(mineNow)) {
+                GradientDrawable ring = new GradientDrawable();
+                ring.setShape(GradientDrawable.OVAL);
+                ring.setColor(Palette.BADGE);
+                ring.setStroke(px(1.5f), BLUE);
+                e.setBackground(ring);
+            }
+            final boolean again = code.equals(mineNow);
+            e.setOnClickListener(v -> {
+                v.animate().scaleX(1.35f).scaleY(1.35f).setDuration(110).withEndAction(this::closeReactions).start();
+                react(m, again ? "" : code); // the same one again takes yours off
+            });
+            e.setContentDescription(again ? "Remove " + code : "React " + code);
+            LinearLayout.LayoutParams el = new LinearLayout.LayoutParams(cell, cell);
+            el.leftMargin = el.rightMargin = px(1);
+            card.addView(e, el);
+            e.setScaleX(0.4f);
+            e.setScaleY(0.4f);
+            e.setAlpha(0f);
+            e.animate().scaleX(1f).scaleY(1f).alpha(1f).setStartDelay(30L * i).setDuration(220)
+                    .setInterpolator(new OvershootInterpolator(2.2f)).start();
+        }
+        card.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int cw = card.getMeasuredWidth(), ch = card.getMeasuredHeight();
+        int[] a = new int[2], l = new int[2];
+        anchor.getLocationInWindow(a);
+        chatLayer.getLocationInWindow(l);
+        int top = a[1] - l[1] - ch - px(6);                       // just above the message
+        if (top < px(watch ? 60 : 70)) top = a[1] - l[1] + anchor.getHeight() + px(6); // or under it
+        int lh = chatLayer.getHeight() > 0 ? chatLayer.getHeight() : H;
+        int lo = watch ? (int) (lh * 0.2f) : px(64), hi = (watch ? (int) (lh * 0.78f) : lh - px(24)) - ch;
+        top = Math.max(lo, Math.min(hi, top));
+        FrameLayout.LayoutParams fl = new FrameLayout.LayoutParams(cw, ch);
+        fl.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        fl.topMargin = top;
+        chatLayer.addView(card, fl);
+        card.setPivotX(cw / 2f);
+        card.setPivotY(ch);
+        card.setScaleX(0.7f);
+        card.setScaleY(0.7f);
+        card.setAlpha(0f);
+        card.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(200)
+                .setInterpolator(new OvershootInterpolator(1.6f)).start();
+        reactCard = card;
+        anchor.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK);
+    }
+
+    private void closeReactions() {
+        if (reactCard == null) return;
+        View c = reactCard;
+        reactCard = null;
+        c.animate().cancel();
+        c.animate().alpha(0f).scaleX(0.85f).scaleY(0.85f).setDuration(150)
+                .withEndAction(() -> chatLayer.removeView(c)).start();
+    }
+
+    /** Puts your reaction on (or, with "", takes it off) right away, then tells GroupMe. */
+    private void react(Feed.Msg m, String code) {
+        if (current == null) return;
+        String me = Store.myId(this);
+        for (Feed.Reaction r : m.reactions) r.userIds.remove(me);
+        if (!code.isEmpty()) {
+            Feed.Reaction to = null;
+            for (Feed.Reaction r : m.reactions) if (r.code.equals(code)) to = r;
+            if (to == null) m.reactions.add(to = new Feed.Reaction(code));
+            to.userIds.add(me);
+        }
+        m.reactions.removeIf(r -> r.userIds.isEmpty());
+        msgAdapter.notifyDataSetChanged();
+        final String token = Store.token(this), conv = conversationId(), id = m.id;
+        bg.execute(() -> {
+            try {
+                Feed.react(token, conv, id, code);
+                ui.postDelayed(() -> loadMessages(false), 600);
+            } catch (Api.AuthException e) {
+                ui.post(this::signedOut);
+            } catch (IOException e) {
+                ui.post(() -> {
+                    status("Couldn't react. Check your connection.");
+                    loadMessages(false);
+                });
+            }
+        });
     }
 
     /** Looking at older messages (jumped back to a photo): new ones don't pull the view to the end. */
@@ -1432,7 +1742,7 @@ public class HomeActivity extends Activity {
         membersLayer = new FrameLayout(this);
         membersLayer.setBackgroundColor(BG);
         memberList = new ListView(this);
-        memberList.setDivider(null);
+        cardList(memberList);
         memberList.setVerticalScrollBarEnabled(false);
         memberList.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         int side = watch ? (int) (W * 0.09f) : px(12);
@@ -1661,7 +1971,7 @@ public class HomeActivity extends Activity {
             r.check.setVisibility(picking && !me ? View.VISIBLE : View.GONE);
             ((GradientDrawable) r.check.getBackground()).setColor(on ? BLUE : Color.TRANSPARENT);
             r.check.setText(on ? "\u2713" : "");
-            ((View) r.name.getParent().getParent()).setBackgroundColor(on ? 0x1400AFF0 : Color.TRANSPARENT); // the row, not its heading
+            ((View) r.name.getParent().getParent()).setBackground(on ? card(Palette.BADGE, BLUE) : card(Palette.ROW, Palette.ROW_EDGE)); // the row, not its heading
             return v;
         }
     }
@@ -1675,6 +1985,7 @@ public class HomeActivity extends Activity {
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(px(watch ? 6 : 10), px(watch ? 6 : 9), px(watch ? 6 : 10), px(watch ? 6 : 9));
+            liftRow(row);
             avatar = new Avatar(watch ? 34 : 44);
             row.addView(avatar.view);
             LinearLayout text = new LinearLayout(HomeActivity.this);
@@ -1866,7 +2177,7 @@ public class HomeActivity extends Activity {
         eventsLayer = new FrameLayout(this);
         eventsLayer.setBackgroundColor(BG);
         eventList = new ListView(this);
-        eventList.setDivider(null);
+        cardList(eventList);
         eventList.setVerticalScrollBarEnabled(false);
         eventList.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         int side = watch ? (int) (W * 0.1f) : px(12);
@@ -1929,6 +2240,7 @@ public class HomeActivity extends Activity {
                 if (e.going > 0) text.addView(label(e.going + " going", sp(watch ? 10 : 12), BLUE, false));
                 row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
                 row.setBackground(pressable());
+                liftRow(row);
                 return row;
             }
         };
@@ -2542,7 +2854,9 @@ public class HomeActivity extends Activity {
         // A swipe from the watch's edge is also the system's Back: both arrive for one swipe.
         if (settling()) return;
         navAt = android.os.SystemClock.uptimeMillis();
-        if (settingsOpen) {
+        if (reactCard != null) {
+            closeReactions();
+        } else if (settingsOpen) {
             closeSettings();
         } else if (level == 6) {
             go(5, false);
@@ -2675,6 +2989,22 @@ public class HomeActivity extends Activity {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
+        // The emoji row is up: a touch on it picks, a touch anywhere else just closes it.
+        if (reactCard != null || reactTouch) {
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                android.graphics.Rect r = new android.graphics.Rect();
+                reactTouch = reactCard != null && reactCard.getGlobalVisibleRect(r) && r.contains((int) e.getRawX(), (int) e.getRawY());
+                if (!reactTouch) {
+                    closeReactions();
+                    swallow = true;
+                    return true;
+                }
+            }
+            if (reactTouch) {
+                if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) reactTouch = false;
+                return super.dispatchTouchEvent(e);
+            }
+        }
         // A zoomed picture, or a second finger on one (a pinch), owns the touch: no page swipes.
         if (level == 4 && zoomer != null && !swallow && !settingsOpen) {
             int a = e.getActionMasked();
@@ -2705,7 +3035,7 @@ public class HomeActivity extends Activity {
                     android.graphics.Rect r = new android.graphics.Rect();
                     voicePanel.getGlobalVisibleRect(r);
                     boolean typing = voicePanel.findFocus() instanceof EditText;
-                    if (!typing && !r.contains((int) e.getRawX(), (int) e.getRawY())) hideVoice(); // tap elsewhere: close it
+                    if (!typing && !r.contains((int) e.getRawX(), (int) e.getRawY())) cancelPanel(); // tap elsewhere: close it
                 }
                 downX = e.getRawX();
                 downY = e.getRawY();
@@ -2800,7 +3130,9 @@ public class HomeActivity extends Activity {
     private void startVoice() {
         if (current == null) return;
         toLatest(); // talking happens at the newest messages
+        Feed.Msg keep = replying; // a retry or a fresh listen still answers the same message
         cancelVoice();
+        replying = keep;
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
             return;
@@ -2916,7 +3248,7 @@ public class HomeActivity extends Activity {
     }
 
     private final Runnable panelTimeout = () -> {
-        if (voicePanel.getVisibility() == View.VISIBLE && pendingSend == null && !listening) hideVoice();
+        if (voicePanel.getVisibility() == View.VISIBLE && pendingSend == null && !listening) cancelPanel();
     };
 
     private void hidePanel() {
@@ -2925,6 +3257,12 @@ public class HomeActivity extends Activity {
             voicePanel.animate().alpha(0f).translationY(px(40)).setDuration(200)
                     .withEndAction(() -> voicePanel.setVisibility(View.GONE)).start();
         }
+    }
+
+    /** Cancel on a panel (or a tap away from it): also lets go of the message being replied to. */
+    private void cancelPanel() {
+        replying = null;
+        hideVoice();
     }
 
     private void hideVoice() {
@@ -3009,7 +3347,7 @@ public class HomeActivity extends Activity {
             } else if (code == SpeechRecognizer.ERROR_NETWORK || code == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
                 showPanel("No connection", "Check your connection, then try again.",
                         new Object[]{(watch ? "Retry" : "Try again"), (Runnable) HomeActivity.this::startVoice,
-                                "Cancel", (Runnable) HomeActivity.this::hideVoice});
+                                "Cancel", (Runnable) HomeActivity.this::cancelPanel});
             } else {
                 didntCatch();
             }
@@ -3052,7 +3390,7 @@ public class HomeActivity extends Activity {
                 if (found == null || found.group == null) {
                     hideDraft();
                     showPanel("Couldn't find " + p.group, "\u201C" + Tidy.spoken(p.text) + "\u201D",
-                            new Object[]{"Send here", (Runnable) () -> countdown(Tidy.spoken(p.text)), "Cancel", (Runnable) this::hideVoice});
+                            new Object[]{"Send here", (Runnable) () -> countdown(Tidy.spoken(p.text)), "Cancel", (Runnable) this::cancelPanel});
                     return;
                 }
                 Feed.Convo here = current;
@@ -3078,8 +3416,10 @@ public class HomeActivity extends Activity {
         if (current == null) return;
         EditText e = new EditText(this);
         Press.field(e);
-        e.setHint("Message " + current.name);
+        e.setHint(replying != null ? "Your reply" : "Message " + current.name);
         e.setSingleLine(true);
+        if (replying != null) why = (why != null && why.startsWith("The microphone is off") ? "Mic off. " : "")
+                + "Replying to " + quoteText(replying);
         showPanel("Type it", why != null ? why : "Your message for " + current.name,
                 new Object[]{"Send", (Runnable) () -> {
                     String t = e.getText().toString().trim();
@@ -3088,7 +3428,7 @@ public class HomeActivity extends Activity {
                         if (m != null) m.hideSoftInputFromWindow(e.getWindowToken(), 0);
                         countdown(t);
                     }
-                }, "Cancel", (Runnable) this::hideVoice});
+                }, "Cancel", (Runnable) this::cancelPanel});
         voicePanel.addView(e, 2, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         e.requestFocus();
     }
@@ -3098,9 +3438,10 @@ public class HomeActivity extends Activity {
         final Feed.Convo to = current;
         if (to == null) return;
         final List<Feed.Member> tags = new ArrayList<>(tagging);
+        final String replyId = replying == null ? "" : replying.id;
         if (text.length() > 1000) {
             showPanel("That's too long", "GroupMe allows 1000 characters.",
-                    new Object[]{(watch ? "Retry" : "Try again"), (Runnable) this::startVoice, "Cancel", (Runnable) this::hideVoice});
+                    new Object[]{(watch ? "Retry" : "Try again"), (Runnable) this::startVoice, "Cancel", (Runnable) this::cancelPanel});
             return;
         }
         hidePanel();
@@ -3113,20 +3454,21 @@ public class HomeActivity extends Activity {
         showDraftButtons(new Runnable[]{() -> {
             if (pendingSend != null) ui.removeCallbacks(pendingSend);
             pendingSend = null;
+            replying = null;
             hideDraft();
         }, () -> {
             if (pendingSend != null) ui.removeCallbacks(pendingSend);
             pendingSend = null;
-            send(to, text, tags);
+            send(to, text, tags, replyId);
         }});
         pendingSend = () -> {
             pendingSend = null;
-            send(to, text, tags);
+            send(to, text, tags, replyId);
         };
         ui.postDelayed(pendingSend, SEND_DELAY_MS);
     }
 
-    private void send(Feed.Convo to, String text, List<Feed.Member> tags) {
+    private void send(Feed.Convo to, String text, List<Feed.Member> tags, String replyId) {
         draftBar.animate().cancel();
         draftBar.setVisibility(View.INVISIBLE);
         draftNote.setText("Sending\u2026");
@@ -3134,8 +3476,9 @@ public class HomeActivity extends Activity {
         final String token = Store.token(this);
         bg.execute(() -> {
             try {
-                Feed.sendTagged(token, to, tags, text);
+                Feed.sendTagged(token, to, tags, text, replyId);
                 ui.post(() -> {
+                    replying = null;
                     tagging.clear();
                     refreshTagRow();
                     status(to.isDm ? "Direct message" : "Group");
@@ -3149,7 +3492,7 @@ public class HomeActivity extends Activity {
             } catch (IOException e) {
                 ui.post(() -> hideDraft());
                 ui.post(() -> showPanel("Not sent", "Couldn't reach GroupMe.",
-                        new Object[]{(watch ? "Retry" : "Try again"), (Runnable) () -> send(to, text, tags), "Cancel", (Runnable) this::hideVoice}));
+                        new Object[]{(watch ? "Retry" : "Try again"), (Runnable) () -> send(to, text, tags, replyId), "Cancel", (Runnable) this::cancelPanel}));
             }
         });
     }
@@ -3176,13 +3519,34 @@ public class HomeActivity extends Activity {
         return t;
     }
 
+    /** A list row as a soft rounded card with a hairline edge; it tints blue while pressed. */
     private StateListDrawable pressable() {
         StateListDrawable s = new StateListDrawable();
-        GradientDrawable on = new GradientDrawable();
-        on.setColor(0x1A00AFF0);
-        on.setCornerRadius(px(16));
-        s.addState(new int[]{android.R.attr.state_pressed}, on);
-        s.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        s.addState(new int[]{android.R.attr.state_pressed}, card(Palette.BADGE, BLUE));
+        s.addState(new int[]{}, card(Palette.ROW, Palette.ROW_EDGE));
+        s.setExitFadeDuration(180);
         return s;
+    }
+
+    private GradientDrawable card(int fill, int edge) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(px(watch ? 22 : 18));
+        g.setStroke(Math.max(1, px(0.75f)), edge);
+        return g;
+    }
+
+    /** Space between card rows (instead of a line), and room at the sides for their shadows. */
+    private void cardList(ListView l) {
+        l.setDivider(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        l.setDividerHeight(px(watch ? 5 : 7));
+    }
+
+    /** A card row lifts a little off the page (not on a black watch screen, where shadows vanish). */
+    private void liftRow(View row) {
+        if (Palette.dark && watch) return;
+        row.setElevation(px(1.5f));
+        row.setOutlineAmbientShadowColor(0x66000000);
+        row.setOutlineSpotShadowColor(0x66000000);
     }
 }

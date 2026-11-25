@@ -14,6 +14,9 @@ final class Palette {
 
     static boolean dark;
     static int BG, SURFACE, CARD, INK, SUB, BUBBLE, PLACEHOLDER, AVATAR, BADGE, LIVE;
+    /** Message pills and card rows: fills and hairline edges. Yours: a gentle blue gradient. */
+    static int BUBBLE_EDGE, ROW, ROW_EDGE;
+    static final int BLUE_TOP = 0xFF2CC4F9, BLUE_BOTTOM = 0xFF0397D8;
     static int BTN_TOP, BTN_BOTTOM, BTN_LIP, FIELD_TEXT, FIELD_HINT, FIELD_EDGE, FIELD_FILL_TOP, FIELD_FILL_MID;
 
     static final String LIGHT = "light", DARK = "dark", SYSTEM = "system";
@@ -30,7 +33,10 @@ final class Palette {
             CARD = 0xFF1C2127;
             INK = 0xFFF1F4F7;
             SUB = 0xFFA3AEB9;
-            BUBBLE = 0xFF22282F;
+            BUBBLE = 0xFF252C34;
+            BUBBLE_EDGE = 0xFF343D47;
+            ROW = watch ? 0xFF11161B : 0xFF1A1F25;
+            ROW_EDGE = 0xFF29313A;
             PLACEHOLDER = 0xFF1A1F25;
             AVATAR = 0xFF2B323A;
             BADGE = 0xFF0F2A38;
@@ -49,7 +55,10 @@ final class Palette {
             CARD = 0xFFFFFFFF;
             INK = 0xFF1B1F24;
             SUB = 0xFF46515C;
-            BUBBLE = 0xFFF0F3F6;
+            BUBBLE = 0xFFEDF1F5;
+            BUBBLE_EDGE = 0xFFD8E0E8;
+            ROW = 0xFFF7FAFC;
+            ROW_EDGE = 0xFFE4EBF1;
             PLACEHOLDER = 0xFFEAF0F5;
             AVATAR = 0xFFDDE6EE;
             BADGE = 0xFFEAF6FD;

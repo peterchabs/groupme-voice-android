@@ -62,6 +62,10 @@ final class Feed {
         final List<Media> media;
         /** Set when the message announces a calendar event: tap it for the event. */
         String eventId = "";
+        /** The message this one answers (GroupMe's "reply"), or "". */
+        String replyId = "";
+        /** Emoji reactions, most used first. */
+        List<Reaction> reactions = new ArrayList<>();
 
         Msg(String id, String senderId, String sender, String avatarUrl, String text, long at, int likes,
             boolean system, List<Media> media) {
@@ -74,6 +78,21 @@ final class Feed {
             this.likes = likes;
             this.system = system;
             this.media = media;
+        }
+    }
+
+    /**
+     * One emoji and who reacted with it. GroupMe gives each person one reaction per message.
+     * A plain like is a heart; a reaction from GroupMe's own sticker packs (which only the
+     * GroupMe app can draw) has an empty code.
+     */
+    static final class Reaction {
+        static final String HEART = "\u2764\uFE0F";
+        final String code;
+        final List<String> userIds = new ArrayList<>();
+
+        Reaction(String code) {
+            this.code = code;
         }
     }
 
@@ -337,26 +356,76 @@ final class Feed {
 
     /** Sends to a group with people tagged (see withMentions). */
     static void sendTagged(String token, Convo c, List<Member> tags, String text) throws IOException {
-        if (tags.isEmpty() || c.isDm) {
+        sendTagged(token, c, tags, text, "");
+    }
+
+    /** Sends with people tagged (groups only) and, if replyId isn't empty, as a reply to that message. */
+    static void sendTagged(String token, Convo c, List<Member> tags, String text, String replyId) throws IOException {
+        if ((tags.isEmpty() || c.isDm) && replyId.isEmpty()) {
             send(token, c, text);
             return;
         }
-        List<int[]> loci = new ArrayList<>();
-        String full = withMentions(tags, text, loci);
         try {
+            JSONObject msg = outgoing(c.isDm ? new ArrayList<>() : tags, text, replyId);
+            if (c.isDm) {
+                msg.put("recipient_id", c.id);
+                Api.call("POST", "/direct_messages", token, new JSONObject().put("direct_message", msg).toString());
+            } else {
+                Api.call("POST", "/groups/" + enc(c.id) + "/messages", token, new JSONObject().put("message", msg).toString());
+            }
+        } catch (org.json.JSONException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /** The message GroupMe is sent: the text, plus mentions and a reply when there are any. */
+    static JSONObject outgoing(List<Member> tags, String text, String replyId) throws org.json.JSONException {
+        List<int[]> loci = new ArrayList<>();
+        String full = tags.isEmpty() ? text : withMentions(tags, text, loci);
+        JSONArray atts = new JSONArray();
+        if (!tags.isEmpty()) {
             JSONArray ids = new JSONArray(), where = new JSONArray();
             for (int i = 0; i < tags.size(); i++) {
                 ids.put(tags.get(i).userId);
                 where.put(new JSONArray().put(loci.get(i)[0]).put(loci.get(i)[1]));
             }
-            JSONObject msg = new JSONObject()
-                    .put("source_guid", java.util.UUID.randomUUID().toString())
-                    .put("text", full)
-                    .put("attachments", new JSONArray().put(new JSONObject()
-                            .put("type", "mentions").put("user_ids", ids).put("loci", where)));
-            Api.call("POST", "/groups/" + enc(c.id) + "/messages", token, new JSONObject().put("message", msg).toString());
-        } catch (org.json.JSONException e) {
-            throw new IOException(e);
+            atts.put(new JSONObject().put("type", "mentions").put("user_ids", ids).put("loci", where));
+        }
+        if (!replyId.isEmpty()) {
+            atts.put(new JSONObject().put("type", "reply").put("reply_id", replyId).put("base_reply_id", replyId));
+        }
+        JSONObject msg = new JSONObject()
+                .put("source_guid", java.util.UUID.randomUUID().toString())
+                .put("text", full);
+        if (atts.length() > 0) msg.put("attachments", atts);
+        return msg;
+    }
+
+    /** Reacts to a message with an emoji (replacing your earlier reaction), or clears yours with "". */
+    static void react(String token, String conversationId, String messageId, String emoji) throws IOException {
+        String path = "/messages/" + enc(conversationId) + "/" + enc(messageId) + (emoji.isEmpty() ? "/unlike" : "/like");
+        String body = "{}";
+        if (!emoji.isEmpty()) {
+            try {
+                body = new JSONObject().put("like_icon", new JSONObject().put("type", "unicode").put("code", emoji)).toString();
+            } catch (org.json.JSONException e) {
+                throw new IOException(e);
+            }
+        }
+        Api.call("POST", path, token, body);
+    }
+
+    /** GroupMe's id for a DM's messages (likes, reactions): the two user ids, lower first. */
+    static String dmConversationId(String myId, String otherId) {
+        long a = parseLong(myId), b = parseLong(otherId);
+        return a <= b ? myId + "+" + otherId : otherId + "+" + myId;
+    }
+
+    private static long parseLong(String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 
@@ -416,6 +485,47 @@ final class Feed {
         Msg out = new Msg(str(m, "id"), sender, str(m, "name"), str(m, "avatar_url"), text,
                 m.optLong("created_at", 0), fav == null ? 0 : fav.length(), system, media);
         out.eventId = eventIdOf(m);
+        out.reactions = parseReactions(m.optJSONArray("reactions"), fav);
+        if (atts != null) {
+            for (int i = 0; i < atts.length(); i++) {
+                JSONObject a = atts.optJSONObject(i);
+                if (a != null && "reply".equals(str(a, "type"))) out.replyId = str(a, "reply_id");
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Emoji reactions, most used first. Anyone in favorited_by without a reaction gave a plain
+     * like, which counts as a heart.
+     */
+    static List<Reaction> parseReactions(JSONArray reactions, JSONArray favoritedBy) {
+        java.util.LinkedHashMap<String, Reaction> by = new java.util.LinkedHashMap<>();
+        java.util.HashSet<String> counted = new java.util.HashSet<>();
+        if (reactions != null) {
+            for (int i = 0; i < reactions.length(); i++) {
+                JSONObject r = reactions.optJSONObject(i);
+                if (r == null) continue;
+                String code = "unicode".equals(str(r, "type")) ? str(r, "code") : "";
+                Reaction x = by.get(code);
+                if (x == null) by.put(code, x = new Reaction(code));
+                JSONArray ids = r.optJSONArray("user_ids");
+                for (int j = 0; ids != null && j < ids.length(); j++) {
+                    String u = ids.optString(j);
+                    if (counted.add(u)) x.userIds.add(u);
+                }
+            }
+        }
+        for (int i = 0; favoritedBy != null && i < favoritedBy.length(); i++) {
+            String u = favoritedBy.optString(i);
+            if (!counted.add(u)) continue;
+            Reaction x = by.get(Reaction.HEART);
+            if (x == null) by.put(Reaction.HEART, x = new Reaction(Reaction.HEART));
+            x.userIds.add(u);
+        }
+        List<Reaction> out = new ArrayList<>();
+        for (Reaction x : by.values()) if (!x.userIds.isEmpty()) out.add(x);
+        out.sort((a, b) -> Integer.compare(b.userIds.size(), a.userIds.size()));
         return out;
     }
 

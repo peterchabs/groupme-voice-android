@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="press_anim" type="id" />
+    <item name="act_reply" type="id" />
+    <item name="act_react" type="id" />
     <item name="img_key" type="id" />
 </resources>
