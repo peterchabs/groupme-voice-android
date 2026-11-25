@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Say So: watch setup and features</title>
+<meta name="description" content="Setting up Say So on a Wear OS watch, and everything it does, in about two minutes.">
+<meta property="og:title" content="Say So: watch setup and features">
+<meta property="og:description" content="Voice messages for GroupMe on Wear OS, in about two minutes.">
+<meta property="og:video" content="https://peterchabs.github.io/groupme-voice-android/say-so-watch-setup.mp4">
+<meta property="og:video:type" content="video/mp4">
+<style>
+  :root { --bg: #111827; --text: #f5f7fa; --muted: #9aa4b2; --accent: #00aff0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 4px; }
+  p { margin: 0 0 18px; color: var(--muted); }
+  video { display: block; width: 100%; height: auto; border-radius: 14px; background: #000; }
+  .links { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px 22px; }
+  a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .fine { margin-top: 26px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Say So on your watch</h1>
+  <p>Setup and every feature in about two minutes. The video has no sound.</p>
+  <!-- Muted videos are allowed to start on their own in every major browser. -->
+  <video src="say-so-watch-setup.mp4" autoplay muted loop playsinline controls preload="auto"
+         poster="images/video-poster.png"></video>
+  <div class="links">
+    <a href="https://github.com/peterchabs/groupme-voice-android#readme">Setup steps</a>
+    <a href="https://github.com/peterchabs/groupme-voice-android/releases/latest">Download Say So</a>
+    <a href="./">Connect your watch</a>
+  </div>
+  <p class="fine"><b>Not affiliated with GroupMe or Microsoft.</b> Say So is an independent, free, open-source project.</p>
+</main>
+</body>
+</html>
