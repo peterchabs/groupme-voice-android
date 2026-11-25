@@ -106,7 +106,9 @@ public class HomeActivity extends Activity {
     private LinearLayout draft, draftButtons;
     private TextView draftText, draftNote;
     private View draftBar;
-    private int listBottom;       // the chat list's bottom padding without a draft
+    private int listBottom;       // the chat list's bottom padding (room for the mic)
+    private LinearLayout tagRow;  // the faces of everyone being tagged, under the chat name
+    private float micScale = 1f;  // the mic's resting size while it waits beside the chat
     private String typeTarget = "";
     private int typeShown;
 
@@ -197,6 +199,7 @@ public class HomeActivity extends Activity {
         voiceEntry = true;
         instant = level == 0;
         tagging.clear();
+        refreshTagRow();
         openChat(new Feed.Convo(dg.id, dg.name, pic, false, 0, ""));
         ui.postDelayed(this::startVoice, 120);
     }
@@ -665,6 +668,14 @@ public class HomeActivity extends Activity {
             chatTitle.setMaxWidth((int) (W * 0.58f));
         }
         titles.addView(chatTitle);
+        // Who this message will tag: their faces side by side in one row, no names.
+        tagRow = new LinearLayout(this);
+        tagRow.setOrientation(LinearLayout.HORIZONTAL);
+        tagRow.setGravity(watch ? Gravity.CENTER : Gravity.START | Gravity.CENTER_VERTICAL);
+        tagRow.setVisibility(View.GONE);
+        LinearLayout.LayoutParams trl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        trl.topMargin = px(3);
+        titles.addView(tagRow, trl);
         titles.addView(chatStatus);
         if (watch) chatStatus.setVisibility(View.GONE);
         if (watch) head.addView(titles, new LinearLayout.LayoutParams((int) (W * 0.58f), ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -767,9 +778,7 @@ public class HomeActivity extends Activity {
         bubble.setCornerRadius(px(14));
         draftText.setBackground(bubble);
         draftText.setPadding(px(10), px(6), px(10), px(7));
-        draftText.setMaxLines(3);
-        draftText.setEllipsize(TextUtils.TruncateAt.START); // the newest words stay in view
-        draftText.setMinWidth(px(44));
+        draftText.setMinWidth(px(44)); // grows a line at a time; the chat slides up to make room
         draft.addView(draftText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         draftBar = new View(this);
         draftBar.setBackgroundColor(BLUE);
@@ -784,14 +793,16 @@ public class HomeActivity extends Activity {
         draftNote.setPadding(0, px(2), px(4), 0);
         draft.addView(draftNote);
         draft.setVisibility(View.GONE);
-        FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(watch ? (int) (W * 0.74f) : ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
-        dl.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        dl.bottomMargin = micBottom + micSize + px(4);
-        dl.leftMargin = dl.rightMargin = watch ? 0 : px(12);
-        chatLayer.addView(draft, dl);
-        // the chat scrolls up to make room, so the draft never covers the newest message
-        draft.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitListToDraft());
+        draft.setPadding(0, px(4), 0, px(2));
+        // The draft is the chat's last row, never laid over it: as it grows, every message above
+        // slides up with it, and nothing is ever covered.
+        // (wrapped: a hidden footer row still takes up its full height in a ListView)
+        FrameLayout draftRow = new FrameLayout(this);
+        draftRow.addView(draft, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        chatList.addFooterView(draftRow, null, false);
+        draftRow.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (b - t != ob - ot) followDraft();
+        });
 
         draftButtons = new LinearLayout(this);
         draftButtons.setOrientation(LinearLayout.HORIZONTAL);
@@ -804,35 +815,84 @@ public class HomeActivity extends Activity {
     }
 
     /**
-     * While you talk the mic slides toward the right edge of the circle, out of the bubble's way,
-     * and comes back to the middle afterwards.
+     * While you talk the mic moves to the right edge as the mirror image of the group's picture
+     * on the left: the same size, the same height, the same distance from the edge. That leaves
+     * the whole bottom of the screen to the words you're saying. Afterwards it comes back.
      */
     private void micAside(boolean aside) {
         micButton.animate().cancel();
-        float tx = aside ? (watch ? W * 0.27f : W * 0.36f) : 0f;
-        float ty = aside ? (watch ? -H * 0.06f : 0f) : 0f;
-        float sc = aside ? 0.82f : 1f;
+        float tx = 0f, ty = 0f, sc = 1f;
+        if (aside) {
+            int m = micButton.getLayoutParams().width;
+            float[] pic = groupPictureSpot();          // centre x, centre y, size
+            float micCx = micButton.getLeft() + m / 2f, micCy = micButton.getTop() + m / 2f;
+            if (micButton.getWidth() == 0) {           // not laid out yet: where its layout puts it
+                FrameLayout.LayoutParams ml = (FrameLayout.LayoutParams) micButton.getLayoutParams();
+                micCx = W / 2f;
+                micCy = chatLayer.getHeight() > 0 ? chatLayer.getHeight() - ml.bottomMargin - m / 2f : H - ml.bottomMargin - m / 2f;
+            }
+            float w = chatLayer.getWidth() > 0 ? chatLayer.getWidth() : W;
+            tx = (w - pic[0]) - micCx;                 // mirrored across the middle
+            ty = pic[1] - micCy;
+            sc = pic[2] / m;
+        }
+        micScale = sc;
         micButton.animate().translationX(tx).translationY(ty).scaleX(sc).scaleY(sc).alpha(1f)
                 .setDuration(320).setInterpolator(new DecelerateInterpolator(1.4f)).start();
-        // the bubble drops into the space the mic left, keeping room on its right for the mic
-        int micW = micButton.getWidth() > 0 ? micButton.getWidth() : px(watch ? 46 : 60);
-        draft.setPadding(0, 0, aside ? (int) (micW * 0.9f) : 0, 0);
-        draft.animate().translationY(aside ? micW * 0.62f : 0f).setDuration(320)
-                .setInterpolator(new DecelerateInterpolator(1.4f)).start();
+        fitListRoom();
     }
 
-    private void fitListToDraft() {
-        int want = draft.getVisibility() == View.VISIBLE ? listBottom + draft.getHeight() : listBottom;
+    /** Where the group's picture sits in the chat page: {centre x, centre y, size}. */
+    private float[] groupPictureSpot() {
+        if (chatAvatar.getWidth() > 0 && chatAvatar.isShown()) {
+            int[] a = new int[2], l = new int[2];
+            chatAvatar.getLocationInWindow(a);
+            chatLayer.getLocationInWindow(l);
+            float s = chatAvatar.getWidth();
+            return new float[]{a[0] - l[0] + s / 2f, a[1] - l[1] + s / 2f, s};
+        }
+        if (watch) { // hidden (a group with no picture): where it would be
+            FrameLayout.LayoutParams al = (FrameLayout.LayoutParams) chatAvatar.getLayoutParams();
+            float h = chatLayer.getHeight() > 0 ? chatLayer.getHeight() : H;
+            return new float[]{al.leftMargin + al.width / 2f, h / 2f, al.width};
+        }
+        float s = px(36);
+        return new float[]{px(10) + s / 2f, px(10) + s / 2f, s};
+    }
+
+    /**
+     * The room under the chat. While you're talking the mic is off to the side, so the draft
+     * row drops down into the space it left; with the mic or the Send buttons back at the
+     * bottom, the chat leaves room for them again. Either way the chat glides, never jumps.
+     */
+    private void fitListRoom() {
+        boolean talking = listening && draftButtons.getVisibility() != View.VISIBLE;
+        int want = talking ? (watch ? (int) (H * 0.12f) : px(16)) : listBottom;
         if (chatList.getPaddingBottom() != want) {
             chatList.setPadding(chatList.getPaddingLeft(), chatList.getPaddingTop(), chatList.getPaddingRight(), want);
-            scrollChatToEnd();
+            followDraft();
         }
+    }
+
+    /**
+     * Keeps the newest row (the draft while you talk) resting on the bottom of the chat. When it
+     * grows a line, or the room under it changes, everything above slides smoothly to make room.
+     */
+    private void followDraft() {
+        chatList.post(() -> {
+            if (history || chatList.getChildCount() == 0) return;
+            int last = chatList.getLastVisiblePosition();
+            if (last < chatList.getCount() - 1) return;         // reading older messages: leave them be
+            View end = chatList.getChildAt(chatList.getChildCount() - 1);
+            int gap = end.getBottom() - (chatList.getHeight() - chatList.getPaddingBottom());
+            if (gap != 0) chatList.smoothScrollBy(gap, 260);
+        });
     }
 
     /** All the way down, after the list has laid out its new padding. */
     private void scrollChatToEnd() {
         chatList.post(() -> {
-            chatList.setSelection(msgAdapter.getCount() - 1);
+            chatList.setSelection(chatList.getCount() - 1);
             chatList.post(() -> chatList.scrollListBy(100000));
         });
     }
@@ -860,7 +920,7 @@ public class HomeActivity extends Activity {
             draft.animate().cancel();
             draft.animate().alpha(0f).setDuration(180).withEndAction(() -> {
                 draft.setVisibility(View.GONE);
-                fitListToDraft();
+                followDraft();
             }).start();
         }
         showDraftButtons(null);
@@ -893,11 +953,10 @@ public class HomeActivity extends Activity {
         }
         micButton.animate().cancel();
         micButton.animate().alpha(0f).translationX(0).translationY(0).scaleX(0.6f).scaleY(0.6f).setDuration(150).start();
-        draft.setPadding(0, 0, 0, 0); // the buttons sit where the mic was: the bubble rises above them
-        draft.animate().translationY(0).setDuration(220).start();
         draftButtons.setVisibility(View.VISIBLE);
         draftButtons.setAlpha(0f);
         draftButtons.animate().alpha(1f).setDuration(180).start();
+        fitListRoom(); // the buttons sit where the mic was: the chat rises above them
     }
 
     /** Types toward {@code t} a few letters at a time, the way a message gets written. */
@@ -1219,7 +1278,7 @@ public class HomeActivity extends Activity {
         draft.setVisibility(View.GONE);
         draft.setAlpha(1f);
         showDraftButtons(null);
-        fitListToDraft();
+        followDraft();
     }
 
     /**
@@ -1501,21 +1560,57 @@ public class HomeActivity extends Activity {
 
     private void speakWithTags() {
         go(1, false);
-        status(tagging.isEmpty() ? (current != null && current.isDm ? "Direct message" : "Group") : "Tagging " + names(tagging));
+        refreshTagRow();
         ui.postDelayed(this::startVoice, 340); // after the slide back
     }
 
-    private String taggingNote() {
-        return tagging.isEmpty() ? "" : (watch ? "\nTagging " : ", tagging ") + names(tagging);
-    }
-
-    private static String names(List<Feed.Member> list) {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < list.size(); i++) {
-            if (i > 0) b.append(i == list.size() - 1 ? " and " : ", ");
-            b.append(list.get(i).name);
+    /**
+     * The people being tagged, as a single row of small faces under the chat name. When there
+     * are more than fit, the last spot says how many more ("+3").
+     */
+    private void refreshTagRow() {
+        if (tagRow == null) return;
+        tagRow.removeAllViews();
+        if (tagging.isEmpty()) {
+            if (tagRow.getVisibility() == View.VISIBLE) {
+                tagRow.animate().cancel();
+                tagRow.animate().alpha(0f).setDuration(160).withEndAction(() -> tagRow.setVisibility(View.GONE)).start();
+            }
+            return;
         }
-        return b.toString();
+        int size = px(watch ? 18 : 22), gap = px(3);
+        int room = (int) (W * (watch ? 0.58f : 0.6f));
+        int fit = Math.max(1, (room + gap) / (size + gap));
+        int show = tagging.size() <= fit ? tagging.size() : fit - 1;
+        StringBuilder said = new StringBuilder("Tagging ");
+        for (int i = 0; i < tagging.size(); i++) said.append(i == 0 ? "" : ", ").append(tagging.get(i).name);
+        tagRow.setContentDescription(said);
+        for (int i = 0; i < show; i++) {
+            Feed.Member m = tagging.get(i);
+            Avatar face = new Avatar(watch ? 18 : 22);
+            face.set(m.name, m.avatarUrl, true);
+            face.view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(size, size);
+            if (i > 0) fl.leftMargin = gap;
+            tagRow.addView(face.view, fl);
+        }
+        if (show < tagging.size()) {
+            TextView more = label("+" + (tagging.size() - show), sp(watch ? 9 : 10.5f), INK, true);
+            more.setGravity(Gravity.CENTER);
+            GradientDrawable o = new GradientDrawable();
+            o.setShape(GradientDrawable.OVAL);
+            o.setColor(Palette.AVATAR);
+            more.setBackground(o);
+            more.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(size, size);
+            fl.leftMargin = gap;
+            tagRow.addView(more, fl);
+        }
+        if (tagRow.getVisibility() != View.VISIBLE) {
+            tagRow.setVisibility(View.VISIBLE);
+            tagRow.setAlpha(0f);
+            tagRow.animate().alpha(1f).setDuration(200).start();
+        }
     }
 
     private final class MemberAdapter extends BaseAdapter {
@@ -2116,6 +2211,7 @@ public class HomeActivity extends Activity {
             if (current != null && !current.isDm) {
                 addProfileButton(col, "Message", true, () -> {
                     tagging.clear();
+                    refreshTagRow();
                     openChat(new Feed.Convo(m.userId, m.name, m.avatarUrl, true, 0, ""));
                 });
                 addProfileButton(col, "Tag in a message", false, () -> {
@@ -2352,6 +2448,7 @@ public class HomeActivity extends Activity {
         if (to == 0) {
             ui.removeCallbacks(chatPoll);
             tagging.clear();
+            refreshTagRow();
             refreshList();
         }
     }
@@ -2695,7 +2792,7 @@ public class HomeActivity extends Activity {
         }
         hidePanel();
         showDraftButtons(null);
-        showDraft(tagging.isEmpty() ? (watch ? "Listening" : "Listening \u00B7 tap the mic when done") : "Tagging " + names(tagging));
+        showDraft(watch ? "Listening" : "Listening \u00B7 tap the mic when done");
         autoRetried = false;
         listening = true;
         micAside(true);
@@ -2840,7 +2937,7 @@ public class HomeActivity extends Activity {
 
         @Override public void onRmsChanged(float db) { // the mic breathes with your voice
             if (!listening) return;
-            float s = 0.82f * (1f + Math.max(0f, Math.min(10f, db)) / 45f);
+            float s = micScale * (1f + Math.max(0f, Math.min(10f, db)) / 45f);
             micButton.setScaleX(s);
             micButton.setScaleY(s);
         }
@@ -3020,6 +3117,7 @@ public class HomeActivity extends Activity {
                 Feed.sendTagged(token, to, tags, text);
                 ui.post(() -> {
                     tagging.clear();
+                    refreshTagRow();
                     status(to.isDm ? "Direct message" : "Group");
                     vibrate();
                     draftNote.setText("Sent");

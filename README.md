@@ -386,6 +386,14 @@ This works with **Gemini**, the "Hey Google" assistant on Android phones now,
 even though Say So isn't from the Play Store. Then say your message: two short
 sentences, no hands.
 
+**One sentence, later on.** Say So is ready for Android's AppFunctions, which
+lets Gemini send through an app in a single request: "Hey Google, use Say So to
+tell Weekend Crew I'm running late." It's built into the phone app (Android 16
+and newer) and the watch app (Wear OS 6 and newer). Right now Google only lets
+Gemini use this with apps in its early access preview, so for most people the
+two-sentence way above is how it works today. Nothing to set up either way: when
+Gemini can use it, it will.
+
 **Phone still on the older Google Assistant?** It may search the web instead of
 opening Say So. These start Say So every time (set them up in the app under
 **Settings > Voice shortcuts**):

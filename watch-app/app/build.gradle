@@ -1,6 +1,6 @@
 plugins {
     id 'com.android.application'
-    id 'com.google.devtools.ksp'   // generates the AppFunctions (Gemini) service on the phone
+    id 'com.google.devtools.ksp'   // generates the AppFunctions (Gemini) service
 }
 
 // Release signing comes from CI secrets; without them it falls back to the debug key.
@@ -70,9 +70,9 @@ dependencies {
     // watch: stop the phone's copies of notifications while the watch shows its own (no doubles)
     watchImplementation 'androidx.wear:wear-phone-interactions:1.1.1'
     phoneImplementation 'androidx.core:core-google-shortcuts:1.1.0'   // offers the shortcut to Google Assistant
-    phoneImplementation 'androidx.appfunctions:appfunctions:1.0.0'    // lets Gemini send through Say So (Android 16+)
-    phoneImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
-    kspPhone 'androidx.appfunctions:appfunctions-compiler:1.0.0'
+    implementation 'androidx.appfunctions:appfunctions:1.0.0'    // lets Gemini send through Say So (Android 16+ / Wear OS 6+)
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+    ksp 'androidx.appfunctions:appfunctions-compiler:1.0.0'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.18.1'   // renders README screenshots
 }
