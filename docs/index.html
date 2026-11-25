@@ -132,32 +132,28 @@
           <a href="https://github.com/peterchabs/groupme-voice-android/releases/latest">download
           SaySo-phone.apk</a>, install it, then come back and tap the button again.
           Or use one of the ways below.</p>
-        <div class="or">or another way</div>
-      </div>
-      <div id="oauthBox" class="hidden">
-        <button id="oauth" class="wide ghost">Sign in with GroupMe</button>
-        <p class="hint">GroupMe sends you back to this page with your sign-in in the web
-          address, so GitHub, which hosts this page, receives it in its normal logs. To avoid that,
-          paste your token below instead. It's locked on this page and never reaches GitHub.</p>
-        <p class="hint"><b>Says "invalid credentials"?</b> That GroupMe page is an older sign-in
-          that rejects some accounts even when the same login works in the GroupMe app, including
-          ones that use Microsoft, Apple or Google. Paste your token below instead.</p>
-        <div class="or">or paste your token</div>
+        <div class="or">or paste your token (works on any phone)</div>
       </div>
       <ol>
         <li>Tap <b>Open GroupMe</b> below. It opens in a new tab.</li>
-        <li>Log in with your normal GroupMe account.</li>
-        <li>Tap <b>Access Token</b> at the top right of that page.
-          (Can't see it? In your browser menu, turn on <b>Desktop site</b>.)</li>
+        <li>Log in with your normal GroupMe account (and the code GroupMe texts you, if it asks).</li>
+        <li>Tap your picture at the top right, then <b>Access Token</b>.</li>
         <li>Copy the long code it shows, then come back to this tab.</li>
       </ol>
-      <a class="btn ghost wide" href="https://dev.groupme.com/" target="_blank" rel="noopener">Open GroupMe</a>
+      <a class="btn ghost wide" href="https://dev.groupme.com/account/access-token" target="_blank" rel="noopener">Open GroupMe</a>
       <div style="height:14px"></div>
       <label for="token">Paste your token here</label>
       <div class="row">
         <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Token">
         <button id="paste" class="ghost small" type="button">Paste</button>
       </div>
+      <details id="oauthBox" class="hidden" style="margin-top:18px">
+        <summary class="hint" style="cursor:pointer">Other option: GroupMe's older sign-in page</summary>
+        <p class="hint"><b>Often says "Invalid credential"</b> even when your login is right. If it
+          does, use one of the ways above. It also sends you back to this page with your sign-in in
+          the web address, so GitHub, which hosts this page, receives it in its normal logs.</p>
+        <button id="oauth" class="wide ghost" type="button">Use the older sign-in page</button>
+      </details>
     </section>
 
     <section class="card">

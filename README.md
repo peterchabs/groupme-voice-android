@@ -173,7 +173,7 @@ On your watch, go to **Settings** > **Developer options** and turn off
      app, tap **Settings**, then **Sign in a watch**, and type the code.)
    - **Paste your token** (no phone app needed): follow the steps on the page to
      copy your token from dev.groupme.com, then paste it and tap **Send to my watch**.
-   - **Sign in with GroupMe**: GroupMe's older sign-in page. It rejects some
+   - **GroupMe's older sign-in page** (under "Other option" on the page). It rejects some
      accounts with **"invalid credentials"** even when the login is right, and it
      returns through the GitHub-hosted page, so GitHub receives your sign-in in its
      normal logs.
