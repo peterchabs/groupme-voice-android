@@ -164,21 +164,18 @@ On your watch, go to **Settings** > **Developer options** and turn off
    Tap the link that pops up.
    - Camera won't scan it? On your phone, go to
      **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
-4. On the page, pick one way:
-   - **Use the Say So phone app** (easiest, needs the
-     [phone app](#android-phone-app) on your phone): the app opens and you log in on
-     GroupMe's own site inside it, with your normal email or phone number and
-     password. The app sends your sign-in to the watch by itself. If the phone app is
-     already signed in, just tap **Send to watch**. (No QR code handy? In the phone
-     app, tap **Settings**, then **Sign in a watch**, and type the code.)
-   - **Paste your token** (no phone app needed): follow the steps on the page to
-     copy your token from dev.groupme.com, then paste it and tap **Send to my watch**.
-   - **GroupMe's older sign-in page** (under "Other option" on the page). It rejects some
-     accounts with **"invalid credentials"** even when the login is right, and it
-     returns through the GitHub-hosted page, so GitHub receives your sign-in in its
-     normal logs.
-   - Any way you pick, your sign-in is locked with the code from your watch before
-     it's sent, and only your watch can unlock it.
+4. On the page (works on any phone, iPhone or Android, no app to install):
+   1. Tap **Open GroupMe**. GroupMe's developer site opens in a new tab.
+   2. Log in with your normal GroupMe email or phone number and password (and the
+      code GroupMe texts you, if it asks).
+   3. Tap your picture at the top right, then **Access Token**, and copy the long code.
+   4. Come back to the Say So page, tap **Paste**, then **Send to my watch**.
+   - Have the [phone app](#android-phone-app)? Tap **Use the Say So phone app**
+     on the page instead. You log in on GroupMe's developer site inside the app and it
+     signs the watch in. (Or in the phone app, tap **Settings**, then **Sign in a
+     watch**, and type the code.)
+   - Your sign-in is locked with the code from your watch before it leaves your
+     phone, and only your watch can unlock it.
 5. Within a few seconds your watch says **"Hi, [your name]!"** and how many groups it found.
 
 That's it. You're set up.
@@ -336,13 +333,10 @@ over whatever you're doing, then gets out of the way.
 Your password goes only to GroupMe. The token stays on your phone, and the app
 clears GroupMe's site from its memory right after.
 
-**Other ways, if you need them:**
+**Another way, if you need it:**
 - **Paste token instead**: in your browser, go to **dev.groupme.com**, log in,
   tap your picture at the top right (**Access Token**), and copy the long code.
   Back in the app, press and hold the box, tap **Paste**, then **Save**.
-- **Web page sign-in**: GroupMe's older sign-in page. It rejects some accounts
-  with **"invalid credentials"** even when the login is right, and it returns
-  through a page hosted on GitHub, which receives your sign-in in its normal logs.
 
 Any way you sign in, the app checks with GroupMe and says **"Hi, [your name]!"**
 
@@ -595,10 +589,6 @@ GroupMe sign-in, your groups, or your messages.
     inside the app. Your password goes only to GroupMe, and the token goes
     straight into the app. Nothing passes through GitHub. When the phone app
     signs in a watch, it locks the token with the watch's code first.
-  - **Web page sign-in**: GroupMe returns you to the sign-in page with your
-    sign-in in the web address. That page is hosted on GitHub, so GitHub receives
-    it in its normal web logs. The page then locks it right away and clears it
-    from the address bar.
   - **Paste your token**: it never reaches GitHub. On a phone you paste it
     straight into the app. On a watch, the page locks it with the code shown on
     your watch before it leaves your phone.

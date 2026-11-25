@@ -124,36 +124,26 @@
 
     <section class="card">
       <div class="step"><span class="num">2</span> Your GroupMe sign-in</div>
-      <div id="appBox">
-        <button id="useApp" class="wide" type="button">Use the Say So phone app</button>
-        <p class="hint">Easiest. You log in to GroupMe in the phone app, right on GroupMe's own site,
-          and it signs your watch in. Your sign-in never touches GitHub.</p>
-        <p id="noApp" class="hint hidden"><b>Nothing opened?</b> Get the phone app first:
-          <a href="https://github.com/peterchabs/groupme-voice-android/releases/latest">download
-          SaySo-phone.apk</a>, install it, then come back and tap the button again.
-          Or use one of the ways below.</p>
-        <div class="or">or paste your token (works on any phone)</div>
-      </div>
+      <p class="hint" style="margin-top:0">Works on any phone, iPhone or Android. No app to install.</p>
       <ol>
         <li>Tap <b>Open GroupMe</b> below. It opens in a new tab.</li>
         <li>Log in with your normal GroupMe account (and the code GroupMe texts you, if it asks).</li>
         <li>Tap your picture at the top right, then <b>Access Token</b>.</li>
         <li>Copy the long code it shows, then come back to this tab.</li>
       </ol>
-      <a class="btn ghost wide" href="https://dev.groupme.com/account/access-token" target="_blank" rel="noopener">Open GroupMe</a>
+      <a class="btn wide" href="https://dev.groupme.com/account/access-token" target="_blank" rel="noopener">Open GroupMe</a>
       <div style="height:14px"></div>
       <label for="token">Paste your token here</label>
       <div class="row">
         <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Token">
         <button id="paste" class="ghost small" type="button">Paste</button>
       </div>
-      <details id="oauthBox" class="hidden" style="margin-top:18px">
-        <summary class="hint" style="cursor:pointer">Other option: GroupMe's older sign-in page</summary>
-        <p class="hint"><b>Often says "Invalid credential"</b> even when your login is right. If it
-          does, use one of the ways above. It also sends you back to this page with your sign-in in
-          the web address, so GitHub, which hosts this page, receives it in its normal logs.</p>
-        <button id="oauth" class="wide ghost" type="button">Use the older sign-in page</button>
-      </details>
+      <div id="appBox">
+        <div class="or">or, if you have the Say So phone app (Android)</div>
+        <button id="useApp" class="wide ghost" type="button">Use the Say So phone app</button>
+        <p id="noApp" class="hint hidden"><b>Nothing opened?</b> The phone app isn't installed on
+          this phone. Use the steps above instead.</p>
+      </div>
     </section>
 
     <section class="card">
@@ -174,16 +164,10 @@
     </svg>
     <h1 style="margin-top:14px">Sent!</h1>
     <p class="lead" id="doneText" style="margin:0">Look at your watch. In a few seconds it will say hi to you by name.<br><br>You can close this page.</p>
-    <a id="backToApp" class="btn wide hidden" style="margin-top:18px">Open Say So</a>
   </section>
 </main>
 
 <script>
-// Optional "Sign in with GroupMe" button. To turn it on, register an application at
-// https://dev.groupme.com/applications with this page's address as the Callback URL,
-// then put its Client ID here.
-const GROUPME_CLIENT_ID = "RWtCKDOhyKmgom4lCNnx3DUHluThbEK7FkuDzmHXak1q9Cd0";
-
 const RELAY = "https://ntfy.sh/";
 const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const $ = id => document.getElementById(id);
@@ -215,7 +199,7 @@ function say(msg, bad) {
   setTimeout(() => { s.textContent = msg; s.className = bad ? "bad" : ""; s.style.opacity = 1; }, 120);
 }
 
-async function deliver(code, token, phone) {
+async function deliver(code, token) {
   code = clean(code);
   token = (token || "").replace(/\s+/g, "");
   if (!validCode(code)) { say("Check the code. It's the 10 letters and numbers on your watch.", true); $("code").focus(); return; }
@@ -224,19 +208,6 @@ async function deliver(code, token, phone) {
   say("Sending...");
   try {
     const { topic, payload } = await seal(code, token);
-    if (phone) {
-      // Same phone as the app: hand the locked sign-in straight back to it.
-      const back = "sayso://signin?p=" + encodeURIComponent(payload);
-      fetch(RELAY + topic, { method: "POST", body: payload }).catch(() => {}); // backup route
-      $("token").value = "";
-      $("form").classList.add("hidden");
-      $("done").classList.remove("hidden");
-      $("doneText").innerHTML = "Taking you back to the app...<br><br>If nothing happens, tap the button below.";
-      $("backToApp").href = back;
-      $("backToApp").classList.remove("hidden");
-      setTimeout(() => { location.href = back; }, 600);
-      return;
-    }
     const r = await fetch(RELAY + topic, { method: "POST", body: payload });
     if (!r.ok) throw new Error("relay " + r.status);
     $("token").value = "";
@@ -250,21 +221,17 @@ async function deliver(code, token, phone) {
 }
 
 // --- wire up ---
-const rawHash = location.hash.slice(1);
-const phoneMode = /\.p$/i.test(rawHash);            // opened from the phone app
-const fromHash = clean(rawHash.replace(/\.p$/i, ""));
-const remembered = clean(sessionStorage.getItem("gmv-code"));
-$("code").value = pretty(fromHash || remembered);
+const fromHash = clean(location.hash.slice(1));
+$("code").value = pretty(fromHash);
 $("code").addEventListener("input", e => { e.target.value = pretty(clean(e.target.value).slice(0, 10)); });
 
 $("paste").addEventListener("click", async () => {
   try { $("token").value = (await navigator.clipboard.readText()).trim(); say(""); }
   catch { $("token").focus(); say("Press and hold in the box, then tap Paste.", false); }
 });
-$("send").addEventListener("click", () => deliver($("code").value, $("token").value, phoneMode));
+$("send").addEventListener("click", () => deliver($("code").value, $("token").value));
 
-// Watch QR code: the phone app logs in on GroupMe's site and signs the watch in.
-if (phoneMode) $("appBox").classList.add("hidden");
+// Phone app installed: it logs in on GroupMe's site and signs the watch in.
 $("useApp").addEventListener("click", () => {
   const code = clean($("code").value);
   if (!validCode(code)) { say("Enter the code from your watch first.", true); $("code").focus(); return; }
@@ -275,36 +242,6 @@ $("useApp").addEventListener("click", () => {
   location.href = "sayso://watch?c=" + code;
   setTimeout(() => { if (!left && document.visibilityState === "visible") $("noApp").classList.remove("hidden"); }, 1600);
 });
-
-if (GROUPME_CLIENT_ID) {
-  $("oauthBox").classList.remove("hidden");
-  $("oauth").addEventListener("click", () => {
-    const code = clean($("code").value);
-    if (!validCode(code)) { say("Enter the code from your watch first.", true); return; }
-    sessionStorage.setItem("gmv-code", code);
-    sessionStorage.setItem("gmv-phone", phoneMode ? "1" : "");
-    location.href = "https://oauth.groupme.com/oauth/authorize?client_id=" + encodeURIComponent(GROUPME_CLIENT_ID);
-  });
-}
-
-// Phone app tapped "Sign in with GroupMe": go straight to GroupMe's login.
-if (phoneMode && GROUPME_CLIENT_ID && !new URLSearchParams(location.search).get("access_token") && validCode(fromHash)) {
-  sessionStorage.setItem("gmv-code", fromHash);
-  sessionStorage.setItem("gmv-phone", "1");
-  location.replace("https://oauth.groupme.com/oauth/authorize?client_id=" + encodeURIComponent(GROUPME_CLIENT_ID));
-}
-
-// Coming back from "Sign in with GroupMe": GroupMe adds ?access_token=... to this page.
-const back = new URLSearchParams(location.search).get("access_token");
-if (back) {
-  history.replaceState(null, "", location.pathname); // take the token out of the address bar
-  const code = clean(sessionStorage.getItem("gmv-code"));
-  const phone = sessionStorage.getItem("gmv-phone") === "1";
-  sessionStorage.removeItem("gmv-code");
-  sessionStorage.removeItem("gmv-phone");
-  if (code) deliver(code, back, phone);
-  else { $("token").value = back; say("Signed in. Now enter the code from your watch and tap Send.", false); }
-}
 </script>
 </body>
 </html>
