@@ -10,7 +10,7 @@ import android.graphics.drawable.Drawable;
 
 /** Small icons drawn as shapes, so the app never depends on emoji fonts. */
 final class Icons extends Drawable {
-    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4;
+    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4, DOWN = 5;
 
     private final int kind;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -62,6 +62,18 @@ final class Icons extends Drawable {
                 p.setStrokeCap(Paint.Cap.ROUND);
                 c.drawArc(new RectF(cx - 2.4f * u, cy - 2.2f * u, cx + 2.4f * u, cy + 2.2f * u), 0, 180, false, p);
                 c.drawLine(cx, cy + 2.2f * u, cx, cy + 3.4f * u, p);
+                break;
+            }
+            case DOWN: { // a chevron pointing down: "to the newest"
+                float r = s * 0.26f;
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(s * 0.12f);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                p.setStrokeJoin(Paint.Join.ROUND);
+                path.moveTo(cx - r, cy - r * 0.45f);
+                path.lineTo(cx, cy + r * 0.55f);
+                path.lineTo(cx + r, cy - r * 0.45f);
+                c.drawPath(path, p);
                 break;
             }
             case BACK: {

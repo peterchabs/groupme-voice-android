@@ -773,6 +773,13 @@ public class HomeActivity extends Activity {
         Avatar me = new Avatar(watch ? 46 : 64);
         col.addView(me.view);
         me.set(Store.name(this), Store.avatar(this), true);
+        if (!Store.avatar(this).isEmpty()) { // tap your picture: full screen, your name at the bottom
+            me.view.setOnClickListener(v -> {
+                closeSettings();
+                openPicture(Store.name(this), Store.avatar(this));
+            });
+            Press.attach(me.view);
+        }
         TextView who = label(Store.name(this).isEmpty() ? "Signed in" : Store.name(this), sp(watch ? 15 : 19), INK, true);
         who.setGravity(Gravity.CENTER);
         who.setPadding(0, px(6), 0, px(10));
@@ -940,7 +947,9 @@ public class HomeActivity extends Activity {
             @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {
                 if (state == SCROLL_STATE_IDLE) saveChatPosition();
             }
-            @Override public void onScroll(android.widget.AbsListView v, int first, int count, int total) { }
+            @Override public void onScroll(android.widget.AbsListView v, int first, int count, int total) {
+                updateLatestPill(); // the way down appears whenever you're above the newest
+            }
         });
         if (watch) curve(chatList);
         chatLayer.addView(chatList, match());
@@ -1019,6 +1028,17 @@ public class HomeActivity extends Activity {
         ImageView mic = new ImageView(this);
         mic.setImageDrawable(new Icons(Icons.MIC, Color.WHITE, 0));
         mic.setBackground(Press.button(this, true));
+        mic.getBackground().mutate().setAlpha(218); // a touch see-through: the newest messages show faintly behind
+        // raised above the chat: a soft round shadow under it
+        mic.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline o) {
+                o.setOval(0, 0, v.getWidth(), v.getHeight());
+                o.setAlpha(0.9f);
+            }
+        });
+        mic.setElevation(px(8));
+        mic.setOutlineAmbientShadowColor(0xFF000000);
+        mic.setOutlineSpotShadowColor(Palette.dark ? 0xFF000000 : 0xFF0077B6);
 
         mic.setPadding(px(10), px(10), px(10), px(10));
         mic.setContentDescription("Speak a message");
@@ -2212,7 +2232,6 @@ public class HomeActivity extends Activity {
     /** Looking at older messages (jumped back to a photo): new ones don't pull the view to the end. */
     private boolean history;
     private String flashId;
-    private Button latestPill;
 
     /** From a full-screen photo: back to the chat, scrolled to the message it came with, glowing. */
     private void jumpTo(String msgId) {
@@ -2269,38 +2288,79 @@ public class HomeActivity extends Activity {
         loadMessages(true);
     }
 
-    private void showLatestPill(boolean show) {
-        if (latestPill == null) {
-            latestPill = new Button(this);
-            latestPill.setGravity(Gravity.CENTER);
-            latestPill.setAllCaps(false);
-            latestPill.setText("Latest \u2193");
-            latestPill.setTextSize(sp(watch ? 11 : 13));
-            latestPill.setTypeface(BOLD);
-            latestPill.setTextColor(Color.WHITE);
-            latestPill.setBackground(Press.button(this, true));
+    /** The two "to the newest" arrows, either side of the mic. */
+    private ImageView[] downArrows;
 
-            latestPill.setPadding(px(8), 0, px(8), 0);
-            latestPill.setStateListAnimator(null);
-            latestPill.setOnClickListener(v -> toLatest());
-            Press.attach(latestPill);
-            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(watch ? 32 : 38));
-            lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-            lp.bottomMargin = ((FrameLayout.LayoutParams) micButton.getLayoutParams()).bottomMargin + micButton.getLayoutParams().height + px(6);
-            latestPill.setPadding(px(14), 0, px(14), 0);
-            latestPill.setVisibility(View.GONE);
-            chatLayer.addView(latestPill, lp);
+    /**
+     * Two small see-through arrows either side of the mic, pulsing calmly, while you're reading
+     * above the newest message. Either one glides you down. They leave the middle of the round
+     * screen to the messages.
+     */
+    private void showLatestPill(boolean show) {
+        if (downArrows == null) {
+            downArrows = new ImageView[2];
+            FrameLayout.LayoutParams ml = (FrameLayout.LayoutParams) micButton.getLayoutParams();
+            int size = px(watch ? 30 : 36), gap = px(watch ? 10 : 14);
+            for (int i = 0; i < 2; i++) {
+                ImageView v = new ImageView(this);
+                v.setImageDrawable(new Icons(Icons.DOWN, Palette.dark ? Color.WHITE : BLUE, 0)); // just the arrow
+                v.setContentDescription("To the newest message");
+                v.setOnClickListener(x -> {
+                    if (history) toLatest();
+                    else chatList.smoothScrollToPositionFromTop(chatList.getCount() - 1, 0, 450);
+                });
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size);
+                lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+                lp.bottomMargin = ml.bottomMargin + (ml.height - size) / 2;
+                v.setTranslationX((i == 0 ? -1 : 1) * (ml.width / 2f + gap + size / 2f));
+                v.setVisibility(View.GONE);
+                chatLayer.addView(v, lp);
+                downArrows[i] = v;
+            }
         }
-        latestPill.animate().cancel();
-        if (show) {
-            latestPill.setVisibility(View.VISIBLE);
-            latestPill.setAlpha(0f);
-            latestPill.setTranslationY(px(12));
-            latestPill.animate().alpha(1f).translationY(0).setDuration(240).withLayer().start();
-        } else if (latestPill.getVisibility() == View.VISIBLE) {
-            latestPill.animate().alpha(0f).translationY(px(12)).setDuration(200).withLayer()
-                    .withEndAction(() -> latestPill.setVisibility(View.GONE)).start();
+        for (ImageView v : downArrows) {
+            boolean showing = v.getVisibility() == View.VISIBLE;
+            if (show == showing) continue;
+            v.animate().cancel();
+            if (show) {
+                v.setVisibility(View.VISIBLE);
+                v.setAlpha(0f);
+                v.animate().alpha(0.35f).setDuration(260).withEndAction(() -> pulse(v)).start();
+            } else {
+                v.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+                    v.setVisibility(View.GONE);
+                    v.setTranslationY(0);
+                }).start();
+            }
         }
+    }
+
+    /** A slow, calm bob downward and back while the arrow shows, always mostly see-through. */
+    private void pulse(View v) {
+        if (v.getVisibility() != View.VISIBLE) return;
+        v.animate().translationY(px(3)).alpha(0.45f).setDuration(1000).setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator())
+                .withEndAction(() -> {
+                    if (v.getVisibility() != View.VISIBLE) return;
+                    v.animate().translationY(0).alpha(0.25f).setDuration(1000)
+                            .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator())
+                            .withEndAction(() -> pulse(v)).start();
+                }).start();
+    }
+
+    /**
+     * Above the mic while you're reading further up: a pill that takes you to the newest
+     * message, saying how many new ones are waiting below ("3 new \u2193"), or "Latest \u2193".
+     */
+    private void updateLatestPill() {
+        if (micButton == null) return;
+        boolean busy = listening || pendingSend != null || (voicePanel != null && voicePanel.getVisibility() == View.VISIBLE);
+        if (history) {
+            showLatestPill(!busy);
+            return;
+        }
+        int last = chatList.getLastVisiblePosition();
+        int below = msgs.size() - 1 - Math.min(last, msgs.size() - 1);
+        showLatestPill(chatList.getChildCount() > 0 && below > 0 && !busy);
     }
 
     /** Message ids that just arrived: each slides up and fades in the first time it's drawn. */
@@ -3334,7 +3394,7 @@ public class HomeActivity extends Activity {
         Avatar big = new Avatar(watch ? 70 : 110);
         big.set(m.name, m.avatarUrl, true);
         if (!m.avatarUrl.isEmpty()) {
-            big.view.setOnClickListener(v -> openMedia(new Feed.Media(Feed.Media.IMAGE, m.avatarUrl, m.avatarUrl)));
+            big.view.setOnClickListener(v -> openPicture(m.name, m.avatarUrl));
             Press.attach(big.view);
         }
         col.addView(big.view);
@@ -3730,6 +3790,15 @@ public class HomeActivity extends Activity {
             box.addView(cap);
         }
         return box;
+    }
+
+    /** Someone's profile picture full screen (zoomable), with their name over the bottom. */
+    private void openPicture(String name, String url) {
+        if (url == null || url.isEmpty()) return;
+        Feed.Media x = new Feed.Media(Feed.Media.IMAGE, url, url);
+        x.from = name == null ? "" : name;
+        x.fromAvatar = url;
+        openMedia(x);
     }
 
     /** The poster's picture for a photo or video: from the media, its chat message, or the members list. */
