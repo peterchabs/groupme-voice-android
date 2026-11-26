@@ -304,6 +304,9 @@ public class HomeActivity extends Activity {
         @Override
         public void run() {
             if (level >= 1 && current != null && !listening && pendingSend == null && !history) loadMessages(false);
+            // GroupMe sends nothing when a message is unpinned elsewhere, so while the pin shows, check it's
+            // still true (a pin, by contrast, arrives live)
+            if (level >= 1 && current != null && Boolean.TRUE.equals(hasPins.get(current.key()))) checkPins(current);
             ui.postDelayed(this, 8000);
         }
     };
