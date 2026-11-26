@@ -4994,14 +4994,28 @@ public class HomeActivity extends Activity {
     /** Ends a listen still running under a countdown (it's sending, or you cancelled). */
     private void stopListeningQuietly() {
         listenUnder = false;
-        if (rec != null) {
-            rec.cancel();
-            rec.destroy();
-            rec = null;
-        }
+        if (rec != null) rec.cancel(); // kept for the next listen: rebuilding it each time trips the speech service
         listening = false;
         spokenSoFar = "";
         heardSoFar = "";
+    }
+
+    /** When the recognizer was last thrown away; a new one right after gets "disconnected". */
+    private long recDroppedAt;
+
+    /** Throws the recognizer away (it broke); the next listen builds a new one, after a short gap. */
+    private void dropRecognizer() {
+        if (rec == null) return;
+        rec.cancel();
+        rec.destroy();
+        rec = null;
+        recDroppedAt = android.os.SystemClock.elapsedRealtime();
+    }
+
+    /** After an error: keep the recognizer unless the speech service itself went away. */
+    private void afterError(int code) {
+        if (code == SpeechRecognizer.ERROR_SERVER || code == 11 /* ERROR_SERVER_DISCONNECTED */) dropRecognizer();
+        else if (rec != null) rec.cancel();
     }
 
     /** The message is complete: count down and send it (or go to the chat it names). */
@@ -5009,10 +5023,7 @@ public class HomeActivity extends Activity {
         listening = false;
         listenUnder = false;
         spokenSoFar = "";
-        if (rec != null) {
-            rec.destroy();
-            rec = null;
-        }
+        if (rec != null) rec.cancel();
         if (voiceEntry && redirect(text)) {
             // "Weekend Crew that says ..." or "DM Sam ...": going to that chat instead
         } else {
@@ -5021,16 +5032,33 @@ public class HomeActivity extends Activity {
         voiceEntry = false;
     }
 
+    /**
+     * Starts a listen on the one recognizer this screen keeps (any listen still going is stopped
+     * first, so two never fight over the mic). A recognizer thrown away a moment ago is replaced
+     * only after a short gap: a new one right away gets "disconnected" while the old one still
+     * holds the mic.
+     */
     private void beginListening() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (rec == null && now - recDroppedAt < 400) {
+            ui.removeCallbacks(beginLater);
+            ui.postDelayed(beginLater, 400 - (now - recDroppedAt));
+            return;
+        }
         heardSoFar = "";
         pauses.reset();
-        listenAt = android.os.SystemClock.elapsedRealtime();
-        if (rec != null) rec.destroy();
-        rec = SpeechRecognizer.createSpeechRecognizer(this);
-        rec.setRecognitionListener(new Heard());
+        listenAt = now;
+        if (rec == null) {
+            rec = SpeechRecognizer.createSpeechRecognizer(this);
+            rec.setRecognitionListener(new Heard());
+        } else {
+            rec.cancel();
+        }
         ready = false;
         rec.startListening(listenIntent());
     }
+
+    private final Runnable beginLater = () -> { if (listening) beginListening(); };
 
     private Intent listenIntent() {
         return new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -5216,10 +5244,7 @@ public class HomeActivity extends Activity {
             underRetries = 0;
             if (voiceEntry) {
                 voiceEntry = false; // only the first thing said can name another chat
-                if (rec != null) {
-                    rec.destroy();
-                    rec = null;
-                }
+                if (rec != null) rec.cancel();
                 listening = false; // the countdown in that chat listens again
                 spokenSoFar = "";
                 heardSoFar = "";
@@ -5240,18 +5265,12 @@ public class HomeActivity extends Activity {
                 // refused before the mic even opened (the last listen hadn't let go): quietly
                 // start once more, so one tap of the mic or Retry is enough
                 autoRetried = true;
-                if (rec != null) {
-                    rec.destroy();
-                    rec = null;
-                }
+                afterError(code);
                 ui.postDelayed(() -> { if (listening) beginListening(); }, 350);
                 return;
             }
             if (pendingSend != null) {
-                if (rec != null) {
-                    rec.destroy();
-                    rec = null;
-                }
+                afterError(code);
                 boolean atOnce = android.os.SystemClock.elapsedRealtime() - listenAt < 1500
                         && code != SpeechRecognizer.ERROR_NO_MATCH && code != SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                         && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS;
@@ -5269,10 +5288,7 @@ public class HomeActivity extends Activity {
                 // gave up before you could have said anything (the speech service wasn't ready):
                 // start once more, quietly, the way tapping Retry would
                 quickRetried = true;
-                if (rec != null) {
-                    rec.destroy();
-                    rec = null;
-                }
+                afterError(code);
                 ui.postDelayed(() -> { if (listening) beginListening(); }, 300);
                 return;
             }
@@ -5285,10 +5301,7 @@ public class HomeActivity extends Activity {
             }
             listening = false;
             hideDraft();
-            if (rec != null && code != SpeechRecognizer.ERROR_NO_MATCH && code != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                rec.destroy();
-                rec = null;
-            }
+            afterError(code);
             if (code == SpeechRecognizer.ERROR_AUDIO) {
                 showPanel("Can't hear the mic", "Another app may be using it.",
                         new Object[]{(watch ? "Retry" : "Try again"), (Runnable) HomeActivity.this::startVoice,

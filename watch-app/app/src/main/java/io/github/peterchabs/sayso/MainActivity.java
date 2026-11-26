@@ -168,9 +168,16 @@ public class MainActivity extends Activity {
             noVoice();
             return;
         }
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (rec == null && now - recDroppedAt < 400) { // a new one right after the old gets "disconnected"
+            getWindow().getDecorView().postDelayed(this::listen, 400 - (now - recDroppedAt));
+            return;
+        }
         if (rec == null) {
             rec = SpeechRecognizer.createSpeechRecognizer(this);
             rec.setRecognitionListener(new Listener());
+        } else {
+            rec.cancel(); // never two listens at once
         }
         ready = false;
         if (!quietRetry) stage.show(OrbView.Mode.LISTEN, "Listening", hint(), "Chats", (Runnable) this::openChats);
@@ -422,10 +429,14 @@ public class MainActivity extends Activity {
         if (Stage.isWatchBuild()) stage.hideHero(); // room for the explanation on a round screen
     }
 
+    /** When the recognizer was last thrown away: the next one waits a moment (see listen()). */
+    private long recDroppedAt;
+
     private void resetRecognizer() {
         if (rec != null) {
             rec.destroy();
             rec = null;
+            recDroppedAt = android.os.SystemClock.elapsedRealtime();
         }
     }
 
