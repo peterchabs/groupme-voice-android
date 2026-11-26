@@ -24,8 +24,8 @@ import java.util.concurrent.Executors;
 
 /**
  * "Hey Google, open Say So" lands here. It listens right away, with the orb reacting
- * to your voice and your words appearing as you say them. It reads "[group] that says
- * [message]", shows who it's sending to while a ring counts down 3 seconds (tap Cancel to
+ * to your voice and your words appearing as you say them. It finds the group wherever you name it
+ * ("tell Family I'm on my way", "I'm on my way, tell Family"), shows who it's sending to while a ring counts down 3 seconds (tap Cancel to
  * stop), then sends.
  */
 public class MainActivity extends Activity {
@@ -141,6 +141,7 @@ public class MainActivity extends Activity {
         autoRetried = false; // each tap of Try again gets its own quiet retry
         spokenSoFar = "";
         userDone = quickRetried = false;
+        showingTo = false;
         awaiting = null; // a fresh start; "Try again" for a named group sets it back right after
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             stage.show(OrbView.Mode.IDLE, "Allow the microphone", "So I can hear your message.");
@@ -244,7 +245,15 @@ public class MainActivity extends Activity {
                 if (named == null) named = Phrase.parseNamed(all, Store.groups(MainActivity.this));
                 if (named != null) {
                     Phrase.Match m = Phrase.match(Store.groups(MainActivity.this), named.group);
-                    if (m.group != null) stage.retitle("To " + m.group.name, named.text.isEmpty() ? "What's the message?" : "Your message");
+                    if (m.group != null) {
+                        stage.retitle("To " + m.group.name, named.text.isEmpty() ? "What's the message?" : "Your message");
+                        showingTo = true;
+                        return;
+                    }
+                }
+                if (showingTo) { // the words changed and no longer name a group
+                    stage.retitle("Listening", hint());
+                    showingTo = false;
                 }
             }
         }
@@ -400,7 +409,7 @@ public class MainActivity extends Activity {
         EditText e = new EditText(this);
         Press.field(e);
         Phrase.Group d = Store.defaultGroup(this);
-        e.setHint(d != null ? "Your message for " + d.name : "Family that says hi");
+        e.setHint(d != null ? "Your message for " + d.name : "Tell Family hi");
         e.setSingleLine(true);
         e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         e.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEND);
@@ -416,7 +425,7 @@ public class MainActivity extends Activity {
             return true;
         });
         stage.show(OrbView.Mode.IDLE, "Type it", why != null ? why
-                        : d != null ? "Your message for " + d.name + ", or [group] that says [message]." : hint(),
+                        : d != null ? "Your message for " + d.name + ", or name a group anywhere in it." : hint(),
                 "Send", send,
                 "Talk", (Runnable) this::begin).extra(e);
         if (Stage.isWatchBuild()) stage.hideHero(); // room for the field and buttons on a round screen
@@ -433,8 +442,8 @@ public class MainActivity extends Activity {
     /** What to say, shown while listening. */
     private String hint() {
         Phrase.Group d = Store.defaultGroup(this);
-        return d == null ? "Say a group, then your message"
-                : "Say your message for " + d.name + ", or a group first";
+        return d == null ? "Say your message and which group"
+                : "Say your message for " + d.name + ", or name a group";
     }
 
     /** What happens when the countdown ends: send, reply, DM or like. Runs off the UI thread. */
@@ -485,6 +494,8 @@ public class MainActivity extends Activity {
 
     /** You named only a group: it's waiting for the message (the mic stays on). */
     private Phrase.Group awaiting;
+    /** The title says "To <group>" from what you have said so far. */
+    private boolean showingTo;
 
     private void handle(String heard) {
         if (awaiting != null) { // the message for the group you just named
@@ -533,7 +544,7 @@ public class MainActivity extends Activity {
                 if (!tooLong(text)) confirmGroup(d, text);
                 return;
             }
-            showRetry("Say it like this:", "\"Family that says on my way\"\n\nI heard: \"" + heard + "\"");
+            showRetry("Name a group in it:", "\"Tell Family I'm on my way\"\n\nI heard: \"" + heard + "\"");
             return;
         }
         if (!tooLong(p.text)) find(p, false);

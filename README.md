@@ -6,7 +6,7 @@ Send a GroupMe message just by talking to your **Galaxy Watch** or **Android pho
 
 You say: **"Hey Google, open Say So"**
 It listens, and your words appear on screen as you talk:
-**"Weekend Crew that says I'm running 10 minutes late"**
+**"Tell Weekend Crew I'm running 10 minutes late"**
 It shows who it's sending to, counts down 3 seconds (so you can cancel), then sends.
 
 <p align="center">
@@ -203,11 +203,17 @@ That's it. You're set up.
    pause for a second and keep talking. "Hey Google" only opens the app; it
    can't take your message in the same breath.
 2. The first time only, it asks to use the microphone. Tap **Allow**.
-3. When the circle starts pulsing, say:
+3. When the circle starts pulsing, say your message and name the group anywhere in it,
+   the way you'd say it to a person:
 
-   > **[group name]** that says **[your message]**
+   - **"Tell Family I'm picking up pizza"**
+   - **"I'm picking up pizza, tell Family"**
+   - **"Let Family know I'm picking up pizza"**
+   - **"Family, I'm picking up pizza"**
 
-   For example: **"Family that says I'm picking up pizza"**.
+   The screen switches to **To Family** as soon as it hears the name, so you know
+   where it's going before you finish. Say just **"Family"** and it asks
+   **What's the message?** while it keeps listening. "That says" still works too.
 4. Your words appear as you speak. Then it shows the group and your message,
    and a ring counts down **3 seconds**.
    - Heard you wrong? Tap **Cancel**. Nothing is sent.
@@ -281,7 +287,7 @@ of setup and every feature, recorded on a real watch screen with captions.
 
 | Say | What happens |
 |---|---|
-| **"Weekend Crew that says running late"** | Sends to that group |
+| **"Tell Weekend Crew running late"** or **"Running late, tell Weekend Crew"** | Sends to that group (name it first, last, or in the middle) |
 | **"Reply saying I've got 4"** | Replies to the newest message someone sent you (group or direct), quoting it |
 | **"Like that"** or **"Heart that message"** | Hearts the newest message someone sent you |
 | **"DM Jordan saying call me"** | Sends Jordan a private message |
@@ -310,8 +316,8 @@ the group name and just say your message.
 From Settings you can always get back to talking with **Talk**, or by going back
 (swipe right on the watch).
 
-You can still send to any other group by saying its name first:
-**"Weekend Crew that says running late"**. The 3-second countdown always shows
+You can still send to any other group by naming it:
+**"Running late, tell Weekend Crew"**. The 3-second countdown always shows
 which group it's going to, so you can tap **Cancel** if it's wrong.
 
 If you say a group name it can't find, it **sends nothing**. It never falls back
@@ -344,7 +350,7 @@ To turn it off, go to **Settings** > **Default group** (watch: **Default**) > **
 | The page says **"That doesn't look like a GroupMe token"** | Copy the token again from dev.groupme.com. It's one long string of letters and numbers. |
 | **"GroupMe signed you out"** | Your token stopped working (it expired, or you changed your GroupMe password or reset your token). Tap **Sign in again** and scan the QR code again (Step 2). If you were sending something, tap **Send it now** after signing in. |
 | It can't find your group | Say more of the group's name, a little slower. |
-| **"I didn't catch that"** | Tap **Try again** and speak a little closer, or tap **Type it** and type what you'd say (for example **Family that says hi**). Typing works exactly like talking. |
+| **"I didn't catch that"** | Tap **Try again** and speak a little closer, or tap **Type it** and type what you'd say (for example **Tell Family hi**). Typing works exactly like talking. |
 
 ---
 
@@ -407,7 +413,7 @@ you're back in.
 
 1. Say **"Hey Google, open Say So"**. (Or tap the app.)
 2. The first time only, tap **Allow** so it can use the microphone.
-3. When the circle pulses, say **"[group name] that says [your message]"**.
+3. When the circle pulses, say your message and name the group, for example **"Tell Family I'm on my way"**.
 
 This works with **Gemini**, the "Hey Google" assistant on Android phones now,
 even though Say So isn't from the Play Store. Then say your message: two short

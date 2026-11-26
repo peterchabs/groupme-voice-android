@@ -124,4 +124,48 @@ public class PhraseTest {
         assertEquals("", p.text);
         assertNull(Phrase.parseNamed("hello there everyone", crews()));
     }
+
+    private static java.util.List<Phrase.Group> withTest() {
+        java.util.List<Phrase.Group> g = crews();
+        g.add(new Phrase.Group("5", "Test"));
+        return g;
+    }
+
+    private static void said(String heard, String group, String text) {
+        Phrase p = Phrase.parseNamed(heard, withTest());
+        org.junit.Assert.assertNotNull(heard, p);
+        assertEquals(heard, group, p.group);
+        assertEquals(heard, text, p.text);
+    }
+
+    @Test public void theGroupCanComeLast() {
+        said("I'm running late, tell Weekend Crew", "Weekend Crew", "I'm running late");
+        said("I'm running late tell weekend crew", "Weekend Crew", "I'm running late");
+        said("send I'm running late to Weekend Crew", "Weekend Crew", "I'm running late");
+        said("I'm running late, send that to the weekend crew group", "Weekend Crew", "I'm running late");
+        said("running late to Weekend Crew", "Weekend Crew", "running late");
+        said("we need more eggs, post it in Test", "Test", "we need more eggs");
+    }
+
+    @Test public void theGroupCanComeInTheMiddle() {
+        said("can you let Weekend Crew know I'm running late", "Weekend Crew", "I'm running late");
+        said("hey, tell Weekend Crew that I'm running late", "Weekend Crew", "I'm running late");
+        said("so I'm running late, tell Weekend Crew, save me a seat", "Weekend Crew", "so I'm running late, save me a seat");
+        said("please remind Test the meeting is at 3", "Test", "the meeting is at 3");
+    }
+
+    @Test public void aGroupNameInsideTheMessageIsNotWhereItGoes() {
+        assertNull(Phrase.parseNamed("I have a test tomorrow", withTest()));
+        assertNull(Phrase.parseNamed("I'm bringing my test", withTest()));
+        assertNull(Phrase.parseNamed("I'm going to test the oven", withTest()));
+        assertNull(Phrase.parseNamed("see you at the yolk", withTest()));
+        // named first, the rest stays as said
+        said("Weekend Crew that was fun", "Weekend Crew", "that was fun");
+    }
+
+    @Test public void twoGroupsNamedEquallyIsNeverAGuess() {
+        assertNull(Phrase.parseNamed("tell Weekend Crew and tell Test I'm late", withTest()));
+        // a clear command beats a name that's merely first
+        said("Yolk is slammed, tell Weekend Crew", "Weekend Crew", "Yolk is slammed");
+    }
 }

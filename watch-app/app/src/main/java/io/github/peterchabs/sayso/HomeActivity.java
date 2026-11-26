@@ -5145,8 +5145,21 @@ public class HomeActivity extends Activity {
      */
     private boolean redirect(String heard) {
         Phrase dm = Phrase.parseDm(heard);
-        Phrase p = dm != null ? dm : Phrase.parse(heard);
-        if (p == null) return false;
+        Phrase said = dm != null ? dm : Phrase.parse(heard);
+        if (said == null) said = Phrase.parseNamed(heard, Store.groups(this)); // "I'm late, tell Weekend Crew"
+        if (said == null) return false;
+        final Phrase p = said;
+        if (p.text.isEmpty()) { // only a group's name: open that chat and listen for the message
+            Phrase.Match m = Phrase.match(Store.groups(this), p.group);
+            if (m.group == null) return false;
+            if (current == null || current.isDm || !current.id.equals(m.group.id)) {
+                String pic = "";
+                for (Feed.Convo c : convos) if (!c.isDm && c.id.equals(m.group.id)) pic = c.avatarUrl;
+                openChat(new Feed.Convo(m.group.id, m.group.name, pic, false, 0, ""));
+            }
+            ui.postDelayed(this::startVoice, 340);
+            return true;
+        }
         final boolean person = dm != null;
         draftNote.setText("Finding " + p.group);
         final String token = Store.token(this);

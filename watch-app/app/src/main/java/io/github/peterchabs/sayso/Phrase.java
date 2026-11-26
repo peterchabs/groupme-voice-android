@@ -88,42 +88,190 @@ public final class Phrase {
         return new Phrase(group, text);
     }
 
-    private static final Pattern TELL = Pattern.compile("^\\s*(?:hey google[,\\s]*|ok google[,\\s]*)?(?:please\\s+)?tell\\b", CI);
-    private static final Pattern REST_LEAD = Pattern.compile("^\\s*[:,.-]?\\s*(?:that says|saying|says|which says)?\\s*[:,]?\\s*", CI);
+    private static final Pattern WAKE = Pattern.compile("^\\s*(?:hey google|ok google|okay google)[,.]?\\s*", CI);
+    /** Words that send something somewhere: "tell X", "let X know", "send this to X". */
+    private static final java.util.Set<String> VERB = new java.util.HashSet<>(java.util.Arrays.asList(
+            "tell", "text", "message", "send", "post", "ping", "remind", "ask", "let", "dm", "say", "update", "warn"));
+    /** "to X", "in X": only a hint on their own ("I'm late to practice" names no group). */
+    private static final java.util.Set<String> PREP = new java.util.HashSet<>(java.util.Arrays.asList(
+            "to", "in", "into", "on", "for"));
+    /** Small words between the command and the name: "send THAT MESSAGE to THE X GROUP". */
+    private static final java.util.Set<String> GLUE = new java.util.HashSet<>(java.util.Arrays.asList(
+            "the", "my", "our", "a", "this", "that", "it", "message", "text", "over", "groupme", "group", "chat"));
+    /** Words that only lead into a command: "can you", "please", "and then". */
+    private static final java.util.Set<String> POLITE = new java.util.HashSet<>(java.util.Arrays.asList(
+            "can", "could", "would", "will", "you", "please", "and", "then", "so", "go", "ahead", "also", "just", "quickly"));
+    /** Said before a command, not part of the message: "hey, tell X ...", "okay so tell X ...". */
+    private static final java.util.Set<String> FILLER = new java.util.HashSet<>(java.util.Arrays.asList(
+            "hey", "ok", "okay", "please", "so", "um", "uh", "alright", "and", "yeah"));
+    private static final Pattern AFTER_LEAD = Pattern.compile(
+            "^(?:\\s*[:,.-])?\\s*(?:(?:group|chat)\\b[,:]?\\s*)?(?:on groupme\\b[,:]?\\s*)?", CI);
+    private static final java.util.Set<String> TELLS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "tell", "let", "remind", "ask", "warn", "update", "say"));
+    private static final Pattern SEND_LEAD = Pattern.compile(
+            "^(?:(?:hey|ok|okay|so|um|can you|could you|would you|please)[,\\s]+)*"
+            + "(?:send|text|post|message|say)\\s+(?:a\\s+)?(?:message\\s+)?(?:(?:saying|that says)\\s+)?", CI);
+    private static final Pattern AFTER_SAYS = Pattern.compile(
+            "^(?:that says|which says|saying|says|to say|that)\\b[,:]?\\s*", CI);
+
+    /** One place a group's name was heard, and how sure we are it's who you meant. */
+    private static final class Spot {
+        Group group;
+        int start, end;   // the name's words: [start, end)
+        int cueStart;     // where the command before it begins ("can you tell ..."); == start if none
+        String verb;      // the command word, or null
+        int score;
+    }
 
     /**
-     * Finds a group named at the start of what you said, without "that says": "Weekend Crew I'm
-     * running late", "tell Weekend Crew I'm running late". Takes the longest of your group names
-     * that fits, and everything after it is the message ("" if you only said the name). Null when
-     * what you said doesn't start with one of your groups.
+     * Finds the group you named anywhere in what you said, without "that says":
+     * "Weekend Crew I'm running late", "I'm running late, tell Weekend Crew",
+     * "can you let Weekend Crew know I'm running late", "send I'm running late to Weekend Crew".
+     * The words that only route it (tell, let ... know, send this to) are dropped and the rest is the
+     * message ("" if you only said the name). Takes the longest group name that fits.
+     *
+     * A name counts when it's the first thing you say, or when a command points at it ("tell X",
+     * "send it to X"). At the very end after a plain "to"/"in", it needs a name of two words or more
+     * (or "X group"), so "I'm bringing my test" never goes to a group called Test. Two different
+     * groups named equally clearly gives null: never guess between groups.
      */
     public static Phrase parseNamed(String heard, List<Group> groups) {
         if (heard == null || groups == null || groups.isEmpty()) return null;
-        boolean tell = TELL.matcher(heard).find();
-        String s = LEAD.matcher(PREFIX.matcher(heard).replaceFirst("")).replaceFirst("");
-        String[] words = s.trim().split("\\s+");
-        if (words.length == 0 || words[0].isEmpty()) return null;
+        String s = WAKE.matcher(PREFIX.matcher(heard).replaceFirst("")).replaceFirst("").trim();
+        if (s.isEmpty()) return null;
+        String[] tok = s.split("\\s+");
+        String[] n = new String[tok.length];
+        for (int i = 0; i < tok.length; i++) n[i] = norm(tok[i]);
+
         Map<String, Group> byName = new LinkedHashMap<>();
+        Map<String, Integer> words = new java.util.HashMap<>();
         for (Group g : groups) {
-            String n = norm(g.name);
-            if (n.isEmpty()) continue;
-            byName.putIfAbsent(n, g);
-            byName.putIfAbsent(n.replace(" ", ""), g); // "Yolk.CHICAGO" is said "yolk chicago"
+            String k = norm(g.name);
+            if (k.isEmpty()) continue;
+            byName.putIfAbsent(k, g);
+            byName.putIfAbsent(k.replace(" ", ""), g); // "Yolk.CHICAGO" is said "yolk chicago"
+            words.merge(g.name, k.split(" ").length, Math::max);
         }
-        for (int k = Math.min(words.length, 10); k >= 1; k--) {
-            StringBuilder b = new StringBuilder();
-            for (int i = 0; i < k; i++) b.append(i == 0 ? "" : " ").append(words[i]);
-            String cand = norm(GROUP_WORD.matcher(b.toString()).replaceFirst(""));
-            Group g = byName.get(cand);
-            if (g == null) g = byName.get(cand.replace(" ", ""));
-            if (g == null) continue;
-            StringBuilder rest = new StringBuilder();
-            for (int i = k; i < words.length; i++) rest.append(i == k ? "" : " ").append(words[i]);
-            String text = REST_LEAD.matcher(rest.toString()).replaceFirst("");
-            if (tell) text = text.replaceFirst("(?i)^that\\s+", ""); // "tell Crew that I'm late"
-            return new Phrase(g.name, text.trim());
+
+        List<Spot> spots = new ArrayList<>();
+        for (int i = 0; i < tok.length; i++) {
+            if (n[i].isEmpty()) continue;
+            for (int k = Math.min(tok.length - i, 10); k >= 1; k--) { // longest name first
+                StringBuilder b = new StringBuilder();
+                for (int j = i; j < i + k; j++) b.append(' ').append(n[j]);
+                String cand = norm(b.toString());
+                Group g = byName.get(cand);
+                if (g == null) g = byName.get(cand.replace(" ", ""));
+                if (g == null) continue;
+                Spot sp = new Spot();
+                sp.group = g;
+                sp.start = i;
+                sp.end = i + k;
+                rate(sp, n, words.getOrDefault(g.name, 1));
+                if (sp.score > 0) spots.add(sp);
+                break;
+            }
         }
-        return null;
+        if (spots.isEmpty()) return null;
+        Spot best = null;
+        boolean tie = false;
+        for (Spot sp : spots) {
+            if (best == null || sp.score > best.score) {
+                tie = false;
+                best = sp;
+            } else if (sp.score == best.score && sp.group != best.group) {
+                tie = true; // "tell Weekend Crew and tell Test ...": which? never guess
+            }
+        }
+        if (tie) return null;
+        return new Phrase(best.group.name, message(tok, n, best));
+    }
+
+    /** How clearly this spot names the recipient (0 = it's just a word in the message). */
+    private static void rate(Spot sp, String[] n, int nameWords) {
+        sp.cueStart = sp.start;
+        // walk back over "the", "that message", then look for "to"/"in", then the command word
+        int j = back(n, sp.start - 1);
+        boolean prep = false;
+        if (j >= 0 && PREP.contains(n[j])) {
+            prep = true;
+            int p = back(n, j - 1);
+            if (p >= 0 && VERB.contains(n[p])) j = p;
+        }
+        if (j >= 0 && VERB.contains(n[j])) {
+            sp.verb = n[j];
+            int c = j - 1;
+            while (c >= 0 && POLITE.contains(n[c])) c--;
+            sp.cueStart = c + 1;
+            sp.score = 3;
+            return;
+        }
+        boolean atEnd = trailing(n, sp.end);
+        boolean groupWord = sp.end < n.length && ("group".equals(n[sp.end]) || "chat".equals(n[sp.end]));
+        if (prep && (atEnd || groupWord) && (nameWords >= 2 || groupWord)) {
+            sp.cueStart = j; // "... to Weekend Crew": drop the "to"
+            sp.score = 2;
+            return;
+        }
+        boolean atStart = true;
+        for (int i = 0; i < sp.start; i++) if (!n[i].isEmpty() && !FILLER.contains(n[i])) atStart = false;
+        if (atStart) {
+            sp.cueStart = 0;
+            sp.score = 1;
+        }
+    }
+
+    /**
+     * Steps back from {@code j} over small words ("the", "that message") and returns where it stops.
+     * "text" and "message" are both: "send a text to X" (small word) but "text X" (the command), so
+     * when it runs off the start or into another word, the first command word it skipped wins.
+     */
+    private static int back(String[] n, int j) {
+        int from = j;
+        while (j >= 0 && (GLUE.contains(n[j]) || n[j].isEmpty())) j--;
+        if (j >= 0 && (VERB.contains(n[j]) || PREP.contains(n[j]))) return j;
+        for (int i = j + 1; i <= from; i++) if (VERB.contains(n[i])) return i;
+        return j;
+    }
+
+    /** True if nothing but "group", "chat", "please" or "on groupme" follows. */
+    private static boolean trailing(String[] n, int from) {
+        for (int i = from; i < n.length; i++) {
+            String w = n[i];
+            if (!w.isEmpty() && !w.equals("group") && !w.equals("chat") && !w.equals("please")
+                    && !w.equals("on") && !w.equals("groupme") && !w.equals("thanks")) return false;
+        }
+        return true;
+    }
+
+    /** Everything you said except the routing words around the group's name. */
+    private static String message(String[] tok, String[] n, Spot sp) {
+        StringBuilder before = new StringBuilder();
+        boolean onlyFiller = true;
+        for (int i = 0; i < sp.cueStart; i++) {
+            before.append(i == 0 ? "" : " ").append(tok[i]);
+            if (!n[i].isEmpty() && !FILLER.contains(n[i])) onlyFiller = false;
+        }
+        if (onlyFiller) before.setLength(0); // "hey, tell Crew ..." : the "hey" leads the command
+        StringBuilder after = new StringBuilder();
+        for (int i = sp.end; i < tok.length; i++) after.append(i == sp.end ? "" : " ").append(tok[i]);
+        String a = AFTER_LEAD.matcher(after.toString()).replaceFirst("");
+        if ("let".equals(sp.verb)) a = a.replaceFirst("(?i)^know\\b[,:]?\\s*", ""); // "let Crew know ..."
+        if (sp.verb != null && TELLS.contains(sp.verb)) {
+            a = AFTER_SAYS.matcher(a).replaceFirst(""); // "tell Crew that I'm late"
+        } else {
+            a = a.replaceFirst("(?i)^(?:that says|which says|saying|says)\\b[,:]?\\s*", "");
+        }
+        a = a.replaceFirst("(?i)[,\\s]*\\b(?:on groupme|please|thanks)[.!]?$", "").trim();
+        String b = before.toString().trim();
+        if (sp.score == 2) b = SEND_LEAD.matcher(b).replaceFirst(""); // "send I'm late to Crew"
+        b = strip(b, " ,;:-");
+        a = strip(a, " ,;:-");
+        String text;
+        if (b.isEmpty()) text = a;
+        else if (a.isEmpty()) text = b;
+        else text = b + (b.matches(".*[.!?]$") ? " " : ", ") + a;
+        return strip(text, " ,;:-").trim();
     }
 
     private static String strip(String s, String chars) {
