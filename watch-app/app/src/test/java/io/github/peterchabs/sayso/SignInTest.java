@@ -8,20 +8,27 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public class SignInTest {
-    @Test public void readsTheTokenFromGroupMesPage() {
-        // evaluateJavascript hands back the JSON as a quoted, escaped string
+    @Test public void takesGroupMeWebsSignInFromItsCookies() {
         assertEquals("abcDEF1234567890abcDEF1234567890",
-                DevSignInActivity.tokenFrom("\"{\\\"t\\\":\\\"abcDEF1234567890abcDEF1234567890\\\",\\\"f\\\":false}\""));
+                GroupMeSignInActivity.tokenFrom("token=abcDEF1234567890abcDEF1234567890"));
         assertEquals("abcDEF1234567890abcDEF12",
-                DevSignInActivity.tokenFrom("{\"t\":\"abcDEF1234567890abcDEF12\",\"f\":false}"));
+                GroupMeSignInActivity.tokenFrom("_ga=GA1.2.3; token=abcDEF1234567890abcDEF12; theme=dark"));
     }
 
-    @Test public void ignoresAnythingThatIsntAToken() {
-        assertNull(DevSignInActivity.tokenFrom(null));
-        assertNull(DevSignInActivity.tokenFrom("null"));
-        assertNull(DevSignInActivity.tokenFrom("\"{\\\"t\\\":\\\"\\\",\\\"f\\\":true}\""));   // login page
-        assertNull(DevSignInActivity.tokenFrom("{\"t\":\"short\",\"f\":false}"));
-        assertNull(DevSignInActivity.tokenFrom("{\"t\":\"has space in it 1234567890\",\"f\":false}"));
+    @Test public void takesGroupMeWebsSignInFromItsStorage() {
+        assertEquals("abcDEF1234567890abcDEF1234567890", GroupMeSignInActivity.fromStorage("\"abcDEF1234567890abcDEF1234567890\""));
+        assertNull(GroupMeSignInActivity.fromStorage("\"\""));
+        assertNull(GroupMeSignInActivity.fromStorage("null"));
+        assertNull(GroupMeSignInActivity.fromStorage(null));
+    }
+
+    @Test public void notSignedInYetMeansNoToken() {
+        assertNull(GroupMeSignInActivity.tokenFrom(null));
+        assertNull(GroupMeSignInActivity.tokenFrom(""));
+        assertNull(GroupMeSignInActivity.tokenFrom("_ga=GA1.2.3; theme=dark"));         // the login page
+        assertNull(GroupMeSignInActivity.tokenFrom("token="));                           // cleared
+        assertNull(GroupMeSignInActivity.tokenFrom("token=short"));
+        assertNull(GroupMeSignInActivity.tokenFrom("csrftoken=abcDEF1234567890abcDEF1234567890")); // a different cookie
     }
 
     @Test public void unsentMessageOnlyComesBackForTheSamePerson() {

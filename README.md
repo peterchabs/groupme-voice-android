@@ -2,7 +2,7 @@
 
 > **Not affiliated with GroupMe or Microsoft.** This is an independent, free, open-source project. GroupMe is a trademark of Microsoft.
 
-Send a GroupMe message just by talking to your **Galaxy Watch** or **Android phone**.
+Send a GroupMe message just by talking to your **Galaxy Watch** (or any Wear OS watch).
 
 You say: **"Hey Google, open Say So"**
 It listens, and your words appear on screen as you talk:
@@ -22,14 +22,10 @@ with **whatever words you say each time**. You don't need to know how to code.
 </p>
 <p align="center"><b><a href="https://peterchabs.github.io/groupme-voice-android/video.html">Watch the full 3-minute setup and features video</a></b></p>
 
-## Pick one
+## What it takes
 
-| I want to talk to... | Use | Cost | Time |
-|---|---|---|---|
-| **My Galaxy Watch** | [The watch app](#galaxy-watch-app) | Free | about 10 minutes, once |
-| **My Android phone** | [The phone app](#android-phone-app) | Free | about 5 minutes, once |
-
-You can set up both. They don't need each other.
+Say So lives on your watch. A small free app on your **Android phone** signs it in
+to GroupMe once, with GroupMe's own sign-in. After that the watch works on its own.
 
 ---
 
@@ -40,13 +36,15 @@ A small app that lives on your watch and talks to GroupMe by itself.
 ### What you need
 
 - A **Galaxy Watch 4 or newer** (or any watch with Wear OS 3 or newer).
-- **A phone** (any kind, even an iPhone) to scan a QR code and sign in to GroupMe.
-- Your GroupMe email or phone number and password.
+- **An Android phone** for the free [Say So phone app](#say-so-phone-app-android), which signs
+  your watch in to GroupMe. (iPhones can't be used to sign in.)
+- Your GroupMe account. Sign in the way you always do: Google, Microsoft, Apple,
+  email or phone number.
 - **A computer** (Windows or Mac) on the same Wi-Fi as your watch, only to put
   the app on your watch the first time.
 
-Setup is two things, once: put Say So on your watch, then scan its QR code with
-your phone. After that it's just "Hey Google".
+Setup, once: put Say So on your watch, install the phone app, then scan the
+watch's QR code with your phone. After that it's just "Hey Google".
 
 ---
 
@@ -172,22 +170,21 @@ On your watch, go to **Settings** > **Developer options** and turn off
   <img src="docs/images/watch-sign-in.png" alt="Sign-in code on the watch, the signed-in screen, and the screen asking which group you meant" width="760">
 </p>
 
-1. On your watch, open your apps list and tap **Say So** (the blue microphone).
+1. On your watch, open your apps list and tap **Say So**.
 2. The watch shows a **QR code** and a **10-character code** like `K7Q2M-9XAPZ`.
-3. On your phone, open the **camera** and point it at the QR code on your watch.
-   Tap the link that pops up.
+3. On your Android phone, open the **camera** and point it at the QR code on your
+   watch. Tap the link that pops up.
    - Camera won't scan it? On your phone, go to
      **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
-4. On the page (works on any phone, iPhone or Android, no app to install):
-   1. Tap **Open GroupMe**. GroupMe's developer site opens in a new tab.
-   2. Log in with your normal GroupMe email or phone number and password (and the
-      code GroupMe texts you, if it asks).
-   3. Tap your picture at the top right, then **Access Token**, and copy the long code.
-   4. Come back to the Say So page, tap **Paste**, then **Send to my watch**.
-   - Have the [phone app](#android-phone-app)? Tap **Use the Say So phone app**
-     on the page instead. You log in on GroupMe's developer site inside the app and it
-     signs the watch in. (Or in the phone app, tap **Settings**, then **Sign in a
-     watch**, and type the code.)
+4. On the page:
+   1. Don't have the Say So phone app yet? Tap **Download for Android** and install
+      it (see [the phone app](#say-so-phone-app-android) for the steps).
+   2. Tap **Open Say So**. The phone app opens with your watch's code.
+   3. Tap **Sign in with GroupMe** and sign in the way you always do. GroupMe's own
+      sign-in opens inside the app.
+   4. Tap **Send to watch**.
+   - Or open the phone app yourself, tap **Sign in a watch**, and type the code
+     from your watch.
    - Your sign-in is locked with the code from your watch before it leaves your
      phone, and only your watch can unlock it.
 5. Within a few seconds your watch says **"Hi, [your name]!"** and how many groups it found.
@@ -347,22 +344,18 @@ To turn it off, go to **Settings** > **Default group** (watch: **Default**) > **
 | **"failed to connect"** or pairing fails | Check the watch and computer are on the same Wi-Fi. The addresses change each time you turn on Wireless debugging, so read them off the watch again. |
 | **"No such file"** when installing | The app file isn't in the platform-tools folder. Drag **SaySo-watch.apk** in there (Step 1, part A). |
 | The watch says **"That code expired"** | Codes last 10 minutes. Tap **Get a new code** and scan again. |
-| The page says **"That doesn't look like a GroupMe token"** | Copy the token again from dev.groupme.com. It's one long string of letters and numbers. |
-| **"GroupMe signed you out"** | Your token stopped working (it expired, or you changed your GroupMe password or reset your token). Tap **Sign in again** and scan the QR code again (Step 2). If you were sending something, tap **Send it now** after signing in. |
+| **Open Say So** on the page downloads the app instead | The phone app isn't installed yet. Install it, then tap **Open Say So** again. |
+| **"GroupMe signed you out"** | Your sign-in stopped working (it expired, or you signed out of GroupMe everywhere). Tap **Sign in again** and do Step 2 again. If you were sending something, tap **Send it now** after signing in. |
+| **"To send direct messages, sign in again with the Say So phone app"** | Your watch was signed in the older way, which GroupMe no longer lets send direct messages. Pull down for Settings, tap **Sign out**, then do Step 2. Groups work either way. |
 | It can't find your group | Say more of the group's name, a little slower. |
 | **"I didn't catch that"** | Tap **Try again** and speak a little closer, or tap **Type it** and type what you'd say (for example **Tell Family hi**). Typing works exactly like talking. |
 
 ---
 
-## Android phone app
+## Say So phone app (Android)
 
-The same app, for your phone. Free, and no computer needed. It opens as a card
-over whatever you're doing, then gets out of the way.
-
-<p align="center">
-  <img src="docs/images/phone-screens.png" alt="Say So on an Android phone: sign-in, then listening, countdown and sent cards over the home screen" width="760">
-</p>
-<p align="center"><sub>Real app screens. The card slides up over your current app and closes itself after sending.</sub></p>
+A small app for your phone that signs your watch in to GroupMe. That's all it does:
+it has no chats and doesn't run in the background.
 
 **Works on:** Android 8 or newer.
 
@@ -388,65 +381,21 @@ over whatever you're doing, then gets out of the way.
 
 ### Step 3: Sign in to GroupMe
 
-1. Tap **Sign in with GroupMe**. GroupMe's own developer site opens inside the app.
-2. Log in with your normal GroupMe email or phone number and password. (If GroupMe
-   asks you to prove you're a person or texts you a code, do that too.)
-3. That's it. The app picks up your token by itself.
+1. Tap **Sign in with GroupMe**. GroupMe's own sign-in opens inside the app.
+2. Sign in the way you always do: Google, Microsoft, Apple, or your email or phone
+   number and password. (If GroupMe texts you a code, enter that too.)
+3. The app says **"Signed in as [your name]"**.
 
-Your password goes only to GroupMe. The token stays on your phone, and the app
-clears GroupMe's site from its memory right after.
+Your password goes only to GroupMe (or to Google, Microsoft or Apple if you use
+them). The app clears GroupMe's page from its memory right after.
 
-**Another way, if you need it:**
-- **Paste token instead**: in your browser, go to **dev.groupme.com**, log in,
-  tap your picture at the top right (**Access Token**), and copy the long code.
-  Back in the app, press and hold the box, tap **Paste**, then **Save**.
+### Step 4: Sign in your watch
 
-Any way you sign in, the app checks with GroupMe and says **"Hi, [your name]!"**
+Scan the QR code on your watch with your phone's camera and tap **Open Say So** on
+the page, or tap **Sign in a watch** in the app and type the code. Then tap
+**Send to watch**. You can sign in more than one watch this way.
 
-**If GroupMe ever signs you out** (your token expired, you changed your GroupMe
-password, or you reset your token on dev.groupme.com), the app says **"GroupMe
-signed you out"** and nothing is sent. Tap **Sign in again**. If you were in the
-middle of sending something, the app keeps it and offers **Send it now** once
-you're back in.
-
-### Step 4: Use it
-
-1. Say **"Hey Google, open Say So"**. (Or tap the app.)
-2. The first time only, tap **Allow** so it can use the microphone.
-3. When the circle pulses, say your message and name the group, for example **"Tell Family I'm on my way"**.
-
-This works with **Gemini**, the "Hey Google" assistant on Android phones now,
-even though Say So isn't from the Play Store. Then say your message: two short
-sentences, no hands.
-
-**One sentence, later on.** Say So is ready for Android's AppFunctions, which
-lets Gemini send through an app in a single request: "Hey Google, use Say So to
-tell Weekend Crew I'm running late." It's built into the phone app (Android 16
-and newer) and the watch app (Wear OS 6 and newer). Right now Google only lets
-Gemini use this with apps in its early access preview, so for most people the
-two-sentence way above is how it works today. Nothing to set up either way: when
-Gemini can use it, it will.
-
-**Phone still on the older Google Assistant?** It may search the web instead of
-opening Say So. These start Say So every time (set them up in the app under
-**Settings > Voice shortcuts**):
-
-- **Hold the power button:** make Say So your phone's assistant app, and holding
-  the power button (or swiping up from a bottom corner) opens it listening. This
-  replaces Google Assistant for that gesture.
-- **Quick Settings tile:** keep Google Assistant, and swipe down and tap
-  **Say So** instead.
-- **Galaxy phones:** open **Settings > Advanced features > Side button**, turn on
-  **Double press**, choose **Open app**, and pick **Say So**.
-- **Long-press the Say So icon** and tap **Send a GroupMe**, or drag that onto
-  your home screen.
-
-Somewhere loud? If it says **"I didn't catch that"**, tap **Type it** and type
-what you'd say instead.
-
-Everything in [More things you can say](#more-things-you-can-say) and
-[set a default group](#optional-set-a-default-group) works on the phone too.
-To change settings, tap **Settings** in the app.
+To use a different GroupMe account, tap **Sign out** and sign in again.
 
 ---
 
@@ -455,20 +404,17 @@ To change settings, tap **Settings** in the app.
 **There is no server of ours.** Nobody running this project ever sees your
 GroupMe sign-in, your groups, or your messages.
 
-- **Your messages** go straight from your phone or watch to GroupMe, and nowhere else.
-- **Your voice** is turned into text by your phone's or watch's built-in speech
+- **Your messages** go straight from your watch to GroupMe, and nowhere else.
+- **Your voice** is turned into text by your watch's built-in speech
   service (Google's, the same one used when you dictate a text). Only the text
   is sent, and only to GroupMe.
 - **Your sign-in** is stored only inside the app on your device. Signing out
   deletes it.
-- **When you sign in**, you choose:
-  - **Sign in with GroupMe (phone app)**: you log in on GroupMe's own site
-    inside the app. Your password goes only to GroupMe, and the token goes
-    straight into the app. Nothing passes through GitHub. When the phone app
-    signs in a watch, it locks the token with the watch's code first.
-  - **Paste your token**: it never reaches GitHub. On a phone you paste it
-    straight into the app. On a watch, the page locks it with the code shown on
-    your watch before it leaves your phone.
+- **When you sign in**, you log in on GroupMe's own sign-in page inside the phone
+  app. Your password goes only to GroupMe (or to Google, Microsoft or Apple if you
+  use them), and the sign-in goes straight into the app. Nothing passes through
+  GitHub. When the phone app signs in a watch, it locks the sign-in with the
+  watch's code first.
 - **Sign-in to a watch** travels through a free relay ([ntfy.sh](https://ntfy.sh))
   in locked form. The relay can't unlock it; only your watch has the key, and the
   code expires after 10 minutes.

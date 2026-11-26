@@ -25,8 +25,9 @@ final class Palette {
         String t = Store.theme(c);
         boolean deviceDark = (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
                 == Configuration.UI_MODE_NIGHT_YES;
-        dark = DARK.equals(t) || (SYSTEM.equals(t) && deviceDark);
         boolean watch = Stage.isWatchBuild();
+        // the phone app only signs watches in and has no theme setting: it follows the phone
+        dark = watch ? DARK.equals(t) || (SYSTEM.equals(t) && deviceDark) : deviceDark;
         if (dark) {
             BG = watch ? 0xFF000000 : 0xFF111417;   // true black on a watch: OLED pixels off
             SURFACE = watch ? 0xFF0B0F13 : 0xFF181C21;

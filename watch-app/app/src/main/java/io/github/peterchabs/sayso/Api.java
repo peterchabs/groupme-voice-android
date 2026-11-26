@@ -32,7 +32,7 @@ final class Api {
     /** Words for a 403. GroupMe keeps direct messages for its own apps (11/26/2026: "not available via the Developer API"). */
     static String refusal(String path, String groupMeSaid) {
         if (path.startsWith("/direct_messages") && groupMeSaid.contains("Developer API"))
-            return "GroupMe doesn't let other apps send direct messages anymore. Reply in the GroupMe app.";
+            return "To send direct messages, sign in again with the Say So phone app (Settings, Sign out).";
         return "GroupMe didn't allow that" + (groupMeSaid.isEmpty() ? "." : ": " + groupMeSaid);
     }
 

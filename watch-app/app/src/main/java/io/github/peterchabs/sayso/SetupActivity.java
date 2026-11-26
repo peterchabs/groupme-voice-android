@@ -123,12 +123,11 @@ public class SetupActivity extends Activity {
                     "Default", (Runnable) this::pickDefault,
                     "Sign out", signOut);
         } else {
-            stage.show(OrbView.Mode.DONE, title, body,
-                    "Talk", (Runnable) () -> goMain(false),
-                    "Default group", (Runnable) this::pickDefault,
-                    "Voice shortcuts", (Runnable) this::showShortcuts,
+            // The phone app only signs watches in: GroupMe's own login here, then the watch's code.
+            stage.show(OrbView.Mode.DONE, title,
+                    "Open Say So on your watch and scan its code with this phone's camera, or tap"
+                            + " Sign in a watch and type the code.\nNot affiliated with GroupMe or Microsoft",
                     "Sign in a watch", (Runnable) () -> enterWatchCode(null),
-                    "Switch account", (Runnable) this::startLink,
                     "Sign out", signOut);
         }
         if (isWatch()) stage.hideHero(); // room for the not-affiliated line on a round screen
@@ -261,15 +260,14 @@ public class SetupActivity extends Activity {
                     "Sends " + (who.isEmpty() ? "your" : who + "'s") + " GroupMe sign-in to the watch showing "
                             + pretty + ". It's locked so only that watch can open it.",
                     "Send to watch", (Runnable) () -> sendToWatch(Store.token(this)),
-                    "Use another account", (Runnable) this::openDevSignIn,
+                    "Use another account", (Runnable) this::openGroupMeSignIn,
                     "Cancel", (Runnable) this::backFromWatch);
         } else {
             stage.show(OrbView.Mode.IDLE, "Sign in your watch",
                     "Log in to GroupMe here on your phone. Your watch (" + pretty + ") finishes"
                             + " signing in by itself, and this phone is signed in too."
                             + "\n\nNot affiliated with GroupMe or Microsoft.",
-                    "Sign in with GroupMe", (Runnable) this::openDevSignIn,
-                    "Paste token instead", (Runnable) () -> showTyping(null),
+                    "Sign in with GroupMe", (Runnable) this::openGroupMeSignIn,
                     "Cancel", (Runnable) this::backFromWatch);
         }
     }
@@ -372,7 +370,7 @@ public class SetupActivity extends Activity {
         if (fromHome && !Store.token(this).isEmpty()) {
             finish();
             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-        } else if (!Store.token(this).isEmpty()) goMain(false);
+        } else if (isWatch() && !Store.token(this).isEmpty()) goMain(false);
         else super.onBackPressed();
     }
 
@@ -383,23 +381,21 @@ public class SetupActivity extends Activity {
         Link link = Link.create();
         Store.setPendingCode(this, link.code);
         if (!isWatch()) {
-            // Phone: log in on GroupMe's developer site inside the app; it picks up the token.
+            // Phone: GroupMe's own web login inside the app; it picks up the sign-in.
             stage.showOrb();
-            boolean again = Store.token(this).isEmpty() && !Store.name(this).isEmpty(); // signed out by GroupMe, not "Switch"
+            boolean again = Store.token(this).isEmpty() && !Store.name(this).isEmpty(); // signed out by GroupMe
             stage.show(OrbView.Mode.IDLE, again ? "Sign in again" : "Sign in to GroupMe",
                     (again ? "GroupMe needs you to sign in again. " : "")
-                            + "You'll log in on GroupMe's own site, right here in the app. Your token"
-                            + " stays on this phone."
+                            + "You'll log in on GroupMe's own sign-in page, right here in the app. Then open"
+                            + " Say So on your watch and scan its code with this phone to sign the watch in."
                             + "\n\nNot affiliated with GroupMe or Microsoft.",
-                    "Sign in with GroupMe", (Runnable) this::openDevSignIn,
-                    "Paste token instead", (Runnable) () -> showTyping(null));
+                    "Sign in with GroupMe", (Runnable) this::openGroupMeSignIn);
             return;
         }
         Bitmap code = qr(link.pageUrl());
         if (code != null) stage.showQr(code);
         stage.show(OrbView.Mode.BUSY, "Code: " + link.pretty(),
-                "Scan, or enter it at\npeterchabs.github.io/groupme-voice-android",
-                "Type token instead", (Runnable) () -> showTyping(null));
+                "Scan it with your Android phone to sign in with the Say So phone app");
         final long started = System.currentTimeMillis();
         waitingFor = link;
         polling = waiters.submit(() -> poll(link, started));
@@ -407,16 +403,16 @@ public class SetupActivity extends Activity {
 
     private static final int REQ_DEV = 41;
 
-    private void openDevSignIn() {
+    private void openGroupMeSignIn() {
         stopPolling();
-        startActivityForResult(new Intent(this, DevSignInActivity.class), REQ_DEV);
+        startActivityForResult(new Intent(this, GroupMeSignInActivity.class), REQ_DEV);
     }
 
     @Override
     protected void onActivityResult(int req, int result, Intent data) {
         super.onActivityResult(req, result, data);
         if (req != REQ_DEV) return;
-        String token = data == null ? null : data.getStringExtra(DevSignInActivity.EXTRA_TOKEN);
+        String token = data == null ? null : data.getStringExtra(GroupMeSignInActivity.EXTRA_TOKEN);
         if (result == RESULT_OK && token != null && !token.isEmpty()) verify(token);
         // cancelled: the sign-in choices are still on screen
     }
@@ -525,6 +521,10 @@ public class SetupActivity extends Activity {
                     ui.post(() -> sendToWatch(token));
                     return;
                 }
+                if (!isWatch()) { // the phone app only signs watches in
+                    ui.post(this::showAccount);
+                    return;
+                }
                 MainActivity.Unsent u = MainActivity.unsent;
                 if (u != null && !u.freshFor(me[0])) MainActivity.unsent = null; // someone else, or too old
                 final boolean resend = MainActivity.unsent != null;
@@ -545,7 +545,13 @@ public class SetupActivity extends Activity {
                     }
                 });
             } catch (Api.AuthException e) {
-                ui.post(() -> showTyping("GroupMe didn't accept that token. Check it and try again."));
+                ui.post(() -> {
+                    stage.showOrb();
+                    stage.show(OrbView.Mode.ERROR, "GroupMe didn't accept that sign-in",
+                            isWatch() ? "Sign in again with the Say So phone app." : "Try signing in again.",
+                            isWatch() ? "Get a new code" : "Sign in with GroupMe",
+                            (Runnable) () -> { if (isWatch()) startLink(); else openGroupMeSignIn(); });
+                });
             } catch (IOException e) {
                 ui.post(() -> {
                     stage.show(OrbView.Mode.ERROR, "Couldn't reach GroupMe",

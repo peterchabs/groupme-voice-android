@@ -108,135 +108,58 @@
 </head>
 <body>
 <main>
-  <div id="form">
-    <h1>Connect your watch</h1>
-    <p class="lead">This signs the Say So app on your watch in to your GroupMe account.</p>
+  <h1>Sign in your watch</h1>
+  <p class="lead">Say So signs in on your Android phone with GroupMe's own sign-in, then sends it to your watch.</p>
 
-    <section class="card">
-      <div class="step"><span class="num">1</span> The code on your watch</div>
-      <input id="code" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX" maxlength="11" aria-label="Code from your watch">
-      <p class="hint">If you scanned the code on your watch, this is already filled in.</p>
-    </section>
-
-    <section class="card">
-      <div class="step"><span class="num">2</span> Your GroupMe sign-in</div>
-      <p class="hint" style="margin-top:0">Works on any phone, iPhone or Android. No app to install.</p>
-      <ol>
-        <li>Tap <b>Open GroupMe</b> below. It opens in a new tab.</li>
-        <li>Log in with your normal GroupMe account (and the code GroupMe texts you, if it asks).</li>
-        <li>Tap your picture at the top right, then <b>Access Token</b>.</li>
-        <li>Tap <b>Copy</b> (there&apos;s no need to show it), then come back to this tab.</li>
-      </ol>
-      <a class="btn wide" href="https://dev.groupme.com/account/access-token" target="_blank" rel="noopener">Open GroupMe</a>
-      <div style="height:14px"></div>
-      <label for="token">Paste your token here</label>
-      <div class="row">
-        <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Token">
-        <button id="paste" class="ghost small" type="button">Paste</button>
-      </div>
-      <div id="appBox">
-        <div class="or">or, if you have the Say So phone app (Android)</div>
-        <button id="useApp" class="wide ghost" type="button">Use the Say So phone app</button>
-        <p id="noApp" class="hint hidden"><b>Nothing opened?</b> The phone app isn't installed on
-          this phone. Use the steps above instead.</p>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="step"><span class="num">3</span> Send it to your watch</div>
-      <button id="send" class="wide">Send to my watch</button>
-      <div id="status" role="status" aria-live="polite"></div>
-    </section>
-
-    <p class="fine"><b>Not affiliated with GroupMe or Microsoft.</b> Say So is an independent, open-source project.</p>
-    <p class="fine">Your token is locked with your watch's code before it leaves this page, and only your
-      watch can unlock it. It's never stored here. <a href="https://github.com/peterchabs/groupme-voice-android">How it works</a></p>
-  </div>
-
-  <section id="done" class="card done hidden">
-    <svg viewBox="0 0 84 84" aria-hidden="true">
-      <circle cx="42" cy="42" r="40" fill="var(--ok)"/>
-      <path d="M25 43 l11 11 l23 -24" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    <h1 style="margin-top:14px">Sent!</h1>
-    <p class="lead" id="doneText" style="margin:0">Look at your watch. In a few seconds it will say hi to you by name.<br><br>You can close this page.</p>
+  <section class="card">
+    <div class="step"><span class="num">1</span> The code on your watch</div>
+    <input id="code" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX" maxlength="11" aria-label="Code from your watch">
+    <p class="hint">If you scanned the code on your watch, this is already filled in.</p>
   </section>
+
+  <section class="card">
+    <div class="step"><span class="num">2</span> Get the Say So phone app</div>
+    <p class="hint" style="margin-top:0">Already have it? Skip to step 3.</p>
+    <a id="get" class="btn wide ghost" href="https://github.com/peterchabs/groupme-voice-android/releases/latest/download/SaySo-phone.apk">Download for Android</a>
+    <p class="hint">Open the downloaded file to install it. Your phone may ask you to allow installs from your browser first.</p>
+  </section>
+
+  <section class="card">
+    <div class="step"><span class="num">3</span> Sign in and send it to your watch</div>
+    <button id="open" class="wide" type="button">Open Say So</button>
+    <p class="hint">Sign in with GroupMe the way you always do (Google, Microsoft, Apple, email or phone), then tap <b>Send to watch</b>. Your watch says hi to you by name a few seconds later.</p>
+    <div id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <p class="fine"><b>Needs an Android phone.</b> Say So's sign-in runs in its phone app, which isn't available for iPhone.</p>
+  <p class="fine"><b>Not affiliated with GroupMe or Microsoft.</b> Say So is an independent, open-source project.
+    Your sign-in goes from the phone app to your watch locked with the watch's code, so only that watch can open it.
+    <a href="https://github.com/peterchabs/groupme-voice-android">How it works</a></p>
 </main>
 
 <script>
-const RELAY = "https://ntfy.sh/";
 const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const APK = "https://github.com/peterchabs/groupme-voice-android/releases/latest/download/SaySo-phone.apk";
 const $ = id => document.getElementById(id);
-const enc = new TextEncoder();
-
 const clean = s => (s || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
 const pretty = c => c.length > 5 ? c.slice(0, 5) + "-" + c.slice(5) : c;
 const validCode = c => c.length === 10 && [...c].every(ch => ALPHABET.includes(ch));
 
-async function sha(s) { return new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s))); }
-const hex = b => [...b].map(x => x.toString(16).padStart(2, "0")).join("");
-function b64(bytes) { let s = ""; bytes.forEach(b => s += String.fromCharCode(b)); return btoa(s); }
-
-// Same scheme as Link.java on the watch: topic and key both come from the code.
-async function seal(code, token) {
-  const topic = "gmv-" + hex(await sha("gmv-topic:" + code)).slice(0, 32);
-  const key = await crypto.subtle.importKey("raw", await sha("gmv-key:" + code), "AES-GCM", false, ["encrypt"]);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key,
-    enc.encode("v1\n" + Date.now() + "\n" + token)));
-  const all = new Uint8Array(iv.length + ct.length);
-  all.set(iv); all.set(ct, iv.length);
-  return { topic, payload: b64(all) };
-}
-
 function say(msg, bad) {
   const s = $("status");
-  s.style.opacity = 0;
-  setTimeout(() => { s.textContent = msg; s.className = bad ? "bad" : ""; s.style.opacity = 1; }, 120);
+  s.textContent = msg; s.className = bad ? "bad" : "";
 }
 
-async function deliver(code, token) {
-  code = clean(code);
-  token = (token || "").replace(/\s+/g, "");
-  if (!validCode(code)) { say("Check the code. It's the 10 letters and numbers on your watch.", true); $("code").focus(); return; }
-  if (!/^[A-Za-z0-9]{20,80}$/.test(token)) { say("That doesn't look like a GroupMe token. Copy it again from the GroupMe page.", true); $("token").focus(); return; }
-  $("send").disabled = true;
-  say("Sending...");
-  try {
-    const { topic, payload } = await seal(code, token);
-    const r = await fetch(RELAY + topic, { method: "POST", body: payload });
-    if (!r.ok) throw new Error("relay " + r.status);
-    $("token").value = "";
-    $("form").classList.add("hidden");
-    $("done").classList.remove("hidden");
-  } catch (e) {
-    say("Couldn't send. Check your internet connection and try again.", true);
-  } finally {
-    $("send").disabled = false;
-  }
-}
-
-// --- wire up ---
-const fromHash = clean(location.hash.slice(1));
-$("code").value = pretty(fromHash);
+$("code").value = pretty(clean(location.hash.slice(1)));
 $("code").addEventListener("input", e => { e.target.value = pretty(clean(e.target.value).slice(0, 10)); });
 
-$("paste").addEventListener("click", async () => {
-  try { $("token").value = (await navigator.clipboard.readText()).trim(); say(""); }
-  catch { $("token").focus(); say("Press and hold in the box, then tap Paste.", false); }
-});
-$("send").addEventListener("click", () => deliver($("code").value, $("token").value));
-
-// Phone app installed: it logs in on GroupMe's site and signs the watch in.
-$("useApp").addEventListener("click", () => {
+// Hands the code to the Say So phone app (sayso://watch?c=CODE). Not installed: Android starts the download instead.
+$("open").addEventListener("click", () => {
   const code = clean($("code").value);
-  if (!validCode(code)) { say("Enter the code from your watch first.", true); $("code").focus(); return; }
-  let left = false;
-  const away = () => { left = true; };
-  document.addEventListener("visibilitychange", away, { once: true });
-  window.addEventListener("pagehide", away, { once: true });
-  location.href = "sayso://watch?c=" + code;
-  setTimeout(() => { if (!left && document.visibilityState === "visible") $("noApp").classList.remove("hidden"); }, 1600);
+  if (!validCode(code)) { say("Enter the code from your watch first. It's the 10 letters and numbers it shows.", true); $("code").focus(); return; }
+  say("");
+  location.href = "intent://watch?c=" + code + "#Intent;scheme=sayso;package=io.github.peterchabs.sayso;S.browser_fallback_url="
+    + encodeURIComponent(APK) + ";end";
 });
 </script>
 </body>

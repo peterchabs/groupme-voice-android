@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GroupMe's sign-in inside the app: light by day; values-night makes it (and the page) dark. -->
+    <style name="Theme.GMV.SignIn" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+</resources>

@@ -88,11 +88,11 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- Phone sign-in: GroupMe's developer site inside the app (see DevSignInActivity). -->
+        <!-- Phone sign-in: GroupMe's own web login inside the app (see GroupMeSignInActivity). -->
         <activity
-            android:name=".DevSignInActivity"
+            android:name=".GroupMeSignInActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar"
+            android:theme="@style/Theme.GMV.SignIn"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:windowSoftInputMode="adjustResize" />
 

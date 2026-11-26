@@ -295,7 +295,7 @@ public class FeedTest {
 
     @Test
     public void groupMesRefusalsSayWhatToDo() {
-        assertEquals("GroupMe doesn't let other apps send direct messages anymore. Reply in the GroupMe app.",
+        assertEquals("To send direct messages, sign in again with the Say So phone app (Settings, Sign out).",
                 Api.refusal("/direct_messages", "This endpoint is not available via the Developer API. Use the GroupMe mobile or web app."));
         assertEquals("GroupMe didn't allow that: Not an admin", Api.refusal("/conversations/1/messages/2/pin", "Not an admin"));
         assertEquals("GroupMe didn't allow that.", Api.refusal("/groups/1/messages", ""));
