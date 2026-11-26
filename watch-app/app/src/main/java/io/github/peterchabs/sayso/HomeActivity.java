@@ -1462,14 +1462,6 @@ public class HomeActivity extends Activity {
         // (wrapped: a hidden footer row still takes up its full height in a ListView)
         LinearLayout draftRow = new LinearLayout(this);
         draftRow.setOrientation(LinearLayout.VERTICAL);
-        // "Sam is typing…": who's writing right now, just above where your own words go
-        typingLabel = label("", sp(watch ? 10.5f : 12), GREY, false);
-        typingLabel.setTypeface(Typeface.create(REGULAR, Typeface.ITALIC));
-        typingLabel.setPadding(px(watch ? 6 : 8), px(4), px(6), px(5));
-        typingLabel.setSingleLine(true);
-        typingLabel.setEllipsize(TextUtils.TruncateAt.END);
-        typingLabel.setVisibility(View.GONE);
-        draftRow.addView(typingLabel, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         draftRow.addView(draft, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         chatList.addFooterView(draftRow, null, false);
         draftRow.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
@@ -1484,6 +1476,24 @@ public class HomeActivity extends Activity {
         bp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         bp.bottomMargin = micBottom;
         chatLayer.addView(draftButtons, bp);
+
+        // "Sam is typing…": who's writing right now, floating just above the mic like GroupMe's own
+        // apps, so it shows wherever the chat is scrolled
+        typingLabel = label("", sp(watch ? 10.5f : 12), GREY, false);
+        typingLabel.setTypeface(Typeface.create(REGULAR, Typeface.ITALIC));
+        typingLabel.setPadding(px(8), px(2), px(8), px(3));
+        typingLabel.setSingleLine(true);
+        typingLabel.setEllipsize(TextUtils.TruncateAt.END);
+        typingLabel.setMaxWidth((int) (W * (watch ? 0.7f : 0.85f)));
+        GradientDrawable tb = new GradientDrawable();
+        tb.setColor((Palette.BG & 0x00FFFFFF) | 0xE6000000); // the page's own color, nearly solid, over messages
+        tb.setCornerRadius(px(10));
+        typingLabel.setBackground(tb);
+        typingLabel.setVisibility(View.GONE);
+        FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        tp.bottomMargin = micBottom + micSize + px(3);
+        chatLayer.addView(typingLabel, tp);
     }
 
     /**
@@ -2190,6 +2200,7 @@ public class HomeActivity extends Activity {
                     Push p = new Push(token, me, channel);
                     p.open();
                     livePush = p;
+                    android.util.Log.i("SaySo", "live: chat connected " + channel);
                     long until = android.os.SystemClock.elapsedRealtime() + 10 * 60_000L;
                     while (liveOn && current == c && android.os.SystemClock.elapsedRealtime() < until) {
                         List<Push.Event> events = p.poll();
@@ -2211,8 +2222,10 @@ public class HomeActivity extends Activity {
                         if (here) ui.post(() -> { if (current == c && !history) loadMessages(false); });
                     }
                 } catch (Api.AuthException e) {
+                    android.util.Log.w("SaySo", "live: chat refused");
                     return;
                 } catch (IOException | RuntimeException e) {
+                    android.util.Log.w("SaySo", "live: chat dropped " + e);
                     try {
                         Thread.sleep(3000);
                     } catch (InterruptedException ie) {
@@ -2220,6 +2233,7 @@ public class HomeActivity extends Activity {
                     }
                 }
             }
+            android.util.Log.i("SaySo", "live: chat stopped liveOn=" + liveOn + " same=" + (current == c));
         }, "sayso-live");
         liveThread.setDaemon(true);
         liveThread.start();
