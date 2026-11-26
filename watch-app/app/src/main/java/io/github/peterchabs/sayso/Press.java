@@ -50,37 +50,33 @@ final class Press {
     }
 
     /**
-     * A key-cap button: a darker lip underneath and a shiny face on top. Pressed, the face
-     * sinks down onto the lip; the change fades in and out so it feels soft.
+     * A button, drawn like the chat list's cards so every button in the app is one family: the
+     * main action is a solid blue card with white words, everything else a plain card with a
+     * hairline edge. Pressed, it tints; the change fades in and out so it feels soft.
      */
     static Drawable button(Context c, boolean primary) {
         float d = c.getResources().getDisplayMetrics().density;
-        int lip = Math.round(4 * d);
-        int faceTop = primary ? 0xFF45C8F7 : Palette.BTN_TOP;
-        int faceBottom = primary ? OrbView.ACCENT : Palette.BTN_BOTTOM;
-        int lipColor = primary ? 0xFF0088BC : Palette.BTN_LIP;
-        int stroke = primary ? 0 : Math.round(1.5f * d);
-
+        boolean watch = Stage.isWatchBuild();
+        float radius = (watch ? 22 : 18) * d;
         StateListDrawable s = new StateListDrawable();
         s.setEnterFadeDuration(70);
         s.setExitFadeDuration(160);
-        s.addState(new int[]{android.R.attr.state_pressed},
-                cap(lipColor, faceTop, faceBottom, stroke, lip, Math.round(lip * 0.8f)));
-        s.addState(new int[]{}, cap(lipColor, faceTop, faceBottom, stroke, lip, 0));
+        if (primary) {
+            s.addState(new int[]{android.R.attr.state_pressed}, card(0xFF0398D8, 0, radius, d));
+            s.addState(new int[]{}, card(OrbView.ACCENT, 0, radius, d));
+        } else {
+            s.addState(new int[]{android.R.attr.state_pressed}, card(Palette.BADGE, OrbView.ACCENT, radius, d));
+            s.addState(new int[]{}, card(Palette.ROW, Palette.ROW_EDGE, radius, d));
+        }
         return s;
     }
 
-    private static Drawable cap(int lipColor, int top, int bottom, int stroke, int lip, int sink) {
-        GradientDrawable under = new GradientDrawable();
-        under.setCornerRadius(999f);
-        under.setColor(lipColor);
-        GradientDrawable face = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{top, bottom});
-        face.setCornerRadius(999f);
-        if (stroke > 0) face.setStroke(stroke, OrbView.ACCENT);
-        LayerDrawable l = new LayerDrawable(new Drawable[]{under, face});
-        l.setLayerInset(0, 0, lip, 0, 0);          // lip peeks out below
-        l.setLayerInset(1, 0, sink, 0, lip - sink); // face rides on top, sinks when pressed
-        return l;
+    private static Drawable card(int fill, int edge, float radius, float d) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(radius);
+        if (edge != 0) g.setStroke(Math.max(1, Math.round(0.75f * d)), edge);
+        return g;
     }
 
     /** A sunken text box: slightly shaded at the top, blue outline when you tap into it. */

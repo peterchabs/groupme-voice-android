@@ -1020,7 +1020,7 @@ public class HomeActivity extends Activity {
         mic.setImageDrawable(new Icons(Icons.MIC, Color.WHITE, 0));
         mic.setBackground(Press.button(this, true));
 
-        mic.setPadding(px(10), px(8), px(10), px(12)); // icon centered on the face, above the lip
+        mic.setPadding(px(10), px(10), px(10), px(10));
         mic.setContentDescription("Speak a message");
         mic.setOnClickListener(v -> {
             if (listening && rec != null) rec.stopListening(); // tap again to finish early
@@ -1039,18 +1039,26 @@ public class HomeActivity extends Activity {
         voicePanel.setOrientation(LinearLayout.VERTICAL);
         voicePanel.setGravity(Gravity.CENTER);
         GradientDrawable card = new GradientDrawable();
-        card.setColor(Palette.CARD);
+        card.setColor(glass()); // translucent: the chat stays faintly visible behind it
         card.setCornerRadius(px(20));
         card.setStroke(px(1), 0x2200AFF0);
-        voicePanel.setBackground(card);
         voicePanel.setElevation(px(8));
-        voicePanel.setPadding(px(14), px(12), px(14), px(12));
         voicePanel.setVisibility(View.GONE);
-        FrameLayout.LayoutParams vl = new FrameLayout.LayoutParams(watch ? (int) (W * 0.72f) : ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
-        vl.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        vl.bottomMargin = watch ? (int) (H * 0.13f) : px(16);
-        vl.leftMargin = vl.rightMargin = watch ? 0 : px(12);
+        FrameLayout.LayoutParams vl;
+        if (watch) {
+            // the whole round screen, dimmed: the chat shows faintly through, the words stay clear
+            voicePanel.setBackground(new android.graphics.drawable.ColorDrawable(scrim()));
+            voicePanel.setPadding((int) (W * 0.15f), (int) (H * 0.1f), (int) (W * 0.15f), (int) (H * 0.1f));
+            vl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            vl.gravity = Gravity.CENTER;
+        } else {
+            voicePanel.setBackground(card);
+            voicePanel.setPadding(px(14), px(12), px(14), px(12));
+            vl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            vl.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+            vl.bottomMargin = px(16);
+            vl.leftMargin = vl.rightMargin = px(12);
+        }
         chatLayer.addView(voicePanel, vl);
 
         root.addView(chatLayer, match());
@@ -1263,7 +1271,7 @@ public class HomeActivity extends Activity {
      * text shrinks a little rather than ever being cut.
      */
     private void fitButtonText(Button b) {
-        b.setPadding(px(4), 0, px(4), px(4)); // the 4dp lip under the face: text centers on the face
+        b.setPadding(px(4), 0, px(4), 0);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
         b.setMinHeight(0);
@@ -1294,7 +1302,7 @@ public class HomeActivity extends Activity {
             b.setTextColor(i == 1 ? Color.WHITE : BLUE);
             b.setBackground(Press.button(this, i == 1));
 
-            b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
+            b.setPadding(px(8), 0, px(8), 0);
             b.setStateListAnimator(null);
             fitButtonText(b);
             Runnable r = cancelSend[i];
@@ -1674,6 +1682,16 @@ public class HomeActivity extends Activity {
             }
             return row;
         }
+    }
+
+    /** The color for pop-up cards: the card color, a little see-through. */
+    private static int glass() {
+        return (Palette.CARD & 0x00FFFFFF) | 0xF0000000;
+    }
+
+    /** A watch pop-up's backdrop over the whole screen: the page color, mostly opaque. */
+    private static int scrim() {
+        return (Palette.BG & 0x00FFFFFF) | (Palette.dark ? 0xE0000000 : 0xE8000000);
     }
 
     // ---------------- chat sounds ----------------
@@ -2092,7 +2110,7 @@ public class HomeActivity extends Activity {
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER);
         GradientDrawable bgd = new GradientDrawable();
-        bgd.setColor(Palette.CARD);
+        bgd.setColor(glass());
         bgd.setCornerRadius(px(40));
         bgd.setStroke(Math.max(1, px(0.75f)), Palette.ROW_EDGE);
         card.setBackground(bgd);
@@ -2262,14 +2280,14 @@ public class HomeActivity extends Activity {
             latestPill.setTextColor(Color.WHITE);
             latestPill.setBackground(Press.button(this, true));
 
-            latestPill.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
+            latestPill.setPadding(px(8), 0, px(8), 0);
             latestPill.setStateListAnimator(null);
             latestPill.setOnClickListener(v -> toLatest());
             Press.attach(latestPill);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(watch ? 32 : 38));
             lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
             lp.bottomMargin = ((FrameLayout.LayoutParams) micButton.getLayoutParams()).bottomMargin + micButton.getLayoutParams().height + px(6);
-            latestPill.setPadding(px(14), 0, px(14), px(4));
+            latestPill.setPadding(px(14), 0, px(14), 0);
             latestPill.setVisibility(View.GONE);
             chatLayer.addView(latestPill, lp);
         }
@@ -2481,7 +2499,7 @@ public class HomeActivity extends Activity {
         tagButton.setTextColor(Color.WHITE);
         tagButton.setBackground(Press.button(this, true));
 
-        tagButton.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
+        tagButton.setPadding(px(8), 0, px(8), 0);
         tagButton.setStateListAnimator(null);
         tagButton.setSingleLine(true);
         tagButton.setOnClickListener(v -> tagPickedAndSpeak());
@@ -3574,7 +3592,7 @@ public class HomeActivity extends Activity {
         b.setTextColor(primary ? Color.WHITE : BLUE);
         b.setBackground(Press.button(this, primary));
 
-        b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
+        b.setPadding(px(8), 0, px(8), 0);
         b.setStateListAnimator(null);
         b.setOnClickListener(v -> tap.run());
         Press.attach(b);
@@ -4313,7 +4331,7 @@ public class HomeActivity extends Activity {
                 b.setTextColor(primary ? Color.WHITE : BLUE);
                 b.setBackground(Press.button(this, primary));
 
-                b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
+                b.setPadding(px(8), 0, px(8), 0);
                 b.setStateListAnimator(null);
                 fitButtonText(b);
                 Runnable r = (Runnable) buttons[i + 1];
@@ -4331,7 +4349,7 @@ public class HomeActivity extends Activity {
         if (voicePanel.getVisibility() != View.VISIBLE) {
             voicePanel.setVisibility(View.VISIBLE);
             voicePanel.setAlpha(0f);
-            voicePanel.setTranslationY(px(40));
+            voicePanel.setTranslationY(watch ? 0 : px(40)); // a watch backdrop just fades
         }
         voicePanel.animate().alpha(1f).translationY(0).setDuration(240)
                 .setInterpolator(new OvershootInterpolator(1.2f)).withLayer().start();
@@ -4348,7 +4366,7 @@ public class HomeActivity extends Activity {
     private void hidePanel() {
         if (voicePanel.getVisibility() == View.VISIBLE) {
             voicePanel.animate().cancel();
-            voicePanel.animate().alpha(0f).translationY(px(40)).setDuration(200)
+            voicePanel.animate().alpha(0f).translationY(watch ? 0 : px(40)).setDuration(200)
                     .withEndAction(() -> voicePanel.setVisibility(View.GONE)).start();
         }
     }
@@ -4363,7 +4381,7 @@ public class HomeActivity extends Activity {
         micButton.animate().cancel();
         if (voicePanel.getVisibility() == View.VISIBLE) {
             voicePanel.animate().cancel();
-            voicePanel.animate().alpha(0f).translationY(px(40)).setDuration(200)
+            voicePanel.animate().alpha(0f).translationY(watch ? 0 : px(40)).setDuration(200)
                     .withEndAction(() -> voicePanel.setVisibility(View.GONE)).start();
         }
         micButton.animate().alpha(1f).translationX(0).translationY(0).scaleX(1f).scaleY(1f).setDuration(220).start();

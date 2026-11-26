@@ -270,7 +270,7 @@ final class Stage {
         b.setStateListAnimator(null);
         int padV = (int) (a.getResources().getDisplayMetrics().density * 7);
         int padH = (int) (a.getResources().getDisplayMetrics().density * 6);
-        b.setPadding(padH, padV, padH, padV + (int) (a.getResources().getDisplayMetrics().density * 4));
+        b.setPadding(padH, padV, padH, padV);
         b.setSingleLine(true); // labels never wrap or break mid-word
         b.setEllipsize(android.text.TextUtils.TruncateAt.END); // long group names end in ...
         Press.attach(b);
