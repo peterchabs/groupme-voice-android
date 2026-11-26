@@ -4819,6 +4819,18 @@ public class HomeActivity extends Activity {
         return a + " " + b;
     }
 
+    /** Ends a listen still running under a countdown (it's sending, or you cancelled). */
+    private void stopListeningQuietly() {
+        if (rec != null) {
+            rec.cancel();
+            rec.destroy();
+            rec = null;
+        }
+        listening = false;
+        spokenSoFar = "";
+        heardSoFar = "";
+    }
+
     /** The message is complete: count down and send it (or go to the chat it names). */
     private void finishSpoken(String text) {
         listening = false;
@@ -4988,6 +5000,15 @@ public class HomeActivity extends Activity {
 
         @Override public void onPartialResults(Bundle b) {
             String t = top(b);
+            if (listening && t != null && !t.isEmpty() && pendingSend != null) {
+                // talking again before it sent: stop the countdown and keep adding to the message
+                ui.removeCallbacks(pendingSend);
+                pendingSend = null;
+                draftBar.animate().cancel();
+                draftBar.setVisibility(View.INVISIBLE);
+                draftNote.setText(watch ? "Listening" : "Listening \u00B7 tap the mic when done");
+                showDraftButtons(null); // the mic comes back beside the chat
+            }
             if (listening && t != null) {
                 sendTyping(); // the chat sees you're writing
                 heardSoFar = t;
@@ -5011,12 +5032,17 @@ public class HomeActivity extends Activity {
                 finishSpoken(full);
                 return;
             }
-            // A pause ended a sentence, not the message: keep the words and keep listening, so
-            // you can go on speaking naturally. Tap the mic (or stay quiet) when you're done.
+            // A pause: the send countdown starts as usual, but Say So keeps listening under it.
+            // Start talking again before the bar runs out and the countdown stops and your words
+            // are added; stay quiet and it sends.
+            if (voiceEntry && redirect(full)) {
+                finishSpoken(full);
+                return;
+            }
             spokenSoFar = full;
             heardSoFar = "";
-            draftNote.setText(watch ? "Keep talking, or tap the mic" : "Keep talking \u00B7 tap the mic to send");
-            ui.postDelayed(() -> { if (listening) beginListening(); }, 120);
+            countdown(Tidy.spoken(full));
+            ui.postDelayed(() -> { if (listening && pendingSend != null) beginListening(); }, 120);
         }
 
         @Override public void onError(int code) {
@@ -5032,6 +5058,14 @@ public class HomeActivity extends Activity {
                     rec = null;
                 }
                 ui.postDelayed(() -> { if (listening) beginListening(); }, 350);
+                return;
+            }
+            if (pendingSend != null) { // still counting down: no more words came, so it simply sends
+                listening = false;
+                if (rec != null) {
+                    rec.destroy();
+                    rec = null;
+                }
                 return;
             }
             boolean nothing = heardSoFar.isEmpty() && spokenSoFar.isEmpty();
@@ -5190,15 +5224,18 @@ public class HomeActivity extends Activity {
         showDraftButtons(new Runnable[]{() -> {
             if (pendingSend != null) ui.removeCallbacks(pendingSend);
             pendingSend = null;
+            stopListeningQuietly();
             replying = null;
             hideDraft();
         }, () -> {
             if (pendingSend != null) ui.removeCallbacks(pendingSend);
             pendingSend = null;
+            stopListeningQuietly();
             send(to, text, tags, replyId);
         }});
         pendingSend = () -> {
             pendingSend = null;
+            stopListeningQuietly();
             send(to, text, tags, replyId);
         };
         ui.postDelayed(pendingSend, SEND_DELAY_MS);

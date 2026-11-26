@@ -228,6 +228,11 @@ public class MainActivity extends Activity {
         @Override public void onPartialResults(Bundle b) {
             if (!listening) return;
             String t = first(b);
+            if (t != null && !t.isEmpty() && pendingSend != null) {
+                // talking again before it sent: stop the countdown and keep adding
+                cancelPending();
+                stage.show(OrbView.Mode.LISTEN, "Listening", hint(), "Chats", (Runnable) MainActivity.this::openChats);
+            }
             if (t != null) heardSoFar = t;
             // your words as you say them (earlier sentences kept), tidied as they go
             String all = joinSpoken(spokenSoFar, t);
@@ -250,10 +255,12 @@ public class MainActivity extends Activity {
                 spokenSoFar = "";
                 spoken = true;
                 handle(full);
-            } else { // a pause ended a sentence, not the message: keep listening
+            } else { // a pause: count down as usual, but keep listening under it
                 spokenSoFar = full;
                 heardSoFar = "";
-                keepListening();
+                spoken = true;
+                handle(full);
+                if (pendingSend != null) keepListening(); // talk again before it sends to add more
             }
         }
 
@@ -261,6 +268,10 @@ public class MainActivity extends Activity {
             android.util.Log.w("SaySo", "speech error " + code + " ready=" + ready);
             if (!listening) return; // some watches report a late error after results
             listening = false;
+            if (pendingSend != null) { // counting down: no more words came, so it simply sends
+                resetRecognizer();
+                return;
+            }
             if (!ready && !autoRetried && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
                     && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
                 // refused before the mic even opened (the last listen hadn't let go): start once
@@ -590,6 +601,7 @@ public class MainActivity extends Activity {
         stage.show(OrbView.Mode.COUNTDOWN, title, body,
                 "Cancel", (Runnable) () -> {
                     cancelPending();
+                    stopListeningQuietly();
                     showRetry("Cancelled", "Nothing was sent.");
                 },
                 nowLabel, (Runnable) () -> {
@@ -604,6 +616,7 @@ public class MainActivity extends Activity {
     }
 
     private void run(String busy, String done, Action action) {
+        stopListeningQuietly(); // anything still listening under the countdown
         stage.show(OrbView.Mode.BUSY, busy, null);
         final String token = Store.token(this);
         bg.execute(() -> {
@@ -624,6 +637,13 @@ public class MainActivity extends Activity {
                 ui.post(() -> showError(e));
             }
         });
+    }
+
+    private void stopListeningQuietly() {
+        if (listening && rec != null) rec.cancel();
+        listening = false;
+        spokenSoFar = "";
+        heardSoFar = "";
     }
 
     private void cancelPending() {
