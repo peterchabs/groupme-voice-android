@@ -560,10 +560,13 @@ public class HomeActivity extends Activity {
             Feed.Convo c = convos.get(i);
             splitName(r, c.name);
             // groups: the sender's picture, then just what they said; DMs: the message as is
-            boolean pic = !c.isDm && !c.previewPic.isEmpty() && photosOn();
+            // DMs: only when the last message was yours (theirs is already the chat's picture)
+            boolean mineLast = c.isDm && c.previewSenderId.equals(Store.myId(HomeActivity.this));
+            boolean pic = photosOn() && (mineLast || !c.isDm && !c.previewPic.isEmpty());
             r.who.view.setVisibility(pic ? View.VISIBLE : View.GONE);
             if (pic) {
-                r.who.set(c.previewWho, c.previewPic, true);
+                if (mineLast) r.who.set(Store.name(HomeActivity.this), Store.avatar(HomeActivity.this), true);
+                else r.who.set(c.previewWho, c.previewPic, true);
                 r.preview.setText(c.previewText.isEmpty() ? " " : c.previewText);
             } else {
                 r.preview.setText(c.preview.isEmpty() ? (c.isDm ? "Direct message" : " ") : c.preview);

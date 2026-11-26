@@ -45,6 +45,8 @@ final class Feed {
         String lastReadId = "";
         /** Groups: the last message on its own, and its sender's name and picture (for the chat list). */
         String previewText = "", previewWho = "", previewPic = "";
+        /** Who sent the last message (a user id), so the list can tell when it was you. */
+        String previewSenderId = "";
         /** DM only: the other person has read up to this message, at this time (seconds), or "" / 0. */
         String peerReadId = "";
         long peerReadAt;
@@ -560,6 +562,7 @@ final class Feed {
             c.previewText = describe(str(prev, "text"), prev.optJSONArray("attachments"));
             c.previewWho = str(prev, "nickname");
             c.previewPic = str(prev, "image_url");
+            c.previewSenderId = str(prev, "user_id");
         }
         if (msgs != null) {
             c.count = msgs.optInt("count", -1);
@@ -583,6 +586,11 @@ final class Feed {
         long at = last == null ? ch.optLong("updated_at", 0) : last.optLong("created_at", 0);
         String preview = last == null ? "" : describe(str(last, "text"), last.optJSONArray("attachments"));
         Convo c = new Convo(str(other, "id"), str(other, "name"), str(other, "avatar_url"), true, at, preview);
+        if (last != null) {
+            c.previewText = preview;
+            c.previewSenderId = str(last, "sender_id");
+            c.previewPic = str(last, "avatar_url");
+        }
         c.count = ch.optInt("messages_count", -1);
         c.lastMsgId = last == null ? "" : str(last, "id");
         readState(c, ch);
