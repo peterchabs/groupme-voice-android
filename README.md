@@ -245,7 +245,9 @@ of setup and every feature, recorded on a real watch screen with captions.
 - **React:** double-tap any message for a row of emoji. Tap one to react, or tap
   yours again to take it off. Reactions show as small badges under each message.
 - **Members:** swipe left from a group chat. People are grouped by rank: the owner,
-  admins, then everyone else. Tap someone for their profile and a direct message.
+  admins, then everyone else. Tap someone for their profile: their role, their GroupMe
+  name if they go by another one in the group, when they last posted, and their photos
+  from the group (on a phone, also the groups you share). Message or tag them from there.
 - **Tag people:** on the members page, hold someone, tap more people, then tap
   **Tag and speak**. Their pictures line up under the chat name while you talk, and
   GroupMe notifies everyone you tagged.

@@ -2783,9 +2783,29 @@ public class HomeActivity extends Activity {
         name.setGravity(Gravity.CENTER);
         name.setPadding(0, px(8), 0, 0);
         col.addView(name);
-        String about = current == null ? "" : current.isDm ? "Direct message"
-                : (m.role.isEmpty() ? "" : m.role + " of ") + current.name;
-        if (m.role.isEmpty() && current != null && !current.isDm) about = "In " + current.name;
+        if (!m.role.isEmpty()) { // Owner / Admin, as a small badge
+            TextView badge = label(m.role, sp(watch ? 10 : 11.5f), BLUE, true);
+            badge.setAllCaps(true);
+            badge.setLetterSpacing(0.08f);
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(Palette.BADGE);
+            bg.setCornerRadius(px(10));
+            bg.setStroke(Math.max(1, px(0.75f)), BLUE);
+            badge.setBackground(bg);
+            badge.setPadding(px(9), px(2), px(9), px(3));
+            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            bl.topMargin = px(4);
+            col.addView(badge, bl);
+        }
+        if (!m.accountName.isEmpty()) { // the name on their GroupMe account, when this group knows them by another
+            TextView acct = label("GroupMe name: " + m.accountName, sp(watch ? 10.5f : 12.5f), GREY, false);
+            acct.setGravity(Gravity.CENTER);
+            acct.setMaxLines(2);
+            acct.setEllipsize(TextUtils.TruncateAt.END);
+            acct.setPadding(0, px(3), 0, 0);
+            col.addView(acct);
+        }
+        String about = current == null ? "" : current.isDm ? "Direct message" : "In " + current.name;
         TextView sub = label(about, sp(watch ? 11 : 13), GREY, false);
         sub.setGravity(Gravity.CENTER);
         sub.setMaxLines(2);
@@ -2809,8 +2829,195 @@ public class HomeActivity extends Activity {
                 addProfileButton(col, "Back to chat", true, () -> go(1, false));
             }
         }
+        if (current != null && !current.isDm) profileExtras(col, m);
         sv.addView(col);
         profileLayer.addView(sv, match());
+    }
+
+    /** Which profile is showing, so late answers from GroupMe land only on the right one. */
+    private String profileShowing = "";
+    /** Groups' member ids, fetched for "Groups you share" (phone), kept for 10 minutes. */
+    private static final java.util.Map<String, java.util.Set<String>> GROUP_PEOPLE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static volatile long groupPeopleAt;
+
+    /**
+     * Below the buttons: when they last posted here, their photos from this group, and (phone)
+     * the other groups you're both in. Each part appears when it's known; nothing is a guess.
+     */
+    private void profileExtras(LinearLayout col, Feed.Member m) {
+        final Feed.Convo c = current;
+        final String key = c.id + ":" + m.userId;
+        profileShowing = key;
+        TextView last = label("", sp(watch ? 11 : 13), GREY, false);
+        last.setGravity(Gravity.CENTER);
+        last.setPadding(0, px(12), 0, 0);
+        last.setVisibility(View.GONE);
+        col.addView(last);
+        LinearLayout photoBox = new LinearLayout(this);
+        photoBox.setOrientation(LinearLayout.VERTICAL);
+        photoBox.setVisibility(View.GONE);
+        col.addView(photoBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout groupBox = new LinearLayout(this);
+        groupBox.setOrientation(LinearLayout.VERTICAL);
+        groupBox.setVisibility(View.GONE);
+        col.addView(groupBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // last posted: the chat already on screen first, then the group's last 100 messages
+        long seen = 0;
+        for (Feed.Msg x : msgs) if (x.senderId.equals(m.userId)) seen = Math.max(seen, x.at);
+        if (seen > 0) showLastPosted(last, seen);
+        final long known = seen;
+        final List<Feed.Media> theirs = new ArrayList<>();
+        if (c.id.equals(galleryFor)) for (Feed.Media x : photos) if (x.fromId.equals(m.userId)) theirs.add(x);
+        if (!theirs.isEmpty()) showTheirPhotos(photoBox, theirs, c.name);
+        final boolean havePhotos = c.id.equals(galleryFor);
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                if (known == 0) {
+                    long at = 0;
+                    for (Feed.Msg x : Feed.messages(token, c, 100)) if (x.senderId.equals(m.userId)) at = Math.max(at, x.at);
+                    final long found = at;
+                    ui.post(() -> {
+                        if (!profileShowing.equals(key)) return;
+                        if (found > 0) showLastPosted(last, found);
+                        else {
+                            last.setText("No posts in the last 100 messages");
+                            last.setVisibility(View.VISIBLE);
+                        }
+                    });
+                }
+                if (!havePhotos) {
+                    List<Feed.Media> all = Feed.gallery(token, c.id, 100);
+                    List<Feed.Media> mine = new ArrayList<>();
+                    for (Feed.Media x : all) if (x.fromId.equals(m.userId)) mine.add(x);
+                    ui.post(() -> { if (profileShowing.equals(key) && !mine.isEmpty()) showTheirPhotos(photoBox, mine, c.name); });
+                }
+                if (!watch && !m.userId.equals(Store.myId(this))) { // groups you share: phone only (one look per group)
+                    if (System.currentTimeMillis() - groupPeopleAt > 10 * 60 * 1000L) {
+                        GROUP_PEOPLE.clear();
+                        groupPeopleAt = System.currentTimeMillis();
+                    }
+                    List<String> shared = new ArrayList<>();
+                    int looked = 0;
+                    for (Feed.Convo g : new ArrayList<>(convos)) {
+                        if (g.isDm || looked >= 40) continue;
+                        looked++;
+                        java.util.Set<String> ids = GROUP_PEOPLE.get(g.id);
+                        if (ids == null) {
+                            ids = new java.util.HashSet<>();
+                            for (Feed.Member x : Feed.members(token, g.id)) ids.add(x.userId);
+                            GROUP_PEOPLE.put(g.id, ids);
+                        }
+                        if (ids.contains(m.userId)) shared.add(g.name);
+                    }
+                    ui.post(() -> { if (profileShowing.equals(key)) showSharedGroups(groupBox, shared); });
+                }
+            } catch (Api.AuthException e) {
+                ui.post(this::signedOut);
+            } catch (IOException ignored) {
+                // offline: the profile simply shows less
+            }
+        });
+    }
+
+    private void showLastPosted(TextView last, long atSec) {
+        long now = System.currentTimeMillis();
+        String ago = Feed.ago(atSec, now);                 // "now", "13m", "5h", "Mon", "Nov 4"
+        String when = Feed.stamp(atSec, now);              // "5:34 PM", "Yesterday 5:34 PM", "Nov 4, 5:34 PM"
+        boolean recent = ago.equals("now") || ago.matches("\\d+[mh]");
+        last.setText("Last posted " + when.replace("Yesterday", "yesterday")
+                + (recent ? "  \u00B7  " + (ago.equals("now") ? "just now" : ago + " ago") : ""));
+        if (last.getVisibility() != View.VISIBLE) {
+            last.setVisibility(View.VISIBLE);
+            last.setAlpha(0f);
+            last.animate().alpha(1f).setDuration(200).start();
+        }
+    }
+
+    /** Their photos from this group, in a row you can swipe; tap one to see it full screen. */
+    private void showTheirPhotos(LinearLayout box, List<Feed.Media> list, String groupName) {
+        box.removeAllViews();
+        TextView t = label("Photos in " + groupName + "  \u00B7  " + list.size(), sp(watch ? 10.5f : 12), GREY, true);
+        t.setAllCaps(true);
+        t.setLetterSpacing(0.06f);
+        t.setGravity(Gravity.CENTER);
+        t.setSingleLine(true);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        t.setPadding(0, px(14), 0, px(6));
+        box.addView(t);
+        android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.setClipToPadding(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        int sz = px(watch ? 64 : 84);
+        for (int i = 0; i < Math.min(list.size(), 12); i++) {
+            Feed.Media x = list.get(i);
+            FrameLayout cell = new FrameLayout(this);
+            ImageView img = new ImageView(this);
+            img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            GradientDrawable ph = new GradientDrawable();
+            ph.setColor(Palette.PLACEHOLDER);
+            ph.setCornerRadius(px(12));
+            img.setBackground(ph);
+            img.setClipToOutline(true);
+            cell.addView(img, new FrameLayout.LayoutParams(sz, sz));
+            if (x.kind == Feed.Media.VIDEO) {
+                ImageView play = new ImageView(this);
+                play.setImageDrawable(new Icons(Icons.PLAY, Color.WHITE, 0xAA000000));
+                FrameLayout.LayoutParams pl = new FrameLayout.LayoutParams(px(24), px(24));
+                pl.gravity = Gravity.CENTER;
+                cell.addView(play, pl);
+                if (x.preview.isEmpty()) Images.loadVideoFrame(img, x.url, sz);
+                else Images.load(img, x.preview, sz, false);
+            } else {
+                Images.load(img, Feed.sized(x.preview, "preview"), sz, false);
+            }
+            cell.setOnClickListener(v -> openMedia(x));
+            Press.attach(cell);
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(sz, sz);
+            if (i > 0) cl.leftMargin = px(6);
+            row.addView(cell, cl);
+        }
+        hs.addView(row);
+        box.addView(hs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ((LinearLayout.LayoutParams) hs.getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
+        box.setVisibility(View.VISIBLE);
+        box.setAlpha(0f);
+        box.animate().alpha(1f).setDuration(220).start();
+    }
+
+    /** Phone: the other groups you're both in, as small names. */
+    private void showSharedGroups(LinearLayout box, List<String> names) {
+        box.removeAllViews();
+        List<String> others = new ArrayList<>(names);
+        if (current != null) others.remove(current.name);
+        TextView t = label("Groups you share  \u00B7  " + others.size(), sp(12), GREY, true);
+        t.setAllCaps(true);
+        t.setLetterSpacing(0.06f);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, px(14), 0, px(6));
+        box.addView(t);
+        if (others.isEmpty()) {
+            TextView none = label("Just this one", sp(13), GREY, false);
+            none.setGravity(Gravity.CENTER);
+            box.addView(none);
+        }
+        for (String n : others) {
+            TextView g = label(n, sp(14), INK, false);
+            g.setGravity(Gravity.CENTER);
+            g.setSingleLine(true);
+            g.setEllipsize(TextUtils.TruncateAt.END);
+            g.setBackground(card(Palette.ROW, Palette.ROW_EDGE));
+            g.setPadding(px(12), px(8), px(12), px(8));
+            LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            gl.topMargin = px(4);
+            box.addView(g, gl);
+        }
+        box.setVisibility(View.VISIBLE);
+        box.setAlpha(0f);
+        box.animate().alpha(1f).setDuration(220).start();
     }
 
     private void addProfileButton(LinearLayout col, String text, boolean primary, Runnable tap) {

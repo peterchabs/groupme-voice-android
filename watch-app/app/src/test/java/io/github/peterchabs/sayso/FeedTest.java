@@ -258,4 +258,21 @@ public class FeedTest {
         assertEquals("https://m.groupme.com/uploads/x/1.jpeg", e.albumCover);
         assertEquals("Picnic pics", e.albumTitle);
     }
+
+    @Test
+    public void membersKeepTheirAccountNameWhenTheirNicknameDiffers() throws Exception {
+        JSONObject g = new JSONObject("{\"members\":[{\"user_id\":\"1\",\"nickname\":\"Egg\",\"name\":\"Aphrodite Urania\",\"roles\":[\"admin\"]},"
+                + "{\"user_id\":\"2\",\"nickname\":\"Sam\",\"name\":\"sam\",\"roles\":[]}]}");
+        List<Feed.Member> m = Feed.parseMembers(g);
+        assertEquals("Admin", m.get(0).role);
+        assertEquals("Aphrodite Urania", m.get(0).accountName);
+        assertEquals("", m.get(1).accountName); // same name, different case: nothing extra to show
+    }
+
+    @Test
+    public void photosKnowWhoPostedThem() throws Exception {
+        JSONObject msg = new JSONObject("{\"id\":\"5\",\"sender_id\":\"77\",\"name\":\"Sam\",\"text\":\"\","
+                + "\"attachments\":[{\"type\":\"image\",\"url\":\"https://i.groupme.com/100x100.jpeg.abc\"}]}");
+        assertEquals("77", Feed.parseMessage(msg).media.get(0).fromId);
+    }
 }

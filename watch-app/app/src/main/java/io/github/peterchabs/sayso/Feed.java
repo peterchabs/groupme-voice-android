@@ -44,7 +44,7 @@ final class Feed {
         final String url;       // full image, GIF or video
         final String preview;   // still image to show inline (for video: its preview frame)
         // who posted it, when, and what they wrote with it (for the full-screen overlay)
-        String from = "", fromAvatar = "", caption = "", msgId = "";
+        String from = "", fromAvatar = "", caption = "", msgId = "", fromId = "";
         long at;
 
         Media(int kind, String url, String preview) {
@@ -309,6 +309,8 @@ final class Feed {
     /** Someone in a group. */
     static final class Member {
         final String userId, name, avatarUrl, role; // role: "Owner", "Admin" or ""
+        /** Their GroupMe account name, when it differs from the name they use in this group. */
+        String accountName = "";
 
         Member(String userId, String name, String avatarUrl, String role) {
             this.userId = userId;
@@ -342,7 +344,10 @@ final class Feed {
             }
             String name = str(m, "nickname");
             if (name.isEmpty()) name = str(m, "name");
-            out.add(new Member(str(m, "user_id"), name, str(m, "image_url"), role));
+            Member mem = new Member(str(m, "user_id"), name, str(m, "image_url"), role);
+            String account = str(m, "name").trim();
+            if (!account.isEmpty() && !account.equalsIgnoreCase(name.trim())) mem.accountName = account;
+            out.add(mem);
         }
         // owner first, then admins, then everyone else; A to Z within each
         out.sort((x, y) -> {
@@ -514,6 +519,7 @@ final class Feed {
         if (sender.isEmpty()) sender = str(m, "user_id");
         for (Media x : media) {
             x.from = str(m, "name");
+            x.fromId = sender;
             x.fromAvatar = str(m, "avatar_url");
             x.caption = text;
             x.at = m.optLong("created_at", 0);
