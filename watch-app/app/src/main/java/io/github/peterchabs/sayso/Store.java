@@ -111,7 +111,7 @@ final class Store {
     static void setCheckedSignIn(Context c, String key) { p(c).edit().putString("signin_checked", key).apply(); }
 
     static void forgetSignIn(Context c) {
-        p(c).edit().remove("token").remove("web_agent").remove("groups").remove("groups_at")
+        p(c).edit().remove("token").remove("web_agent").remove("people").remove("people_at").remove("groups").remove("groups_at")
                 .remove("contacts").remove("contacts_at").apply();
     }
 
@@ -121,6 +121,16 @@ final class Store {
      */
     static String webAgent(Context c) { return p(c).getString("web_agent", ""); }
     static void setWebAgent(Context c, String agent) { p(c).edit().putString("web_agent", agent == null ? "" : agent).apply(); }
+
+    /** Everyone in your groups and DMs, by every name they go by (id = their user id). */
+    static List<Phrase.Group> people(Context c) { return read(c, "people"); }
+
+    static void savePeople(Context c, List<Phrase.Group> people) {
+        write(c, "people", people);
+        p(c).edit().putLong("people_at", System.currentTimeMillis()).apply();
+    }
+
+    static long peopleAgeMs(Context c) { return System.currentTimeMillis() - p(c).getLong("people_at", 0); }
 
     /** People you have direct messages with (id = their user id). */
     static List<Phrase.Group> contacts(Context c) { return read(c, "contacts"); }

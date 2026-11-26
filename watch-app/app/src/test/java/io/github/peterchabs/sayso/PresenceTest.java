@@ -45,6 +45,23 @@ public class PresenceTest {
         assertNull(m.get("99"));
     }
 
+    @Test public void aProfileReadsWhatTheyFilledIn() throws Exception {
+        Api.Profile p = Api.parseProfile(new JSONObject("{\"user\":{\"id\":\"5\",\"name\":\"Sam\",\"bio\":\"Coffee first\","
+                + "\"created_at\":1400000000,\"direct_message_capable\":false,\"app_installed\":true,\"song_url\":\"https://open.spotify.com/track/x\","
+                + "\"interests\":[1001,1002],\"photo_urls\":[\"https://i.groupme.com/a.jpeg\"]},"
+                + "\"shared_groups\":[{\"group_id\":\"9\",\"group_name\":\"Test\",\"group_avatar\":null}]}"));
+        assertEquals("Coffee first", p.bio);
+        assertEquals(1400000000L, p.createdAtSec);
+        assertEquals(false, p.dmCapable);
+        assertEquals("https://open.spotify.com/track/x", p.songUrl);
+        assertEquals(2, p.interests.size());
+        assertEquals(1, p.photos.size());
+        assertEquals("Test", p.sharedGroups.get(0)[1]);
+        assertEquals("", p.sharedGroups.get(0)[2]);
+        Api.Profile empty = Api.parseProfile(new JSONObject("{\"user\":{\"id\":\"6\",\"bio\":{}},\"shared_groups\":[]}"));
+        assertEquals("", empty.bio); // GroupMe sends {} for an unset bio
+    }
+
     @Test public void theActiveLineReadsLikeGroupMes() throws Exception {
         long now = 1_800_000_000_000L;
         assertEquals("Active now", Api.activeLine(Api.parsePresence(new JSONObject("{\"status\":\"online\",\"last_active\":" + now + "}")), now));

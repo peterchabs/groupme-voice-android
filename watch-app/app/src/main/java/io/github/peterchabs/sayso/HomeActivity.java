@@ -438,7 +438,6 @@ public class HomeActivity extends Activity {
         if (watch) curve(list);
         listWrap.addView(list, match());
         homeLayer.addView(listWrap, match());
-        buildFind();
     }
 
     // ---------------- find a chat by saying its name (Chats screen) ----------------
@@ -447,8 +446,8 @@ public class HomeActivity extends Activity {
     private TextView findHint;
     private android.speech.SpeechRecognizer finder;
 
-    /** A magnifier at the bottom of Chats: tap it and say a group's or a person's name. */
-    private void buildFind() {
+    /** A magnifier at the bottom of a group's member list: tap it and say someone's name. */
+    private void buildFind(FrameLayout layer) {
         ImageView b = new ImageView(this);
         b.setImageDrawable(new Icons(Icons.SEARCH, Color.WHITE, 0));
         b.setBackground(domed());
@@ -463,14 +462,14 @@ public class HomeActivity extends Activity {
         b.setOutlineAmbientShadowColor(0xFF000000);
         b.setOutlineSpotShadowColor(Palette.dark ? 0xFF000000 : 0xFF0077B6);
         b.setPadding(px(10), px(10), px(10), px(10));
-        b.setContentDescription("Find a chat by voice");
+        b.setContentDescription("Find a member by voice");
         b.setOnClickListener(v -> { if (finder != null) finder.stopListening(); else findByVoice(); });
         Press.attach(b);
         int m = px(watch ? 46 : 60);
         FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(m, m);
         bl.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         bl.bottomMargin = watch ? (int) (H * 0.02f) : px(20);
-        homeLayer.addView(b, bl);
+        layer.addView(b, bl);
         findButton = b;
 
         // what to do, while it listens: just above the button
@@ -485,7 +484,7 @@ public class HomeActivity extends Activity {
         FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hl.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         hl.bottomMargin = bl.bottomMargin + m + px(6);
-        homeLayer.addView(findHint, hl);
+        layer.addView(findHint, hl);
     }
 
     private void findByVoice() {
@@ -497,8 +496,8 @@ public class HomeActivity extends Activity {
             toast("Voice isn't set up on this watch");
             return;
         }
-        if (convos.isEmpty()) {
-            toast("Your chats are still loading");
+        if (members.isEmpty()) {
+            toast("The members are still loading");
             return;
         }
         stopFinding();
@@ -523,14 +522,14 @@ public class HomeActivity extends Activity {
                 java.util.ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 stopFinding();
                 if (r == null || r.isEmpty()) { toast("I didn't catch a name"); return; }
-                openSpokenChat(r.get(0));
+                openSpokenMember(r.get(0));
             }
         });
         Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-        showFindHint("Say a chat or a name");
+        showFindHint("Say a name");
         findButton.animate().scaleX(1.12f).scaleY(1.12f).setDuration(160).start();
         finder.startListening(i);
     }
@@ -553,31 +552,33 @@ public class HomeActivity extends Activity {
         if (findButton != null) findButton.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
     }
 
-    /** Opens the chat that was named; asks which one when two fit, says so when none does. */
-    private void openSpokenChat(String heard) {
-        Phrase said = Phrase.parse(heard); // "tell Test ..." names a chat too
-        String name = said != null && !said.group.isEmpty() ? said.group : heard;
+    /** Opens the member who was named (their page); asks which one when two fit, says so when none does. */
+    private void openSpokenMember(String heard) {
         List<Phrase.Group> all = new ArrayList<>();
-        for (int i = 0; i < convos.size(); i++) all.add(new Phrase.Group(String.valueOf(i), convos.get(i).name));
-        List<Phrase.Group> hits = Phrase.findChats(all, name);
-        if (hits.isEmpty()) {
-            toast("No chat called \u201C" + Phrase.chatAnswer(name) + "\u201D");
+        for (int i = 0; i < members.size(); i++) {
+            Feed.Member m = members.get(i);
+            all.add(new Phrase.Group(String.valueOf(i), m.name));
+            if (!m.accountName.isEmpty()) all.add(new Phrase.Group(String.valueOf(i), m.accountName));
+        }
+        Phrase.PersonPick pick = Phrase.pickPerson(all, Phrase.chatAnswer(heard));
+        if (pick == null) {
+            toast("No one here called \u201C" + Phrase.chatAnswer(heard) + "\u201D");
             return;
         }
-        if (Phrase.clearWinner(all, name) || hits.size() == 1) {
-            openChat(convos.get(Integer.parseInt(hits.get(0).id)));
+        if (pick.sure) {
+            openProfile(members.get(Integer.parseInt(pick.people.get(0).id)), 2);
             return;
         }
-        String[] labels = new String[hits.size() + 1];
-        Runnable[] acts = new Runnable[hits.size() + 1];
-        for (int i = 0; i < hits.size(); i++) {
-            Feed.Convo c = convos.get(Integer.parseInt(hits.get(i).id));
-            labels[i] = c.name;
-            acts[i] = () -> openChat(c);
+        String[] labels = new String[pick.people.size() + 1];
+        Runnable[] acts = new Runnable[labels.length];
+        for (int i = 0; i < pick.people.size(); i++) {
+            Feed.Member m = members.get(Integer.parseInt(pick.people.get(i).id));
+            labels[i] = m.name;
+            acts[i] = () -> openProfile(m, 2);
         }
-        labels[hits.size()] = "Cancel";
-        acts[hits.size()] = () -> { };
-        showChoices("Which chat?", labels, acts);
+        labels[labels.length - 1] = "Cancel";
+        acts[labels.length - 1] = () -> { };
+        showChoices("Which one?", labels, acts);
     }
 
     private volatile boolean avatarAsked;
@@ -3584,6 +3585,7 @@ public class HomeActivity extends Activity {
         tl.leftMargin = tl.rightMargin = watch ? 0 : px(16);
         tagButton.setVisibility(View.GONE);
         membersLayer.addView(tagButton, tl);
+        buildFind(membersLayer);
         root.addView(membersLayer, match());
     }
 
@@ -3697,6 +3699,7 @@ public class HomeActivity extends Activity {
         memberAdapter.notifyDataSetChanged();
         int n = picked.size();
         tagButton.setText(watch ? "Tag " + n + " + speak" : "Tag " + n + (n == 1 ? " person" : " people") + " and speak");
+        if (findButton != null) findButton.setVisibility(View.GONE); // the Tag button takes its place
         if (tagButton.getVisibility() != View.VISIBLE) {
             tagButton.setVisibility(View.VISIBLE);
             tagButton.setAlpha(0f);
@@ -3708,6 +3711,7 @@ public class HomeActivity extends Activity {
 
     private void endPicking() {
         picking = false;
+        if (findButton != null) findButton.setVisibility(View.VISIBLE);
         picked.clear();
         if (memberAdapter != null) memberAdapter.notifyDataSetChanged();
         if (tagButton != null && tagButton.getVisibility() == View.VISIBLE) {
@@ -4472,6 +4476,7 @@ public class HomeActivity extends Activity {
         name.setGravity(Gravity.CENTER);
         name.setPadding(0, px(8), 0, 0);
         col.addView(name);
+        if (!me) profileActive(col, m);
         if (!m.role.isEmpty()) { // Owner / Admin, as a small badge
             TextView badge = label(m.role, sp(watch ? 10 : 11.5f), BLUE, true);
             badge.setAllCaps(true);
@@ -4523,15 +4528,48 @@ public class HomeActivity extends Activity {
         profileLayer.addView(sv, match());
     }
 
+    /**
+     * Under the name: "Active now" (green dot), "Active 5 min ago" (amber dot when away). Appears
+     * once GroupMe answers; nothing when it doesn't (an older phone app signed this watch in).
+     */
+    private void profileActive(LinearLayout col, Feed.Member m) {
+        TextView t = label("", sp(watch ? 11 : 13), GREY, false);
+        t.setGravity(Gravity.CENTER);
+        t.setVisibility(View.GONE);
+        t.setPadding(0, px(2), 0, 0);
+        col.addView(t);
+        final String token = Store.token(this), browser = Store.webAgent(this);
+        if (token.isEmpty() || browser.isEmpty()) return;
+        bg.execute(() -> {
+            Api.Presence p = Api.presence(token, browser, m.userId);
+            String line = Api.activeLine(p, System.currentTimeMillis());
+            if (line.isEmpty()) return;
+            ui.post(() -> {
+                if (t.getParent() == null) return; // the page was closed meanwhile
+                boolean on = "online".equals(p.status), away = "away".equals(p.status);
+                t.setText(line);
+                if (on || away) {
+                    GradientDrawable dot = new GradientDrawable();
+                    dot.setShape(GradientDrawable.OVAL);
+                    dot.setColor(on ? 0xFF2FC973 : 0xFFF2B33D);
+                    int d = px(watch ? 8 : 9);
+                    dot.setSize(d, d);
+                    t.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, null, null, null);
+                    t.setCompoundDrawablePadding(px(5));
+                }
+                t.setVisibility(View.VISIBLE);
+                t.setAlpha(0f);
+                t.animate().alpha(1f).setDuration(200).start();
+            });
+        });
+    }
+
     /** The swipeable photo row on a profile: sideways drags on it scroll it, not the page. */
     private android.widget.HorizontalScrollView photoStrip;
     private boolean stripTouch;
 
     /** Which profile is showing, so late answers from GroupMe land only on the right one. */
     private String profileShowing = "";
-    /** Groups' member ids, fetched for "Groups you share" (phone), kept for 10 minutes. */
-    private static final java.util.Map<String, java.util.Set<String>> GROUP_PEOPLE = new java.util.concurrent.ConcurrentHashMap<>();
-    private static volatile long groupPeopleAt;
 
     /**
      * Below the buttons: when they last posted here, their photos from this group, and (phone)
@@ -4550,6 +4588,10 @@ public class HomeActivity extends Activity {
         photoBox.setOrientation(LinearLayout.VERTICAL);
         photoBox.setVisibility(View.GONE);
         col.addView(photoBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout aboutBox = new LinearLayout(this); // bio, interests, song, their photos, since when
+        aboutBox.setOrientation(LinearLayout.VERTICAL);
+        aboutBox.setVisibility(View.GONE);
+        col.addView(aboutBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout groupBox = new LinearLayout(this);
         groupBox.setOrientation(LinearLayout.VERTICAL);
         groupBox.setVisibility(View.GONE);
@@ -4586,25 +4628,10 @@ public class HomeActivity extends Activity {
                     for (Feed.Media x : all) if (x.fromId.equals(m.userId)) mine.add(x);
                     ui.post(() -> { if (profileShowing.equals(key) && !mine.isEmpty()) showTheirPhotos(photoBox, mine, c.name); });
                 }
-                if (!watch && !m.userId.equals(Store.myId(this))) { // groups you share: phone only (one look per group)
-                    if (System.currentTimeMillis() - groupPeopleAt > 10 * 60 * 1000L) {
-                        GROUP_PEOPLE.clear();
-                        groupPeopleAt = System.currentTimeMillis();
-                    }
-                    List<String> shared = new ArrayList<>();
-                    int looked = 0;
-                    for (Feed.Convo g : new ArrayList<>(convos)) {
-                        if (g.isDm || looked >= 40) continue;
-                        looked++;
-                        java.util.Set<String> ids = GROUP_PEOPLE.get(g.id);
-                        if (ids == null) {
-                            ids = new java.util.HashSet<>();
-                            for (Feed.Member x : Feed.members(token, g.id)) ids.add(x.userId);
-                            GROUP_PEOPLE.put(g.id, ids);
-                        }
-                        if (ids.contains(m.userId)) shared.add(g.name);
-                    }
-                    ui.post(() -> { if (profileShowing.equals(key)) showSharedGroups(groupBox, shared); });
+                if (!m.userId.equals(Store.myId(this))) { // their GroupMe profile: bio, interests, song, photos, groups you share
+                    Api.Profile pr = Api.profile(token, m.userId);
+                    Map<Integer, String> names = pr.interests.isEmpty() ? new java.util.HashMap<>() : Api.interestNames();
+                    ui.post(() -> { if (profileShowing.equals(key)) showProfile(aboutBox, groupBox, pr, names, m); });
                 }
             } catch (Api.AuthException e) {
                 ui.post(this::signedOut);
@@ -4683,36 +4710,137 @@ public class HomeActivity extends Activity {
         box.animate().alpha(1f).setDuration(220).start();
     }
 
-    /** Phone: the other groups you're both in, as small names. */
-    private void showSharedGroups(LinearLayout box, List<String> names) {
-        box.removeAllViews();
-        List<String> others = new ArrayList<>(names);
-        if (current != null) others.remove(current.name);
-        TextView t = label("Groups you share  \u00B7  " + others.size(), sp(12), GREY, true);
+    /** A small grey heading over a part of a profile ("ABOUT", "GROUPS YOU SHARE  ·  3"). */
+    private TextView profileHeading(String text) {
+        TextView t = label(text, sp(watch ? 10.5f : 12), GREY, true);
         t.setAllCaps(true);
         t.setLetterSpacing(0.06f);
         t.setGravity(Gravity.CENTER);
+        t.setSingleLine(true);
+        t.setEllipsize(TextUtils.TruncateAt.END);
         t.setPadding(0, px(14), 0, px(6));
-        box.addView(t);
-        if (others.isEmpty()) {
-            TextView none = label("Just this one", sp(13), GREY, false);
-            none.setGravity(Gravity.CENTER);
-            box.addView(none);
+        return t;
+    }
+
+    private static void fadeIn(View v) {
+        v.setVisibility(View.VISIBLE);
+        v.setAlpha(0f);
+        v.animate().alpha(1f).setDuration(220).start();
+    }
+
+    /**
+     * What their GroupMe profile says, the parts they've filled in: bio, interests, profile song,
+     * profile photos, when they joined, whether they take direct messages; then the groups you're
+     * both in (tap one to open it).
+     */
+    private void showProfile(LinearLayout about, LinearLayout groups, Api.Profile p, Map<Integer, String> names, Feed.Member m) {
+        about.removeAllViews();
+        if (!p.bio.isEmpty()) {
+            TextView bio = label(p.bio, sp(watch ? 12 : 14), INK, false);
+            bio.setGravity(Gravity.CENTER);
+            bio.setPadding(0, px(12), 0, 0);
+            about.addView(bio);
         }
-        for (String n : others) {
-            TextView g = label(n, sp(14), INK, false);
-            g.setGravity(Gravity.CENTER);
-            g.setSingleLine(true);
-            g.setEllipsize(TextUtils.TruncateAt.END);
-            g.setBackground(card(Palette.ROW, Palette.ROW_EDGE));
-            g.setPadding(px(12), px(8), px(12), px(8));
+        List<String> tags = new ArrayList<>();
+        for (int id : p.interests) {
+            String n = names.get(id);
+            if (n != null && !n.isEmpty()) tags.add(n);
+        }
+        if (!tags.isEmpty()) {
+            about.addView(profileHeading("Interests"));
+            TextView t = label(android.text.TextUtils.join("  \u00B7  ", tags), sp(watch ? 11.5f : 13.5f), INK, false);
+            t.setGravity(Gravity.CENTER);
+            about.addView(t);
+        }
+        if (!p.songUrl.isEmpty()) {
+            about.addView(profileHeading("Profile song"));
+            TextView song = label("Spotify", sp(watch ? 12 : 14), BLUE, true);
+            song.setGravity(Gravity.CENTER);
+            song.setSingleLine(false);
+            song.setMaxLines(3);
+            song.setEllipsize(TextUtils.TruncateAt.END);
+            song.setBackground(card(Palette.ROW, Palette.ROW_EDGE));
+            song.setPadding(px(12), px(8), px(12), px(8));
+            about.addView(song, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            LinkPreview.load(p.songUrl, c -> { if (!c.title.isEmpty()) song.setText(c.title); }); // "Song · Artist"
+            song.setOnClickListener(v -> { // Spotify's own app (watch or phone) if it's there
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(p.songUrl)));
+                } catch (android.content.ActivityNotFoundException e) {
+                    toast("Open it on your phone: no Spotify here");
+                }
+            });
+            Press.attach(song);
+        }
+        if (!p.photos.isEmpty()) {
+            about.addView(profileHeading("Profile photos  \u00B7  " + p.photos.size()));
+            android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+            hs.setHorizontalScrollBarEnabled(false);
+            LinearLayout row = new LinearLayout(this);
+            int sz = px(watch ? 64 : 84);
+            for (int i = 0; i < Math.min(p.photos.size(), 12); i++) {
+                String url = p.photos.get(i);
+                ImageView img = new ImageView(this);
+                img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                GradientDrawable ph = new GradientDrawable();
+                ph.setColor(Palette.PLACEHOLDER);
+                ph.setCornerRadius(px(12));
+                img.setBackground(ph);
+                img.setClipToOutline(true);
+                Images.load(img, Feed.sized(url, "preview"), sz, false);
+                img.setOnClickListener(v -> openPicture(m.name, url));
+                Press.attach(img);
+                LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(sz, sz);
+                if (i > 0) il.leftMargin = px(6);
+                row.addView(img, il);
+            }
+            hs.addView(row);
+            about.addView(hs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            ((LinearLayout.LayoutParams) hs.getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
+        }
+        List<String> facts = new ArrayList<>();
+        if (p.createdAtSec > 0) {
+            facts.add("On GroupMe since " + new java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.US)
+                    .format(new java.util.Date(p.createdAtSec * 1000)));
+        }
+        if (!p.dmCapable) facts.add("Doesn't take direct messages");
+        if (!p.appInstalled) facts.add("Doesn't use a GroupMe app");
+        if (!facts.isEmpty()) {
+            TextView f = label(android.text.TextUtils.join("\n", facts), sp(watch ? 10.5f : 12.5f), GREY, false);
+            f.setGravity(Gravity.CENTER);
+            f.setPadding(0, px(12), 0, 0);
+            about.addView(f);
+        }
+        if (about.getChildCount() > 0) fadeIn(about);
+
+        groups.removeAllViews();
+        List<String[]> others = new ArrayList<>();
+        for (String[] g : p.sharedGroups) if (current == null || !g[0].equals(current.id)) others.add(g);
+        groups.addView(profileHeading("Groups you share  \u00B7  " + others.size()));
+        if (others.isEmpty()) {
+            TextView none = label("Just this one", sp(watch ? 11.5f : 13), GREY, false);
+            none.setGravity(Gravity.CENTER);
+            groups.addView(none);
+        }
+        for (String[] g : others) {
+            TextView row = label(g[1], sp(watch ? 12.5f : 14), INK, false);
+            row.setGravity(Gravity.CENTER);
+            row.setSingleLine(true);
+            row.setEllipsize(TextUtils.TruncateAt.END);
+            row.setBackground(card(Palette.ROW, Palette.ROW_EDGE));
+            row.setPadding(px(12), px(8), px(12), px(8));
+            row.setOnClickListener(v -> {
+                Feed.Convo hit = null;
+                for (Feed.Convo c : convos) if (!c.isDm && c.id.equals(g[0])) hit = c;
+                if (level > 1) go(1, false);
+                openChat(hit != null ? hit : new Feed.Convo(g[0], g[1], g[2], false, 0, ""));
+            });
+            Press.attach(row);
             LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             gl.topMargin = px(4);
-            box.addView(g, gl);
+            groups.addView(row, gl);
         }
-        box.setVisibility(View.VISIBLE);
-        box.setAlpha(0f);
-        box.animate().alpha(1f).setDuration(220).start();
+        fadeIn(groups);
     }
 
     private void addProfileButton(LinearLayout col, String text, boolean primary, Runnable tap) {

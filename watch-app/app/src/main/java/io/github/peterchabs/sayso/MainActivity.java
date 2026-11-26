@@ -167,6 +167,7 @@ public class MainActivity extends Activity {
         listenUnder = false;
         showingTo = false;
         awaiting = null; // a fresh start; "Try again" for a named group sets it back right after
+        awaitingPerson = null;
         orphan = null;
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             stage.show(OrbView.Mode.IDLE, "Allow the microphone", "So I can hear your message.");
@@ -581,6 +582,8 @@ public class MainActivity extends Activity {
 
     /** You named only a group: it's waiting for the message (the mic stays on). */
     private Phrase.Group awaiting;
+    /** The person "message ..." named, waiting for what to say to them. */
+    private Phrase.Group awaitingPerson;
     /** The title says "To <group>" from what you have said so far. */
     private boolean showingTo;
 
@@ -624,6 +627,13 @@ public class MainActivity extends Activity {
             if (!text.isEmpty() && !tooLong(text)) confirmGroup(g, text);
             return;
         }
+        if (awaitingPerson != null) { // the message for the person you just named
+            Phrase.Group who = awaitingPerson;
+            awaitingPerson = null;
+            String text = heard == null ? "" : heard.trim();
+            if (!text.isEmpty() && !tooLong(text)) confirmDm(who, text);
+            return;
+        }
         if (Phrase.parseLike(heard)) {           // "like that", "heart that message"
             withLatest(null);
             return;
@@ -631,6 +641,11 @@ public class MainActivity extends Activity {
         String reply = Phrase.parseReply(heard); // "reply saying on my way"
         if (reply != null) {
             if (!tooLong(reply)) withLatest(reply);
+            return;
+        }
+        String after = Phrase.afterMessage(heard); // "message Duke of York", "text Sam I'm late"
+        if (after != null && !namesAGroup(heard)) {
+            findPerson(after);
             return;
         }
         Phrase dm = Phrase.parseDm(heard);       // "DM Sam saying hi"
@@ -673,6 +688,94 @@ public class MainActivity extends Activity {
             return;
         }
         if (!tooLong(p.text)) find(p, false);
+    }
+
+    /** "message Weekend Crew that ..." names one of your groups exactly: that's a group message, not a person. */
+    private boolean namesAGroup(String heard) {
+        List<Phrase.Group> groups = Store.groups(this);
+        Phrase p = Phrase.parse(heard);
+        if (p == null) p = Phrase.parseNamed(heard, groups);
+        if (p == null) return false;
+        String n = Phrase.norm(p.group);
+        for (Phrase.Group g : groups) if (Phrase.norm(g.name).equals(n)) return true;
+        return false;
+    }
+
+    private static final long PEOPLE_CACHE_MS = 6 * 60 * 60 * 1000L;
+
+    /**
+     * "message <name> [what to say]": the person from everyone in your groups and DMs. One clear fit
+     * goes ahead; a few possible ones are listed to pick from. Then the message (asked for if it
+     * wasn't said) counts down like any other.
+     */
+    private void findPerson(String after) {
+        stage.show(OrbView.Mode.BUSY, "Finding them", quote(after));
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                List<Phrase.Group> people = Store.people(this);
+                boolean fresh = false;
+                if (people.isEmpty() || Store.peopleAgeMs(this) > PEOPLE_CACHE_MS) {
+                    people = loadPeople(token);
+                    fresh = true;
+                }
+                Phrase.PersonPick pick = Phrase.pickPerson(people, after);
+                if ((pick == null || !pick.sure) && !fresh) { // someone new since the last look?
+                    people = loadPeople(token);
+                    pick = Phrase.pickPerson(people, after);
+                }
+                final Phrase.PersonPick found = pick;
+                ui.post(() -> {
+                    if (isFinishing()) return;
+                    if (found == null) {
+                        showRetry("I couldn't find anyone called \"" + firstWords(after) + "\"", "Nothing was sent.");
+                    } else if (found.sure) {
+                        toPerson(found.people.get(0), found.text);
+                    } else {
+                        String[] labels = new String[found.people.size() + 1];
+                        Runnable[] taps = new Runnable[labels.length];
+                        for (int i = 0; i < found.people.size(); i++) {
+                            Phrase.Group g = found.people.get(i);
+                            labels[i] = g.name;
+                            taps[i] = () -> toPerson(g, found.text);
+                        }
+                        labels[labels.length - 1] = "Try again";
+                        taps[labels.length - 1] = this::begin;
+                        stage.showList(OrbView.Mode.IDLE, "Which one?",
+                                found.text.isEmpty() ? "Tap who you mean." : quote(out(found.text)), labels, taps, 0);
+                    }
+                });
+            } catch (IOException e) {
+                ui.post(() -> showError(e));
+            }
+        });
+    }
+
+    /** Everyone in your groups, plus the people you have DMs with; saved for 6 hours. */
+    private List<Phrase.Group> loadPeople(String token) throws IOException {
+        String myId = Store.myId(this);
+        List<Phrase.Group> people = Api.listPeople(token, myId);
+        List<Phrase.Group> contacts = Api.listContacts(token);
+        Store.saveContacts(this, contacts);
+        people.addAll(contacts);
+        Store.savePeople(this, people);
+        return people;
+    }
+
+    private static String firstWords(String s) {
+        String[] w = s.trim().split("\\s+");
+        return String.join(" ", java.util.Arrays.copyOfRange(w, 0, Math.min(4, w.length)));
+    }
+
+    /** The person is known: with a message, count it down; without one, ask for it (listening). */
+    private void toPerson(Phrase.Group who, String text) {
+        if (text != null && !text.isEmpty()) {
+            if (!tooLong(text)) confirmDm(who, text);
+            return;
+        }
+        begin();
+        awaitingPerson = who;
+        stage.retitle("To " + who.name, "What's the message?");
     }
 
     /**

@@ -52,6 +52,35 @@ final class Api {
         return out;
     }
 
+    /**
+     * Everyone in your groups (not you): one entry per name a person goes by, so someone shows up
+     * under their GroupMe name and their nickname in each group (id = their user id).
+     */
+    static List<Phrase.Group> listPeople(String token, String myId) throws IOException {
+        List<Phrase.Group> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int page = 1; page < 50; page++) {
+            JSONObject r = call("GET", "/groups?per_page=100&page=" + page, token, null);
+            JSONArray a = r.optJSONArray("response");
+            if (a == null) break;
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject g = a.optJSONObject(i);
+                JSONArray ms = g == null ? null : g.optJSONArray("members");
+                for (int j = 0; ms != null && j < ms.length(); j++) {
+                    JSONObject m = ms.optJSONObject(j);
+                    if (m == null) continue;
+                    String id = m.optString("user_id", "");
+                    if (id.isEmpty() || id.equals(myId)) continue;
+                    for (String name : new String[]{m.optString("nickname", ""), m.optString("name", "")}) {
+                        if (!name.trim().isEmpty() && seen.add(id + "\n" + name.trim())) out.add(new Phrase.Group(id, name.trim()));
+                    }
+                }
+            }
+            if (a.length() < 100) break;
+        }
+        return out;
+    }
+
     /** {id, name, picture url} of the signed-in GroupMe user. Also proves the token works. */
     static String[] me(String token) throws IOException {
         JSONObject r = call("GET", "/users/me", token, null);
@@ -348,6 +377,83 @@ final class Api {
         } catch (JSONException e) {
             throw new IOException(e);
         }
+    }
+
+    // ---------------- a person's GroupMe profile ----------------
+
+    /** What GroupMe's own profile page shows about someone ("" / empty when they haven't set it). */
+    static final class Profile {
+        String bio = "", songUrl = "";
+        long createdAtSec;
+        boolean dmCapable = true, appInstalled = true;
+        final List<Integer> interests = new ArrayList<>();
+        final List<String> photos = new ArrayList<>();
+        /** Groups you're both in: {id, name, picture url}. */
+        final List<String[]> sharedGroups = new ArrayList<>();
+    }
+
+    static Profile profile(String token, String userId) throws IOException {
+        JSONObject r = call("GET", "https://v2.groupme.com/users/" + userId + "?include_shared_groups=true", token, null);
+        return parseProfile(r.optJSONObject("response"));
+    }
+
+    static Profile parseProfile(JSONObject resp) {
+        Profile p = new Profile();
+        JSONObject u = resp == null ? null : resp.optJSONObject("user");
+        if (u != null) {
+            p.bio = u.opt("bio") instanceof String ? u.optString("bio").trim() : ""; // unset comes back as {}
+            p.songUrl = u.opt("song_url") instanceof String ? u.optString("song_url").trim() : "";
+            p.createdAtSec = u.optLong("created_at", 0);
+            p.dmCapable = u.optBoolean("direct_message_capable", true);
+            p.appInstalled = u.optBoolean("app_installed", true);
+            JSONArray in = u.optJSONArray("interests");
+            for (int i = 0; in != null && i < in.length(); i++) if (in.optInt(i, 0) != 0) p.interests.add(in.optInt(i));
+            JSONArray ph = u.optJSONArray("photo_urls");
+            for (int i = 0; ph != null && i < ph.length(); i++) {
+                Object o = ph.opt(i);
+                String url = o instanceof JSONObject ? ((JSONObject) o).optString("url", "") : String.valueOf(o);
+                if (url.startsWith("http")) p.photos.add(url);
+            }
+        }
+        JSONArray sg = resp == null ? null : resp.optJSONArray("shared_groups");
+        for (int i = 0; sg != null && i < sg.length(); i++) {
+            JSONObject g = sg.optJSONObject(i);
+            if (g == null) continue;
+            p.sharedGroups.add(new String[]{g.optString("group_id", ""), g.optString("group_name", ""),
+                    g.isNull("group_avatar") ? "" : g.optString("group_avatar", "")});
+        }
+        return p;
+    }
+
+    private static volatile Map<Integer, String> interestNames;
+
+    /** GroupMe's interest names by id (its public list), fetched once; empty when it can't be reached. */
+    static Map<Integer, String> interestNames() {
+        Map<Integer, String> have = interestNames;
+        if (have != null) return have;
+        Map<Integer, String> out = new java.util.HashMap<>();
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL("https://groupme.com/assets/interestCharms/interestCharms.en-US.json").openConnection();
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(15000);
+            if (c.getResponseCode() == 200) {
+                JSONArray cats = new JSONArray(read(c.getInputStream()));
+                for (int i = 0; i < cats.length(); i++) {
+                    JSONArray es = cats.optJSONObject(i) == null ? null : cats.optJSONObject(i).optJSONArray("entries");
+                    for (int j = 0; es != null && j < es.length(); j++) {
+                        JSONObject e = es.optJSONObject(j);
+                        if (e != null) out.put(e.optInt("id"), e.optString("name", ""));
+                    }
+                }
+                interestNames = out;
+            }
+        } catch (IOException | JSONException | RuntimeException ignored) {
+            // no names: the interests just aren't shown
+        } finally {
+            if (c != null) c.disconnect();
+        }
+        return out;
     }
 
     // ---------------- who's online (GroupMe presence) ----------------

@@ -396,20 +396,9 @@ public final class Phrase {
         String key = norm(chatAnswer(spoken));
         List<Group> out = new ArrayList<>();
         if (key.isEmpty()) return out;
-        String[] words = key.split(" ");
         List<double[]> scored = new ArrayList<>(); // {score, index}
         for (int i = 0; i < chats.size(); i++) {
-            String n = norm(chats.get(i).name);
-            if (n.isEmpty()) continue;
-            double sc = 0;
-            if (n.equals(key)) sc = 1.0;
-            else if ((" " + n + " ").contains(" " + key + " ")) sc = 0.9;
-            else if (n.contains(key) && key.length() >= 3) sc = 0.8;
-            else if (allPrefixes(words, n.split(" "))) sc = 0.75;
-            else {
-                double sim = Math.max(similarity(key, n), bestWindow(key, n));
-                if (sim >= 0.6) sc = sim * 0.85;
-            }
+            double sc = scoreName(key, norm(chats.get(i).name));
             if (sc > 0) scored.add(new double[]{sc, i});
         }
         scored.sort((a, b) -> Double.compare(b[0], a[0]));
@@ -417,6 +406,122 @@ public final class Phrase {
             if (out.size() == 4) break;
             out.add(chats.get((int) d[1]));
         }
+        return out;
+    }
+
+    /**
+     * How well a spoken name (normalized) fits a name (normalized): 1 the same, 0.9 a whole word or
+     * words of it, 0.8 part of it, 0.75 the starts of its words, less for sound-alikes (also with the
+     * spaces gone: "Duke of York" against "DukeOfYolk"), 0 for nothing alike.
+     */
+    static double scoreName(String key, String n) {
+        if (key.isEmpty() || n.isEmpty()) return 0;
+        if (n.equals(key)) return 1.0;
+        if ((" " + n + " ").contains(" " + key + " ")) return 0.9;
+        if (n.contains(key) && key.length() >= 3) return 0.8;
+        if (allPrefixes(key.split(" "), n.split(" "))) return 0.75;
+        double joined = bestJoined(key, n);
+        if (joined >= 0.85 && key.contains(" ")) return joined; // "Duke of York" for "DukeOfYolk": as good as a word
+        double sim = Math.max(similarity(key, n), Math.max(bestWindow(key, n), joined));
+        return sim >= 0.6 ? sim * 0.85 : 0;
+    }
+
+    /** The spoken words run together against runs of the name's words run together. */
+    private static double bestJoined(String key, String name) {
+        String k = key.replace(" ", "");
+        if (k.length() < 4) return 0;
+        String[] n = name.split(" ");
+        double best = 0;
+        for (int i = 0; i < n.length; i++) {
+            StringBuilder run = new StringBuilder();
+            for (int j = i; j < n.length && j < i + 4; j++) {
+                run.append(n[j]);
+                best = Math.max(best, similarity(k, run.toString()));
+            }
+        }
+        return best;
+    }
+
+    // ---------------- "message <person> ..." (main screen) ----------------
+
+    private static final Pattern MSG_LEAD = Pattern.compile(
+            "^\\s*(?:hey google[,\\s]*)?(?:please\\s+)?(?:send\\s+(?:a\\s+)?(?:direct\\s+|private\\s+)?message\\s+to|message|text"
+                    + "|d\\.?\\s?m\\.?|direct message|private message|write to|chat with)\\s+(?:to\\s+)?(.+)$", CI);
+
+    private static final Pattern MSG_JOIN = Pattern.compile("^(?:that|saying|to say|and say|say)\\s+", CI);
+
+    /** "message Duke of York I'm late": the words after "message" (person, then maybe the message), or null. */
+    public static String afterMessage(String heard) {
+        if (heard == null) return null;
+        java.util.regex.Matcher m = MSG_LEAD.matcher(PREFIX.matcher(heard).replaceFirst(""));
+        return m.matches() ? strip(m.group(1).trim(), " ,.:!?") : null;
+    }
+
+    /** Who "message ..." means: the best-fitting people (best first, one per person), and what to say. */
+    public static final class PersonPick {
+        public final List<Group> people;
+        public final String text;     // "" when only the name was said
+        public final boolean sure;    // one person clearly fits: go ahead without asking
+
+        PersonPick(List<Group> people, String text, boolean sure) {
+            this.people = people;
+            this.text = text;
+            this.sure = sure;
+        }
+    }
+
+    /**
+     * Splits "Duke of York I'm running late" into the person and the message, trying the first one to
+     * five words as the name and keeping the best fit (a longer name wins a tie). "that says" and the
+     * like split it outright. {@code people} may list one person under several names (their name in
+     * each group); each person comes back once. Null when no one fits.
+     */
+    public static PersonPick pickPerson(List<Group> people, String after) {
+        if (after == null || after.trim().isEmpty()) return null;
+        String[] split = SPLIT.split(after, 2);
+        if (split.length == 2) {
+            List<double[]> hits = scorePeople(people, norm(strip(split[0], " ,.:")));
+            return hits.isEmpty() ? null : pick(people, hits, split[1].trim());
+        }
+        String[] w = after.trim().split("\\s+");
+        List<double[]> best = null;
+        int bestK = 0;
+        double bestScore = 0;
+        for (int k = Math.min(5, w.length); k >= 1; k--) {
+            List<double[]> hits = scorePeople(people, norm(String.join(" ", java.util.Arrays.copyOfRange(w, 0, k))));
+            if (hits.isEmpty()) continue;
+            double sc = hits.get(0)[0] + 0.03 * k; // a longer name that fits as well wins
+            if (best == null || sc > bestScore + 1e-9) {
+                best = hits;
+                bestK = k;
+                bestScore = sc;
+            }
+        }
+        if (best == null) return null;
+        String text = String.join(" ", java.util.Arrays.copyOfRange(w, bestK, w.length));
+        text = MSG_JOIN.matcher(strip(text, " ,.:")).replaceFirst(""); // "Frank that the truck is here"
+        return pick(people, best, text);
+    }
+
+    private static PersonPick pick(List<Group> people, List<double[]> hits, String text) {
+        List<Group> out = new ArrayList<>();
+        for (int i = 0; i < hits.size() && out.size() < 4; i++) out.add(people.get((int) hits.get(i)[1]));
+        double top = hits.get(0)[0], next = hits.size() > 1 ? hits.get(1)[0] : 0;
+        boolean sure = hits.size() == 1 ? top >= 0.75 : (top >= 0.9 && top - next >= 0.1);
+        return new PersonPick(out, text, sure);
+    }
+
+    /** {score, index} for each person (their best-fitting name), best first. */
+    private static List<double[]> scorePeople(List<Group> people, String key) {
+        Map<String, double[]> byId = new LinkedHashMap<>();
+        for (int i = 0; i < people.size(); i++) {
+            double sc = scoreName(key, norm(people.get(i).name));
+            if (sc <= 0) continue;
+            double[] was = byId.get(people.get(i).id);
+            if (was == null || sc > was[0]) byId.put(people.get(i).id, new double[]{sc, i});
+        }
+        List<double[]> out = new ArrayList<>(byId.values());
+        out.sort((a, b) -> Double.compare(b[0], a[0]));
         return out;
     }
 
