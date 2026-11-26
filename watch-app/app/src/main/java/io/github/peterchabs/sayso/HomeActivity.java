@@ -1857,6 +1857,7 @@ public class HomeActivity extends Activity {
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
                             msgAdapter.notifyDataSetChanged();
                             chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
+                            if (!first) scrollChatToEnd(); // all the way, above the mic, not just to the screen's edge
                         } else {
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
                             msgAdapter.notifyDataSetChanged();
@@ -2212,13 +2213,21 @@ public class HomeActivity extends Activity {
                             } else if ("read".equals(sg.type) && c.isDm && sg.userId.equals(c.id)) {
                                 ui.post(() -> { if (current == c) loadMessages(false); }); // "Read" moves down
                             } else if ("pinned".equals(sg.type) && !c.isDm && sg.chatId.equals(c.id)) {
-                                // pinned in any GroupMe app: the header pin and GroupMe's "pinned a message" line
-                                ui.post(() -> { if (current == c && !history) loadMessages(false); });
+                                // pinned in any GroupMe app: the header pin at once (GroupMe's own pinned list can
+                                // lag a moment behind its event) and GroupMe's "pinned a message" line
+                                final boolean pinnedNow = sg.readAt > 0;
+                                ui.post(() -> {
+                                    if (current != c) return;
+                                    if (pinnedNow) {
+                                        hasPins.put(c.key(), true);
+                                        chatPinIcon.setVisibility(View.VISIBLE);
+                                    }
+                                    if (!history) loadMessages(false);
+                                });
                             }
                         }
                         // new messages may come with pin changes (an unpin sends nothing of its own)
-                        if (here || p.signals.stream().anyMatch(s -> "pinned".equals(s.type)))
-                            ui.post(() -> { if (current == c) checkPins(c); });
+                        if (here) ui.post(() -> { if (current == c) checkPins(c); });
                         if (here) ui.post(() -> { if (current == c && !history) loadMessages(false); });
                     }
                 } catch (Api.AuthException e) {
