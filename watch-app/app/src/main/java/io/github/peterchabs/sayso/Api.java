@@ -314,7 +314,8 @@ final class Api {
     }
 
     static JSONObject call(String method, String path, String token, String body) throws IOException {
-        HttpURLConnection c = (HttpURLConnection) new URL(BASE + path).openConnection();
+        // a full address (GroupMe's v4 read receipts) goes as is; anything else is under v3
+        HttpURLConnection c = (HttpURLConnection) new URL(path.startsWith("https://") ? path : BASE + path).openConnection();
         try {
             c.setRequestMethod(method);
             c.setConnectTimeout(20000);

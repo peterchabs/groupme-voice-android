@@ -236,7 +236,9 @@ double-press the side button and start talking.
 of setup and every feature, recorded on a real watch screen with captions.
 
 - **Chats:** tap **Chats** to see every group and direct message, newest first. A
-  count on a chat's picture says how many new messages it has. Open one and it picks
+  red count on a chat's picture says how many new messages it has. Read counts stay in
+  sync with GroupMe's own apps: read a chat on your phone and the count clears on your
+  watch, and the other way around. Open one and it picks
   up where you left off, with a "New messages" line above what's new. Photos, videos, links and
   events show right in the chat.
 - **Talk in a chat:** tap the mic in any chat and talk. Your words type into a blue

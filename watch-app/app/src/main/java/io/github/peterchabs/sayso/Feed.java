@@ -1,6 +1,7 @@
 package io.github.peterchabs.sayso;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
@@ -471,6 +472,50 @@ final class Feed {
             }
         }
         Api.call("POST", path, token, body);
+    }
+
+    /**
+     * Where you've read up to in every chat, as GroupMe's own apps keep it (shared by its phone
+     * and web apps): conversation id (a group id, or "lowerId+higherId" for a DM) to message id.
+     */
+    static java.util.Map<String, String> readReceipts(String token) throws IOException {
+        java.util.Map<String, String> out = new java.util.HashMap<>();
+        JSONObject r = Api.call("GET", "https://api.groupme.com/v4/read_receipts", token, null).optJSONObject("response");
+        JSONArray a = r == null ? null : r.optJSONArray("receipts");
+        for (int i = 0; a != null && i < a.length(); i++) {
+            JSONObject x = a.optJSONObject(i);
+            if (x != null && !str(x, "conversation_id").isEmpty()) out.put(str(x, "conversation_id"), str(x, "last_read_message_id"));
+        }
+        return out;
+    }
+
+    /** Tells GroupMe you've read a chat up to this message, so its own apps show it read too. */
+    static void markRead(String token, String conversationId, String messageId) throws IOException {
+        try {
+            JSONObject body = new JSONObject().put("receipts", new JSONArray().put(new JSONObject()
+                    .put("conversation_id", conversationId).put("last_read_message_id", messageId)));
+            Api.call("POST", "https://api.groupme.com/v4/read_receipts", token, body.toString());
+        } catch (JSONException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /**
+     * How many messages came after {@code afterId} (from other people or not), up to {@code cap}.
+     * GroupMe keeps where you've read to, not a count, so this is how its apps get the number too.
+     */
+    static int countAfter(String token, Convo c, String afterId, int cap) throws IOException {
+        JSONArray a;
+        if (c.isDm) {
+            JSONObject r = Api.call("GET", "/direct_messages?other_user_id=" + enc(c.id) + "&since_id=" + enc(afterId), token, null)
+                    .optJSONObject("response");
+            a = r == null ? null : r.optJSONArray("direct_messages");
+        } else {
+            JSONObject r = Api.call("GET", "/groups/" + enc(c.id) + "/messages?limit=" + cap + "&after_id=" + enc(afterId), token, null)
+                    .optJSONObject("response");
+            a = r == null ? null : r.optJSONArray("messages");
+        }
+        return a == null ? 0 : Math.min(cap, a.length());
     }
 
     /** GroupMe's id for a DM's messages (likes, reactions): the two user ids, lower first. */

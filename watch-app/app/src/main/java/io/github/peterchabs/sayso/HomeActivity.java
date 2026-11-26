@@ -381,6 +381,7 @@ public class HomeActivity extends Activity {
                     Store.setAvatar(this, Api.me(token)[2]);
                 }
                 List<Feed.Convo> fresh = Feed.conversations(token);
+                syncReadState(token, fresh);
                 ui.post(() -> {
                     boolean first = convos.isEmpty();
                     java.util.HashMap<String, Long> had = new java.util.HashMap<>();
@@ -395,11 +396,6 @@ public class HomeActivity extends Activity {
                     }
                     convos.clear();
                     convos.addAll(fresh);
-                    // A chat Say So has never seen starts at "all read" (no badge for years of
-                    // old messages); only what arrives from now on counts as new.
-                    for (Feed.Convo x : fresh) {
-                        if (Store.seenCount(this, x.key()) < 0 && x.unread < 0) Store.setSeen(this, x.key(), x.count, x.lastMsgId);
-                    }
                     convoAdapter.notifyDataSetChanged();
                     listStatus.setText(fresh.isEmpty() ? "No chats yet" : "Pull down for settings");
                 });
@@ -418,12 +414,54 @@ public class HomeActivity extends Activity {
      */
     private int unreadOf(Feed.Convo c) {
         if (current != null && level >= 1 && current.key().equals(c.key())) return 0; // reading it now
-        int seen = Store.seenCount(this, c.key());
-        String seenId = Store.seenId(this, c.key());
-        if (!c.lastMsgId.isEmpty() && !seenId.isEmpty() && !Feed.newer(c.lastMsgId, seenId)) return 0;
-        int mine = seen >= 0 && c.count >= 0 ? Math.max(0, c.count - seen) : -1;
-        if (mine < 0) return Math.max(0, c.unread);
-        return c.unread >= 0 ? Math.min(mine, c.unread) : mine;
+        return Math.max(0, c.unread);
+    }
+
+    /** Where you've read to in each chat (GroupMe's own record, shared with its apps), by chat key. */
+    private final java.util.Map<String, String> readTo = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Counts already worked out, so an unchanged chat isn't asked again: key to "readTo|newest=count". */
+    private final java.util.Map<String, String> countedAt = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private String conversationIdOf(Feed.Convo c) {
+        return c.isDm ? Feed.dmConversationId(Store.myId(this), c.id) : c.id;
+    }
+
+    /**
+     * Fills in each chat's read position and unread count from GroupMe, the same record its
+     * phone and web apps use, so the counts match wherever you read. (Background thread.)
+     */
+    private void syncReadState(String token, List<Feed.Convo> list) {
+        java.util.Map<String, String> receipts;
+        try {
+            receipts = Feed.readReceipts(token);
+        } catch (IOException e) {
+            return; // no counts this time; the chats still show
+        }
+        int asked = 0;
+        for (Feed.Convo c : list) {
+            String at = receipts.get(conversationIdOf(c));
+            if (at == null || at.isEmpty()) at = c.lastReadId;
+            String mine = readTo.get(c.key()); // what Say So just told GroupMe (it can take a moment to show)
+            if (mine != null && Feed.newer(mine, at)) at = mine;
+            if (at == null || at.isEmpty()) { c.unread = 0; continue; } // GroupMe has no record: nothing to count from
+            c.lastReadId = at;
+            readTo.put(c.key(), at);
+            if (!Feed.newer(c.lastMsgId, at)) { c.unread = 0; continue; }
+            String stamp = at + "|" + c.lastMsgId;
+            String done = countedAt.get(c.key());
+            if (done != null && done.startsWith(stamp + "=")) {
+                c.unread = Integer.parseInt(done.substring(stamp.length() + 1));
+                continue;
+            }
+            if (asked >= 15) { c.unread = 1; continue; } // more later; at least show it has news
+            asked++;
+            try {
+                c.unread = Math.max(1, Feed.countAfter(token, c, at, 100));
+                countedAt.put(c.key(), stamp + "=" + c.unread);
+            } catch (IOException e) {
+                c.unread = 1;
+            }
+        }
     }
 
     /** The chat being opened came from tapping a notification: open at the newest, not where you were. */
@@ -452,9 +490,17 @@ public class HomeActivity extends Activity {
         int last = Math.min(chatList.getLastVisiblePosition(), msgs.size() - 1);
         if (last < 0) return;
         String lastId = msgs.get(last).id;
-        if (Feed.newer(lastId, Store.seenId(this, c.key())) || Store.seenId(this, c.key()).isEmpty()) {
-            int count = c.count >= 0 ? c.count - (msgs.size() - 1 - last) : -1; // the ones still below aren't seen
-            Store.setSeen(this, c.key(), count, lastId);
+        String was = readTo.get(c.key());
+        if (was == null || Feed.newer(lastId, was)) { // read further: tell GroupMe, so its apps agree
+            readTo.put(c.key(), lastId);
+            final String token = Store.token(this), conv = conversationIdOf(c);
+            bg.execute(() -> {
+                try {
+                    Feed.markRead(token, conv, lastId);
+                } catch (IOException ignored) {
+                    // offline: it's marked next time you look
+                }
+            });
         }
     }
 
@@ -508,23 +554,24 @@ public class HomeActivity extends Activity {
             FrameLayout pic = new FrameLayout(HomeActivity.this);
             pic.setClipChildren(false);
             FrameLayout.LayoutParams avl = new FrameLayout.LayoutParams(avatar.size, avatar.size);
-            avl.leftMargin = avl.topMargin = px(5);
+            avl.leftMargin = avl.topMargin = px(4);
             pic.addView(avatar.view, avl);
-            badge = label("", sp(watch ? 10 : 11.5f), Color.WHITE, true);
+            badge = label("", sp(watch ? 9.5f : 11), Color.WHITE, true);
             badge.setGravity(Gravity.CENTER);
+            badge.setIncludeFontPadding(false);
             GradientDrawable bb = new GradientDrawable();
-            bb.setColor(BLUE);
-            bb.setCornerRadius(px(11));
-            bb.setStroke(px(2), Palette.ROW); // a ring in the card's color, so it stands off the picture
+            bb.setColor(0xFFFF3B30); // red: new messages stand out
+            bb.setCornerRadius(px(10));
+            bb.setStroke(px(1.75f), Palette.ROW); // a ring in the card's color, so it stands off the picture
             badge.setBackground(bb);
-            badge.setMinWidth(px(watch ? 20 : 22));
-            badge.setPadding(px(5), 0, px(5), px(1));
+            badge.setMinWidth(px(watch ? 18 : 20));
+            badge.setPadding(px(5), 0, px(5), 0);
             badge.setVisibility(View.GONE);
             badge.setElevation(px(4));
-            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(watch ? 20 : 22));
+            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(watch ? 18 : 20));
             bl.gravity = Gravity.TOP | Gravity.START;
             pic.addView(badge, bl);
-            row.addView(pic, new LinearLayout.LayoutParams(avatar.size + px(5), avatar.size + px(5)));
+            row.addView(pic, new LinearLayout.LayoutParams(avatar.size + px(4), avatar.size + px(4)));
             LinearLayout text = new LinearLayout(HomeActivity.this);
             text.setOrientation(LinearLayout.VERTICAL);
             text.setPadding(px(watch ? 8 : 12), 0, px(4), 0);
@@ -1196,8 +1243,8 @@ public class HomeActivity extends Activity {
         }
         boolean same = current != null && current.key().equals(c.key());
         if (!same || newSince.isEmpty()) { // where you left off: Say So's place or GroupMe's, whichever is further along
-            String seenId = Store.seenId(this, c.key());
-            newSince = Feed.newer(c.lastReadId, seenId) ? c.lastReadId : seenId;
+            String r = readTo.get(c.key());
+            newSince = r != null && Feed.newer(r, c.lastReadId) ? r : c.lastReadId;
             if (!Feed.newer(c.lastMsgId, newSince)) newSince = ""; // nothing new
             jumpToNew = !newSince.isEmpty();
             restoreView = !fromNotification;
