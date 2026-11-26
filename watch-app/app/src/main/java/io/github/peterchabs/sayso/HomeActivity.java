@@ -280,17 +280,17 @@ public class HomeActivity extends Activity {
         list.setOverScrollMode(View.OVER_SCROLL_NEVER); // the top stays put; pulling further opens settings
         list.setSelector(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
         int side = watch ? (int) (W * 0.09f) : px(12);
-        list.setPadding(side, watch ? (int) (H * 0.12f) : px(8), side, watch ? (int) (H * 0.22f) : px(24));
+        list.setPadding(side, watch ? (int) (H * 0.07f) : px(6), side, watch ? (int) (H * 0.22f) : px(24));
         list.setClipToPadding(false);
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
         header.setGravity(Gravity.CENTER_HORIZONTAL);
-        header.setPadding(0, 0, 0, px(6));
-        TextView title = label("Chats", sp(watch ? 17 : 22), INK, true);
+        header.setPadding(0, 0, 0, px(3));
+        TextView title = label("Chats", sp(watch ? 14 : 20), INK, true);
         title.setGravity(Gravity.CENTER);
         header.addView(title);
-        listStatus = label("Pull down for settings", sp(11), GREY, false);
+        listStatus = label("Pull down for settings", sp(watch ? 9.5f : 11), GREY, false);
         listStatus.setGravity(Gravity.CENTER);
         header.addView(listStatus);
         list.addHeaderView(header, null, false);
@@ -535,6 +535,12 @@ public class HomeActivity extends Activity {
             PushService.sync(this);
             fillSettings();
         });
+        if (Store.pushOn(this)) { // with or without sound (a buzz either way)
+            addSettingButton(col, "Notification sound: " + (Store.pushSound(this) ? "on" : "off"), false, () -> {
+                Store.setPushSound(this, !Store.pushSound(this));
+                fillSettings();
+            });
+        }
         addSettingButton(col, "Theme: " + Palette.label(Store.theme(this)), false, () -> {
             Store.setTheme(this, Palette.next(Store.theme(this)));
             recreate(); // every color rebuilt in the new theme
@@ -572,6 +578,7 @@ public class HomeActivity extends Activity {
 
     private Button addSettingButton(LinearLayout col, String text, boolean primary, Runnable tap) {
         Button b = new Button(this);
+        b.setGravity(Gravity.CENTER);
         b.setAllCaps(false);
         b.setText(text);
         b.setSingleLine(true);
@@ -652,7 +659,7 @@ public class HomeActivity extends Activity {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(watch ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER);
-        head.setPadding(px(10), watch ? (int) (H * 0.065f) : px(10), px(10), px(watch ? 3 : 6));
+        head.setPadding(px(10), watch ? (int) (H * 0.04f) : px(6), px(10), px(watch ? 2 : 5));
         head.setBackgroundColor(BG);
         head.setElevation(px(2));
         chatAvatar = new ImageView(this);
@@ -663,7 +670,7 @@ public class HomeActivity extends Activity {
         titles.setOrientation(LinearLayout.VERTICAL);
         titles.setGravity(watch ? Gravity.CENTER : Gravity.START);
         titles.setPadding(watch ? 0 : px(10), 0, 0, 0);
-        chatTitle = label("", sp(watch ? 13 : 17), INK, true);
+        chatTitle = label("", sp(watch ? 12 : 16), INK, true);
         chatTitle.setSingleLine(true);
         chatTitle.setEllipsize(TextUtils.TruncateAt.END);
         chatTitle.setMaxWidth((int) (W * (watch ? 0.6f : 0.7f)));
@@ -912,6 +919,7 @@ public class HomeActivity extends Activity {
     }
 
     private void showDraft(String note) {
+        draftNames.clear();
         draft.animate().cancel();
         typeTarget = "";
         typeShown = 0;
@@ -970,6 +978,7 @@ public class HomeActivity extends Activity {
         String[] names = {"Cancel", "Send"};
         for (int i = 0; i < 2; i++) {
             Button b = new Button(this);
+            b.setGravity(Gravity.CENTER);
             b.setAllCaps(false);
             b.setText(names[i]);
             b.setTextSize(sp(watch ? 12 : 14));
@@ -1010,7 +1019,7 @@ public class HomeActivity extends Activity {
             int left = typeTarget.length() - typeShown;
             if (left <= 0) return;
             typeShown += Math.max(1, left / 10); // catches up quickly if the words run ahead
-            draftText.setText(typeTarget.substring(0, typeShown));
+            draftText.setText(boldNames(typeTarget.substring(0, typeShown), draftNames, Color.WHITE));
             ui.postDelayed(this, 30);
         }
     };
@@ -1192,7 +1201,8 @@ public class HomeActivity extends Activity {
                 Press.attach(q);
             }
             if (!m.text.isEmpty()) {
-                TextView t = label(m.text, sp(watch ? 13 : 15), mine ? Color.WHITE : INK, false);
+                TextView t = label("", sp(watch ? 13 : 15), mine ? Color.WHITE : INK, false);
+                t.setText(namesBold(m.text, m.mentions, mine ? Color.WHITE : BLUE));
                 t.setBackground(bubbleBg(mine));
                 t.setPadding(px(12), px(7), px(12), px(8));
                 t.setMaxWidth(maxW);
@@ -1232,6 +1242,28 @@ public class HomeActivity extends Activity {
     }
 
     // ---------------- message looks, replies and reactions ----------------
+
+    /** Tagged names in the draft being typed ({start, length}, no "@"). */
+    private final List<int[]> draftNames = new ArrayList<>();
+
+    /** A message's text with each tagged person shown as their name in bold color, no "@". */
+    private CharSequence namesBold(String text, List<int[]> mentions, int color) {
+        if (mentions.isEmpty()) return text;
+        List<int[]> names = new ArrayList<>();
+        return boldNames(Feed.withoutAts(text, mentions, names), names, color);
+    }
+
+    private CharSequence boldNames(String text, List<int[]> names, int color) {
+        if (names.isEmpty()) return text;
+        android.text.SpannableString sp = new android.text.SpannableString(text);
+        for (int[] n : names) {
+            int a = n[0], b = Math.min(text.length(), n[0] + n[1]);
+            if (a >= b) continue;
+            sp.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), a, b, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sp.setSpan(new android.text.style.ForegroundColorSpan(color), a, b, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return sp;
+    }
 
     /**
      * A message pill. Yours: a soft top-to-bottom blue. Theirs: a light fill with a hairline
@@ -1276,7 +1308,8 @@ public class HomeActivity extends Activity {
 
     private String quoteText(Feed.Msg m) {
         String who = m.senderId.equals(Store.myId(this)) ? "You" : m.sender;
-        String what = !m.text.isEmpty() ? m.text : m.media.isEmpty() ? "a message"
+        String said = Feed.withoutAts(m.text, m.mentions, new ArrayList<>());
+        String what = !said.isEmpty() ? said : m.media.isEmpty() ? "a message"
                 : m.media.get(0).kind == Feed.Media.VIDEO ? "a video" : "a photo";
         return who + ": " + what;
     }
@@ -1567,6 +1600,7 @@ public class HomeActivity extends Activity {
     private void showLatestPill(boolean show) {
         if (latestPill == null) {
             latestPill = new Button(this);
+            latestPill.setGravity(Gravity.CENTER);
             latestPill.setAllCaps(false);
             latestPill.setText("Latest \u2193");
             latestPill.setTextSize(sp(watch ? 11 : 13));
@@ -1783,6 +1817,8 @@ public class HomeActivity extends Activity {
         membersLayer.addView(memberList, match());
 
         tagButton = new Button(this);
+
+        tagButton.setGravity(Gravity.CENTER);
         tagButton.setAllCaps(false);
         tagButton.setTextSize(sp(watch ? 13 : 15));
         tagButton.setTypeface(BOLD);
@@ -1907,7 +1943,7 @@ public class HomeActivity extends Activity {
             }
             return;
         }
-        int size = px(watch ? 18 : 22), gap = px(3);
+        int size = px(watch ? 16 : 20), gap = px(3);
         int room = (int) (W * (watch ? 0.58f : 0.6f));
         int fit = Math.max(1, (room + gap) / (size + gap));
         int show = tagging.size() <= fit ? tagging.size() : fit - 1;
@@ -1916,7 +1952,7 @@ public class HomeActivity extends Activity {
         tagRow.setContentDescription(said);
         for (int i = 0; i < show; i++) {
             Feed.Member m = tagging.get(i);
-            Avatar face = new Avatar(watch ? 18 : 22);
+            Avatar face = new Avatar(watch ? 16 : 20);
             face.set(m.name, m.avatarUrl, true);
             face.view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(size, size);
@@ -2560,6 +2596,7 @@ public class HomeActivity extends Activity {
 
     private void addProfileButton(LinearLayout col, String text, boolean primary, Runnable tap) {
         Button b = new Button(this);
+        b.setGravity(Gravity.CENTER);
         b.setAllCaps(false);
         b.setText(text);
         b.setSingleLine(true);
@@ -2885,6 +2922,58 @@ public class HomeActivity extends Activity {
     public void onBackPressed() { back(); }
 
     // ---------------- gestures: sideways to move, pull down for settings ----------------
+
+    private float padX, padY;
+    private long padAt;
+
+    /**
+     * A laptop touchpad (or mouse wheel) sends scrolls, not touches. Two fingers sideways turn
+     * the page like a swipe; two fingers down at the top of a page open settings, and up at the
+     * bottom of settings close it. Lists still scroll with two fingers as usual.
+     */
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        if (e.getActionMasked() != MotionEvent.ACTION_SCROLL || !e.isFromSource(android.view.InputDevice.SOURCE_CLASS_POINTER)
+                || reactCard != null || zoomer != null && level == 4 && zoomer.zoomed()) {
+            return super.dispatchGenericMotionEvent(e);
+        }
+        float h = e.getAxisValue(MotionEvent.AXIS_HSCROLL), v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - padAt > 350) padX = padY = 0; // a new gesture
+        padAt = now;
+        boolean busy = settling() || now - navAt < 450 || dragging || pulling;
+        if (Math.abs(h) > Math.abs(v)) {
+            padX += h;
+            if (!busy && !settingsOpen && Math.abs(padX) >= 1.2f) {
+                boolean fwd = padX > 0;
+                padX = 0;
+                navAt = now;
+                startDrag(fwd ? -1 : 1);
+                endDrag(fwd ? -W : W, 0); // the same slide a finger swipe makes
+            }
+            return true;
+        }
+        if (v > 0 && !settingsOpen && !scrollableToward(1) && !(level == 1 && (listening || pendingSend != null))) {
+            padY += v;
+            if (!busy && padY >= 2f) {
+                padY = 0;
+                navAt = now;
+                under = null;
+                openSettings();
+            }
+            return true;
+        }
+        if (v < 0 && settingsOpen && !settings.canScrollVertically(1)) {
+            padY += v;
+            if (!busy && padY <= -2f) {
+                padY = 0;
+                navAt = now;
+                closeSettings();
+            }
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(e);
+    }
 
     private float downX, downY;
     private boolean pulling, closing, swallow, zoomTouch;
@@ -3213,6 +3302,7 @@ public class HomeActivity extends Activity {
             rowB.setPadding(0, px(8), 0, 0);
             for (int i = 0; i + 1 < buttons.length; i += 2) {
                 Button b = new Button(this);
+                b.setGravity(Gravity.CENTER);
                 b.setAllCaps(false);
                 b.setText((String) buttons[i]);
                 b.setTextSize(sp(watch ? 12 : 14));
@@ -3446,7 +3536,10 @@ public class HomeActivity extends Activity {
         }
         hidePanel();
         if (draft.getVisibility() != View.VISIBLE) showDraft("");
-        typeTo(Feed.withMentions(tags, text, new ArrayList<>()));
+        List<int[]> loci = new ArrayList<>();
+        String full = Feed.withMentions(tags, text, loci);
+        draftNames.clear();
+        typeTo(Feed.withoutAts(full, loci, draftNames));
         draftNote.setText("To " + to.name + " \u00B7 sending");
         draftBar.setVisibility(View.VISIBLE);
         draftBar.setScaleX(1f);

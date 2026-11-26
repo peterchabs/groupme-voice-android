@@ -40,20 +40,29 @@ A small app that lives on your watch and talks to GroupMe by itself.
 ### What you need
 
 - A **Galaxy Watch 4 or newer** (or any watch with Wear OS 3 or newer).
-- **A computer** (Windows or Mac), only for installing the app one time.
-- Your computer and your watch on the **same Wi-Fi**.
-- **A phone** (any kind, even an iPhone) to sign in to GroupMe.
+- **A phone** (any kind, even an iPhone) to scan a QR code and sign in to GroupMe.
 - Your GroupMe email or phone number and password.
+- **A computer** (Windows or Mac) on the same Wi-Fi as your watch, only to put
+  the app on your watch the first time.
 
-You only do Steps 1 to 5 once. After that it's just "Hey Google".
+Setup is two things, once: put Say So on your watch, then scan its QR code with
+your phone. After that it's just "Hey Google".
 
 ---
 
-### Step 1: Download the files to your computer
+### Step 1: Put Say So on your watch (one time)
+
+Say So isn't in the Play Store, so it goes on your watch from a computer. It
+takes about 5 minutes and you never do it again.
+
+<details>
+<summary><b>Show the install steps</b></summary>
+
+#### A. Download the files to your computer
 
 You need two downloads. Both are free.
 
-**A. The watch app**
+**The watch app**
 
 1. On your computer, open this link:
    **https://github.com/peterchabs/groupme-voice-android/releases/latest**
@@ -63,7 +72,7 @@ You need two downloads. Both are free.
 > Don't use the green **Code** button or **Download ZIP** on the main page.
 > That's the source code, not the app. You only need the one file above.
 
-**B. Google's free install tool ("Platform Tools")**
+**Google's free install tool ("Platform Tools")**
 
 1. Download the ZIP for your computer:
    - **Windows:** https://dl.google.com/android/repository/platform-tools-latest-windows.zip
@@ -75,9 +84,8 @@ You need two downloads. Both are free.
 4. **Move the watch app into that folder:** drag **SaySo-watch.apk**
    into the **platform-tools** folder.
 
----
 
-### Step 2: Turn on "install apps" mode on your watch
+#### B. Turn on "install apps" mode on your watch
 
 1. On your watch, open **Settings**.
 2. Scroll down and tap **About watch**, then **Software information**.
@@ -92,9 +100,8 @@ You need two downloads. Both are free.
 
 Keep your watch screen on the **Wireless debugging** page. You'll need it next.
 
----
 
-### Step 3: Open a command window inside the platform-tools folder
+#### C. Open a command window inside the platform-tools folder
 
 **Windows**
 
@@ -110,11 +117,10 @@ Keep your watch screen on the **Wireless debugging** page. You'll need it next.
 
 > **Mac users:** in the commands below, type `./adb` instead of `adb`.
 
----
 
-### Step 4: Install the app on your watch
+#### D. Install the app on your watch
 
-**4a. Pair your computer with your watch**
+**1. Pair your computer with your watch**
 
 1. On your watch, on the **Wireless debugging** page, tap **Pair new device**.
    It shows a **6-digit code** and an address like `192.168.1.23:41235`.
@@ -127,7 +133,7 @@ Keep your watch screen on the **Wireless debugging** page. You'll need it next.
 3. When it asks for the pairing code, type the **6-digit code** from your watch and press **Enter**.
 4. You should see **"Successfully paired"**.
 
-**4b. Connect**
+**2. Connect**
 
 1. On your watch, go back one screen to the main **Wireless debugging** page.
    Under **IP address & port** it shows another address (the last number is different
@@ -140,7 +146,7 @@ Keep your watch screen on the **Wireless debugging** page. You'll need it next.
 
 3. You should see **"connected to ..."**. If your watch asks **Allow debugging?**, tap **Allow**.
 
-**4c. Install**
+**3. Install**
 
 1. Type this and press **Enter**:
 
@@ -150,14 +156,17 @@ Keep your watch screen on the **Wireless debugging** page. You'll need it next.
 
 2. Wait until it says **Success**. The app is now on your watch.
 
-**4d. Turn install mode back off (recommended)**
+**4. Turn install mode back off (recommended)**
 
 On your watch, go to **Settings** > **Developer options** and turn off
 **Wireless debugging** and **ADB debugging**. The app stays installed.
 
+</details>
+
 ---
 
-### Step 5: Sign in to GroupMe
+### Step 2: Scan the QR code to sign in
+
 
 <p align="center">
   <img src="docs/images/watch-sign-in.png" alt="Sign-in code on the watch, the signed-in screen, and the screen asking which group you meant" width="760">
@@ -187,7 +196,7 @@ That's it. You're set up.
 
 ---
 
-### Step 6: Use it
+### Step 3: Use it
 
 1. Say **"Hey Google, open Say So"** to your watch.
    (Or just tap the app.) It starts listening as soon as it opens, so you can
@@ -229,11 +238,17 @@ of setup and every feature, recorded on a real watch screen with captions.
 - **Chats:** tap **Chats** to see every group and direct message, newest first.
   Open one to read it. Photos, videos, links and events show right in the chat.
 - **Talk in a chat:** tap the mic in any chat and talk. Your words type into a blue
-  bubble as you speak, then send.
+  bubble at the bottom of the chat as you speak, and the messages above slide up to
+  make room. Then it sends.
+- **Reply to a message:** hold any message. It glows and Say So listens; what you
+  say goes out as a GroupMe reply to that message, with a small quote of it.
+- **React:** double-tap any message for a row of emoji. Tap one to react, or tap
+  yours again to take it off. Reactions show as small badges under each message.
 - **Members:** swipe left from a group chat. People are grouped by rank: the owner,
   admins, then everyone else. Tap someone for their profile and a direct message.
 - **Tag people:** on the members page, hold someone, tap more people, then tap
-  **Tag and speak**. GroupMe notifies everyone you tagged.
+  **Tag and speak**. Their pictures line up under the chat name while you talk, and
+  GroupMe notifies everyone you tagged.
 - **Photos and videos:** swipe left again for the group's gallery. Tap a photo to
   see it full screen, then double-tap or pinch to zoom and drag to look around.
   Videos play right on the watch.
@@ -310,12 +325,12 @@ To turn it off, go to **Settings** > **Default group** (watch: **Default**) > **
 
 | What happens | What to do |
 |---|---|
-| **"adb is not recognized"** or **"command not found"** | Your command window isn't in the platform-tools folder. Redo Step 3. On a Mac, type `./adb`, not `adb`. |
+| **"adb is not recognized"** or **"command not found"** | Your command window isn't in the platform-tools folder. Redo part C of Step 1. On a Mac, type `./adb`, not `adb`. |
 | **"failed to connect"** or pairing fails | Check the watch and computer are on the same Wi-Fi. The addresses change each time you turn on Wireless debugging, so read them off the watch again. |
-| **"No such file"** when installing | The app file isn't in the platform-tools folder. Drag **SaySo-watch.apk** in there (Step 1, part B, step 4). |
+| **"No such file"** when installing | The app file isn't in the platform-tools folder. Drag **SaySo-watch.apk** in there (Step 1, part A). |
 | The watch says **"That code expired"** | Codes last 10 minutes. Tap **Get a new code** and scan again. |
 | The page says **"That doesn't look like a GroupMe token"** | Copy the token again from dev.groupme.com. It's one long string of letters and numbers. |
-| **"GroupMe signed you out"** | Your token stopped working (it expired, or you changed your GroupMe password or reset your token). Tap **Sign in again** and do Step 5 again. If you were sending something, tap **Send it now** after signing in. |
+| **"GroupMe signed you out"** | Your token stopped working (it expired, or you changed your GroupMe password or reset your token). Tap **Sign in again** and scan the QR code again (Step 2). If you were sending something, tap **Send it now** after signing in. |
 | It can't find your group | Say more of the group's name, a little slower. |
 | **"I didn't catch that"** | Tap **Try again** and speak a little closer, or tap **Type it** and type what you'd say (for example **Family that says hi**). Typing works exactly like talking. |
 
@@ -417,200 +432,6 @@ To change settings, tap **Settings** in the app.
 
 ---
 
-## Optional: the Tasker version
-
-Only for people who already use the Tasker app. Everyone else should use the
-free phone app above.
-
-<details>
-<summary>Show the Tasker steps</summary>
-
-### Before you start, you need
-
-- An Android phone
-- A GroupMe account
-- About $3.50 for the **Tasker** app (the only paid part)
-
----
-
-### Part 1: Install the apps
-
-Install these 4 apps. The first 3 must all come from **F-Droid**, not the Play Store.
-
-1. On your phone, open the web browser and go to **f-droid.org**.
-2. Tap **Download F-Droid** and install it. If your phone warns you about
-   installing apps from the browser, tap **Settings** and turn on
-   **Allow from this source**, then go back.
-3. Open the **F-Droid** app. Search for and install each of these:
-   - **Termux**
-   - **Termux:API**
-   - **Termux:Tasker**
-4. Open the **Google Play Store** and install **Tasker** (by joaomgcd).
-
----
-
-### Part 2: Get your GroupMe token
-
-Your token is like a password that lets this tool send messages as you.
-**Never share it with anyone.**
-
-1. On your phone's web browser, go to **dev.groupme.com**
-2. Tap **Log In** and sign in with your normal GroupMe account.
-3. At the top right of the page, tap **Access Token**.
-   - Don't see it? In your browser menu (the 3 dots), turn on
-     **Desktop site**, then look again.
-4. A long string of letters and numbers appears. That is your token.
-   Press and hold on it, then tap **Copy**.
-
-Keep it copied. You will paste it in the next part.
-
-> If you ever change your GroupMe password, your token changes too. See
-> "Need a new token later?" at the end of Part 3.
-
----
-
-### Part 3: Set up Termux (one copy and paste)
-
-1. Open the **Termux** app. You will see a black screen with text. That is normal.
-2. Copy this whole line:
-
-   ```
-   curl -fsSL https://raw.githubusercontent.com/peterchabs/groupme-voice-android/main/install.sh | bash
-   ```
-
-3. In Termux, press and hold on the black screen, tap **Paste**, then tap
-   **Enter** on your keyboard.
-4. Wait. It will download things for a minute or two.
-   - If it asks **"Do you want to continue? [Y/n]"**, type **y** and tap Enter.
-   - If your phone asks to let Termux access files, tap **Allow**.
-5. When it says **"Paste your GroupMe token"**, press and hold on the screen,
-   tap **Paste**, then tap **Enter**. (You won't see the token appear. That is
-   on purpose.)
-6. You should now see a list of your GroupMe groups. If you do, Termux is done.
-
-**Need a new token later?** Copy a new one (Part 2). Then open Termux, paste
-this line, tap Enter, and run the long line from step 2 again:
-
-```
-rm ~/.config/groupme-voice/token
-```
-
----
-
-### Part 4: Set up Tasker
-
-#### 4a. Let Tasker talk to Termux
-
-1. Open your phone's **Settings** > **Apps** > **Tasker** > **Permissions**.
-2. Tap **Additional permissions** (or "Other permissions").
-3. Turn on **Run commands in Termux environment**.
-
-#### 4b. Build the task
-
-Open **Tasker**. If it shows a welcome or tips screen, tap through it.
-
-1. Tap the **TASKS** tab at the top.
-2. Tap the **+** button at the bottom. Type the name **Say So** and tap the check mark.
-
-Now add 3 steps. For each one, tap the **+** at the bottom of the screen.
-
-**Step 1: Listen to you**
-
-1. Tap **+**, then **Input**, then **Get Voice**.
-2. In **Prompt**, type: `Which group, and what should I say?`
-3. Tap the back arrow at the top left to save.
-
-**Step 2: Save what you said**
-
-1. Tap **+**, then **File**, then **Write File**.
-2. In **File**, type: `Tasker/groupme_heard.txt`
-3. In **Text**, type: `%gv_heard`
-4. Make sure **Append** is turned **off**.
-5. Tap the back arrow to save.
-
-**Step 3: Send it to GroupMe**
-
-1. Tap **+**, then **Plugin**, then **Termux:Tasker**.
-2. Tap the **pencil** icon next to Configuration.
-3. In **Executable**, type: `groupme_send.py`
-4. In **Arguments**, type: `--heard-file ~/storage/shared/Tasker/groupme_heard.txt`
-5. Leave **Execute in a terminal session** unchecked.
-6. Tap the check mark or back arrow to save, then the back arrow again.
-
-**Test it:** tap the **play button** (triangle) at the bottom of the task. Say
-the name of one of your groups, then "that says", then your message. For
-example: **"Weekend Crew that says this is a test"**.
-
-#### 4c. Make "Hey Google" start it
-
-1. In Tasker, tap the **3 dots** at the top right, then **Preferences**.
-2. Tap the **Misc** tab.
-3. Tap **App Shortcut Tasks** and pick **Say So**.
-4. Now say: **"Hey Google, open Say So"**
-
-If "Hey Google" doesn't start it, you can still use it with one tap:
-press and hold your home screen, tap **Widgets**, find **Tasker**, drag the
-**Task** widget onto your home screen, and pick **Say So**.
-
----
-
-### How to talk to it
-
-When it asks "Which group, and what should I say?", say:
-
-> **[group name]** that says **[your message]**
-
-Examples:
-
-- "Family that says I'm picking up pizza"
-- "Weekend Crew that says running 10 minutes late"
-- "Book club saying see you Thursday"
-
-Tips:
-
-- You only need part of the group name. "Crew" finds "Weekend Crew".
-- If more than one group matches, it **sends nothing** and asks which one you meant.
-- If it can't understand you, it **sends nothing**. It will never guess.
-
----
-
-### Optional: nicknames for groups
-
-If a group has a long or hard-to-say name, give it a nickname.
-
-1. In Termux, paste this and tap Enter to see your groups and their numbers:
-
-   ```
-   ~/.termux/tasker/groupme_send.py --list
-   ```
-
-2. Then paste this, changing the nickname and number to yours:
-
-   ```
-   echo '{"family": "12345678", "work": "87654321"}' > ~/.config/groupme-voice/aliases.json
-   ```
-
-Now "family that says hello" always goes to group 12345678.
-
----
-
-### Something not working?
-
-| What happens | What to do |
-|---|---|
-| "GroupMe rejected the token" | Your token changed. See "Need a new token later?" in Part 3. |
-| Nothing happens when the task runs | Check Part 4a: Tasker needs the Termux permission. |
-| "I didn't catch a message" | Speak right after the beep, and say "that says" between the group and the message. |
-| "I couldn't find a group called ..." | Say more of the group name, or set up a nickname. |
-| No voice reply, but the message sent | Make sure the **Termux:API** app is installed from F-Droid. |
-| Termux says "permission denied" for storage | In Termux, paste `termux-setup-storage`, tap Enter, then tap Allow. |
-
----
-
-</details>
-
----
-
 ## Is this safe? Where does my information go?
 
 **There is no server of ours.** Nobody running this project ever sees your
@@ -633,10 +454,8 @@ GroupMe sign-in, your groups, or your messages.
 - **Sign-in to a watch** travels through a free relay ([ntfy.sh](https://ntfy.sh))
   in locked form. The relay can't unlock it; only your watch has the key, and the
   code expires after 10 minutes.
-- **The Tasker version** keeps your token in a file on your phone that only Termux can read.
 - All the code is here if you want to look: [`watch-app/`](watch-app/) (phone and
-  watch apps), [`docs/index.html`](docs/index.html) (sign-in page),
-  [`groupme_send.py`](groupme_send.py) (Tasker version).
+  watch apps) and [`docs/index.html`](docs/index.html) (sign-in page).
 
 ## Not affiliated with GroupMe or Microsoft
 

@@ -24,7 +24,7 @@ import java.util.Map;
  * while it runs. Off unless you switch it on in Chats settings.
  */
 public class PushService extends Service {
-    static final String CH_MESSAGES = "messages", CH_RUNNING = "running";
+    static final String CH_MESSAGES = "messages", CH_QUIET = "messages_quiet", CH_RUNNING = "running";
     static final String EXTRA_KEY = "convo_key", EXTRA_ID = "convo_id", EXTRA_NAME = "convo_name", EXTRA_DM = "convo_dm";
     static final String REPLY = "reply";
     private static final int RUNNING_ID = 1;
@@ -216,7 +216,8 @@ public class PushService extends Service {
             shown = new Notification.BigTextStyle().bigText(sb).setBigContentTitle(title);
             summary = dm || last.sender.equals("You") ? last.text : last.sender + ": " + last.text;
         }
-        Notification.Builder nb = new Notification.Builder(c, CH_MESSAGES);
+        // Sound is a channel setting on Android, so silent messages get their own channel.
+        Notification.Builder nb = new Notification.Builder(c, Store.pushSound(c) ? CH_MESSAGES : CH_QUIET);
         nb.addExtras(invisibleMarkAsRead(markRead)); // hidden: no extra button on screen
         Notification n = nb
                 .setSmallIcon(R.drawable.ic_stat_sayso)
@@ -307,6 +308,11 @@ public class PushService extends Service {
         if (nm == null) return;
         NotificationChannel msgs = new NotificationChannel(CH_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH);
         msgs.setDescription("New GroupMe messages");
+        NotificationChannel quiet = new NotificationChannel(CH_QUIET, "Messages (no sound)", NotificationManager.IMPORTANCE_HIGH);
+        quiet.setDescription("New GroupMe messages, with a buzz but no sound");
+        quiet.setSound(null, null);
+        quiet.enableVibration(true);
+        nm.createNotificationChannel(quiet);
         NotificationChannel on = new NotificationChannel(CH_RUNNING, "Staying connected", NotificationManager.IMPORTANCE_MIN);
         on.setDescription("Shown while Say So listens for new messages");
         on.setShowBadge(false);

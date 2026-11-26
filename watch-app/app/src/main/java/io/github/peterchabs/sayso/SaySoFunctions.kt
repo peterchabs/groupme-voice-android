@@ -45,11 +45,11 @@ abstract class SaySoFunctions : AppFunctionService() {
                 val group = findGroup(token, params.recipient)
                 if (group != null) {
                     Api.send(token, group.id, text)
-                    return@withContext SentGroupMeMessage(to = group.name, message = text, direct = false)
+                    return@withContext SentGroupMeMessage(sentTo = group.name, message = text, direct = false)
                 }
                 val person = findPerson(token, params.recipient)
                 Api.sendDm(token, person.id, text)
-                SentGroupMeMessage(to = person.name, message = text, direct = true)
+                SentGroupMeMessage(sentTo = person.name, message = text, direct = true)
             } catch (e: Api.AuthException) {
                 Store.forgetSignIn(applicationContext)
                 throw AppFunctionDeniedException("GroupMe signed you out. Open Say So and sign in again.")
@@ -123,7 +123,7 @@ data class SendGroupMeMessageParams(
 @AppFunctionSerializable(isDescribedByKDoc = true)
 data class SentGroupMeMessage(
     /** The group or person it was sent to. */
-    val to: String,
+    val sentTo: String,
     /** The message that was sent. */
     val message: String,
     /** True if it went to one person directly instead of a group. */

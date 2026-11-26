@@ -258,6 +258,7 @@ final class Stage {
 
     private Button addButton(LinearLayout into, String label, Runnable onTap, boolean primary, int index, boolean pair) {
         Button b = new Button(a);
+        b.setGravity(android.view.Gravity.CENTER);
         b.setText(label);
         b.setAllCaps(false);
         b.setTextSize(13 * textScale);

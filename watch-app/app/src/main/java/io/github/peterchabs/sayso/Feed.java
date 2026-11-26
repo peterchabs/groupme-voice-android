@@ -62,6 +62,8 @@ final class Feed {
         final List<Media> media;
         /** Set when the message announces a calendar event: tap it for the event. */
         String eventId = "";
+        /** Tagged names in the text: {start, length} pairs, each covering "@Name". */
+        List<int[]> mentions = new ArrayList<>();
         /** The message this one answers (GroupMe's "reply"), or "". */
         String replyId = "";
         /** Emoji reactions, most used first. */
@@ -354,6 +356,31 @@ final class Feed {
         return b.append(text).toString();
     }
 
+    /**
+     * The text as people should read it: each tagged "@Name" loses its "@". Returns the new
+     * text, and fills {@code names} with where each name now sits ({start, length}). Tags whose
+     * position doesn't land on an "@" (edited text, odd counting) are left exactly as they were.
+     */
+    static String withoutAts(String text, List<int[]> mentions, List<int[]> names) {
+        List<int[]> ok = new ArrayList<>();
+        for (int[] m : mentions) {
+            if (m[0] >= 0 && m[1] > 1 && m[0] + m[1] <= text.length() && text.charAt(m[0]) == '@') ok.add(m);
+        }
+        ok.sort((x, y) -> Integer.compare(x[0], y[0]));
+        StringBuilder b = new StringBuilder();
+        int at = 0, removed = 0;
+        for (int[] m : ok) {
+            if (m[0] < at) continue; // overlapping tags: keep the first
+            b.append(text, at, m[0]);
+            names.add(new int[]{m[0] - removed, m[1] - 1});
+            b.append(text, m[0] + 1, m[0] + m[1]);
+            at = m[0] + m[1];
+            removed++;
+        }
+        b.append(text.substring(at));
+        return b.toString();
+    }
+
     /** Sends to a group with people tagged (see withMentions). */
     static void sendTagged(String token, Convo c, List<Member> tags, String text) throws IOException {
         sendTagged(token, c, tags, text, "");
@@ -490,6 +517,13 @@ final class Feed {
             for (int i = 0; i < atts.length(); i++) {
                 JSONObject a = atts.optJSONObject(i);
                 if (a != null && "reply".equals(str(a, "type"))) out.replyId = str(a, "reply_id");
+                if (a != null && "mentions".equals(str(a, "type"))) {
+                    JSONArray loci = a.optJSONArray("loci");
+                    for (int j = 0; loci != null && j < loci.length(); j++) {
+                        JSONArray l = loci.optJSONArray(j);
+                        if (l != null && l.length() == 2) out.mentions.add(new int[]{l.optInt(0), l.optInt(1)});
+                    }
+                }
             }
         }
         return out;
