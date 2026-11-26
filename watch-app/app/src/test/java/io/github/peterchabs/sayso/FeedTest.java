@@ -292,4 +292,12 @@ public class FeedTest {
         org.junit.Assert.assertFalse(Feed.canPin(ms, "3"));
         org.junit.Assert.assertFalse(Feed.canPin(ms, "9")); // not in the group
     }
+
+    @Test
+    public void groupMesRefusalsSayWhatToDo() {
+        assertEquals("GroupMe doesn't let other apps send direct messages anymore. Reply in the GroupMe app.",
+                Api.refusal("/direct_messages", "This endpoint is not available via the Developer API. Use the GroupMe mobile or web app."));
+        assertEquals("GroupMe didn't allow that: Not an admin", Api.refusal("/conversations/1/messages/2/pin", "Not an admin"));
+        assertEquals("GroupMe didn't allow that.", Api.refusal("/groups/1/messages", ""));
+    }
 }

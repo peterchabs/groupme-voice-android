@@ -219,6 +219,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (settingsOpen) fillSettings(); // back from the watch's own settings: show what changed
         PushService.visibleKey = level >= 1 && current != null ? current.key() : null;
         if (PushService.visibleKey != null) PushService.clear(this, PushService.visibleKey);
         if (level >= 1 && current != null && (liveConvo != current || !liveOn)) startLive(); // back in a chat: live again
@@ -1107,6 +1108,30 @@ public class HomeActivity extends Activity {
             conn.setGravity(Gravity.CENTER);
             conn.setPadding(px(watch ? 14 : 8), px(2), px(watch ? 14 : 8), px(6));
             col.addView(conn);
+            // The card Android shows while the connection is open. Only you can hide it (Android's rule),
+            // so this opens the watch's own switch for exactly that card; messages keep coming either way.
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
+                android.app.NotificationChannel ch = nm == null ? null : nm.getNotificationChannel(PushService.CH_RUNNING);
+                boolean hidden = ch != null && ch.getImportance() == android.app.NotificationManager.IMPORTANCE_NONE;
+                addSettingButton(col, "Connection card: " + (hidden ? "hidden" : "shown"), false, () -> {
+                    // A watch's settings can't open one category directly (it lands on its general page),
+                    // so a watch opens Say So's notification page, where "Staying connected" has its switch.
+                    Intent i = watch
+                            ? new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName())
+                            : new Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName())
+                                    .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, PushService.CH_RUNNING);
+                    try {
+                        startActivity(i);
+                        toast(watch ? (hidden ? "Turn \u201CStaying connected\u201D on to show it" : "Turn \u201CStaying connected\u201D off to hide it")
+                                : (hidden ? "Turn it on to show the card" : "Turn it off to hide the card"));
+                    } catch (android.content.ActivityNotFoundException e) {
+                        toast("In Settings, Apps, Say So, Notifications: turn off \u201CStaying connected\u201D");
+                    }
+                });
+            }
         }
         // One switch for every sound: notifications (they still buzz without it) and the chat tones
         addSettingButton(col, "Sounds: " + (Store.pushSound(this) ? "on" : "off"), false, () -> {
@@ -5659,6 +5684,9 @@ public class HomeActivity extends Activity {
                 });
             } catch (Api.AuthException e) {
                 ui.post(this::signedOut);
+            } catch (Api.RefusedException e) {
+                ui.post(() -> hideDraft()); // GroupMe said no: retrying won't help
+                ui.post(() -> showPanel("Not sent", e.getMessage(), new Object[]{"OK", (Runnable) this::cancelPanel}));
             } catch (IOException e) {
                 ui.post(() -> hideDraft());
                 ui.post(() -> showPanel("Not sent", "Couldn't reach GroupMe.",

@@ -24,6 +24,18 @@ final class Api {
         AuthException() { super("GroupMe rejected your token."); }
     }
 
+    /** GroupMe understood the request and said no (403): trying again won't change that. */
+    static final class RefusedException extends IOException {
+        RefusedException(String why) { super(why); }
+    }
+
+    /** Words for a 403. GroupMe keeps direct messages for its own apps (11/26/2026: "not available via the Developer API"). */
+    static String refusal(String path, String groupMeSaid) {
+        if (path.startsWith("/direct_messages") && groupMeSaid.contains("Developer API"))
+            return "GroupMe doesn't let other apps send direct messages anymore. Reply in the GroupMe app.";
+        return "GroupMe didn't allow that" + (groupMeSaid.isEmpty() ? "." : ": " + groupMeSaid);
+    }
+
     static List<Phrase.Group> listGroups(String token) throws IOException {
         List<Phrase.Group> out = new ArrayList<>();
         for (int page = 1; page < 50; page++) {
@@ -331,6 +343,17 @@ final class Api {
             }
             int code = c.getResponseCode();
             if (code == 401) throw new AuthException();
+            if (code == 403) {
+                String said = "";
+                try {
+                    java.io.InputStream es = c.getErrorStream();
+                    JSONArray errs = es == null ? null : new JSONObject(read(es)).optJSONObject("meta").optJSONArray("errors");
+                    if (errs != null && errs.length() > 0) said = errs.optString(0, "");
+                } catch (JSONException | IOException | RuntimeException ignored) {
+                    // no reason given
+                }
+                throw new RefusedException(refusal(path, said));
+            }
             if (code == 304) return new JSONObject(); // GroupMe: "no messages" for an empty group
             if (code >= 300) throw new IOException("GroupMe said error " + code + ". Nothing was sent.");
             String s = read(c.getInputStream());

@@ -62,6 +62,8 @@ public class ReplyReceiver extends BroadcastReceiver {
                 Feed.sendTagged(token, new Feed.Convo(id, name == null ? "" : name, "", dm, 0, ""),
                         new java.util.ArrayList<>(), text, replyTo == null ? "" : replyTo);
                 PushService.addMine(app, key, id, name, dm, text);
+            } catch (Api.RefusedException e) {
+                PushService.addMine(app, key, id, name, dm, "Not sent (" + e.getMessage() + "): " + text);
             } catch (IOException e) {
                 PushService.addMine(app, key, id, name, dm, "Not sent (no connection): " + text);
             } finally {
