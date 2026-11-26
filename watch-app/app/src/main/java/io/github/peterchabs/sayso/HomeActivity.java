@@ -3504,6 +3504,9 @@ public class HomeActivity extends Activity {
         return new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                // a breath after "Yes," isn't the end of the message: wait for a real pause
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
                 // punctuation and capitals from the speech service itself (Android 13+)
                 .putExtra("android.speech.extra.ENABLE_FORMATTING", "quality")
                 // say it how you said it: no "f***" masking
