@@ -587,6 +587,8 @@ public class HomeActivity extends Activity {
         b.setTypeface(BOLD);
         b.setTextColor(primary ? Color.WHITE : BLUE);
         b.setBackground(Press.button(this, primary));
+
+        b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
         b.setStateListAnimator(null);
         b.setOnClickListener(v -> tap.run());
         Press.attach(b);
@@ -728,7 +730,8 @@ public class HomeActivity extends Activity {
         ImageView mic = new ImageView(this);
         mic.setImageDrawable(new Icons(Icons.MIC, Color.WHITE, 0));
         mic.setBackground(Press.button(this, true));
-        mic.setPadding(px(10), px(10), px(10), px(10));
+
+        mic.setPadding(px(10), px(8), px(10), px(12)); // icon centered on the face, above the lip
         mic.setContentDescription("Speak a message");
         mic.setOnClickListener(v -> {
             if (listening && rec != null) rec.stopListening(); // tap again to finish early
@@ -955,7 +958,7 @@ public class HomeActivity extends Activity {
      * text shrinks a little rather than ever being cut.
      */
     private void fitButtonText(Button b) {
-        b.setPadding(px(4), 0, px(4), 0);
+        b.setPadding(px(4), 0, px(4), px(4)); // the 4dp lip under the face: text centers on the face
         b.setMinWidth(0);
         b.setMinimumWidth(0);
         b.setMinHeight(0);
@@ -985,6 +988,8 @@ public class HomeActivity extends Activity {
             b.setTypeface(BOLD);
             b.setTextColor(i == 1 ? Color.WHITE : BLUE);
             b.setBackground(Press.button(this, i == 1));
+
+            b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
             b.setStateListAnimator(null);
             fitButtonText(b);
             Runnable r = cancelSend[i];
@@ -1607,13 +1612,15 @@ public class HomeActivity extends Activity {
             latestPill.setTypeface(BOLD);
             latestPill.setTextColor(Color.WHITE);
             latestPill.setBackground(Press.button(this, true));
+
+            latestPill.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
             latestPill.setStateListAnimator(null);
             latestPill.setOnClickListener(v -> toLatest());
             Press.attach(latestPill);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(watch ? 32 : 38));
             lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
             lp.bottomMargin = ((FrameLayout.LayoutParams) micButton.getLayoutParams()).bottomMargin + micButton.getLayoutParams().height + px(6);
-            latestPill.setPadding(px(14), 0, px(14), 0);
+            latestPill.setPadding(px(14), 0, px(14), px(4));
             latestPill.setVisibility(View.GONE);
             chatLayer.addView(latestPill, lp);
         }
@@ -1824,6 +1831,8 @@ public class HomeActivity extends Activity {
         tagButton.setTypeface(BOLD);
         tagButton.setTextColor(Color.WHITE);
         tagButton.setBackground(Press.button(this, true));
+
+        tagButton.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
         tagButton.setStateListAnimator(null);
         tagButton.setSingleLine(true);
         tagButton.setOnClickListener(v -> tagPickedAndSpeak());
@@ -2605,6 +2614,8 @@ public class HomeActivity extends Activity {
         b.setTypeface(BOLD);
         b.setTextColor(primary ? Color.WHITE : BLUE);
         b.setBackground(Press.button(this, primary));
+
+        b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
         b.setStateListAnimator(null);
         b.setOnClickListener(v -> tap.run());
         Press.attach(b);
@@ -3310,6 +3321,8 @@ public class HomeActivity extends Activity {
                 boolean primary = i == 0;
                 b.setTextColor(primary ? Color.WHITE : BLUE);
                 b.setBackground(Press.button(this, primary));
+
+                b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
                 b.setStateListAnimator(null);
                 fitButtonText(b);
                 Runnable r = (Runnable) buttons[i + 1];
