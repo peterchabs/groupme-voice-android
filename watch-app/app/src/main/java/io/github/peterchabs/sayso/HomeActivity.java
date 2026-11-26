@@ -220,7 +220,7 @@ public class HomeActivity extends Activity {
         if (level >= 1 && current != null && !liveOn) startLive(); // back in a chat: live again
         ui.post(ticker);
         ui.removeCallbacks(stampFlip);
-        ui.postDelayed(stampFlip, 4000);
+        ui.postDelayed(stampFlip, 8000);
         if (settingsOpen) fillSettings(); // back from the default-group picker
         fillButtonNote();
         if (current != null && level >= 1) {
@@ -275,17 +275,21 @@ public class HomeActivity extends Activity {
     private final Runnable stampFlip = new Runnable() {
         @Override
         public void run() {
-            ui.postDelayed(this, 4000);
+            ui.postDelayed(this, 8000);
             if (level != 1 || settingsOpen || dragging || pulling) return;
             showStamp = !showStamp;
             for (java.util.Map.Entry<TextView, Long> e : new ArrayList<>(times.entrySet())) {
                 TextView t = e.getKey();
                 if (t == null || !t.isAttachedToWindow()) continue;
                 long at = e.getValue();
+                // a soft cross-fade with a slight drift: out and up, then the other in from below
                 t.animate().cancel();
-                t.animate().alpha(0f).setDuration(160).withEndAction(() -> {
+                t.animate().alpha(0f).translationY(-px(2)).setDuration(320)
+                        .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).withEndAction(() -> {
                     t.setText(whenText(at));
-                    t.animate().alpha(0.85f).setDuration(220).start();
+                    t.setTranslationY(px(2));
+                    t.animate().alpha(0.85f).translationY(0).setDuration(420)
+                            .setInterpolator(new DecelerateInterpolator(1.4f)).start();
                 }).start();
             }
         }
@@ -963,8 +967,15 @@ public class HomeActivity extends Activity {
         LinearLayout who = new LinearLayout(this); // like the line above any message you've sent
         who.setOrientation(LinearLayout.HORIZONTAL);
         who.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        TextView you = label("You  now", sp(watch ? 10 : 11.5f), BLUE, true);
-        you.setPadding(0, 0, px(5), 0);
+        TextView dnow = label("now", sp(watch ? 10 : 11.5f), BLUE, true);
+        dnow.setAlpha(0.85f);
+        who.addView(dnow);
+        String myName = Store.name(this);
+        TextView you = label(myName.isEmpty() ? "You" : myName, sp(watch ? 10 : 11.5f), BLUE, true);
+        you.setPadding(px(5), 0, px(5), 0);
+        you.setSingleLine(true);
+        you.setEllipsize(TextUtils.TruncateAt.END);
+        you.setMaxWidth((int) (W * (watch ? 0.36f : 0.45f)));
         who.addView(you);
         ImageView me = new ImageView(this);
         int as = px(watch ? 16 : 22);
@@ -1470,20 +1481,21 @@ public class HomeActivity extends Activity {
             av.setBackground(o);
             String pic = mine && m.avatarUrl.isEmpty() ? Store.avatar(HomeActivity.this) : m.avatarUrl;
             if (photosOn()) Images.load(av, Feed.sized(pic, "avatar"), as, true);
-            TextView name = label(mine ? "You" : m.sender, sp(watch ? 10 : 11.5f), mine ? BLUE : GREY, true);
-            name.setPadding(mine ? 0 : px(5), 0, 0, 0);
+            String myName = Store.name(HomeActivity.this);
+            TextView name = label(mine ? (myName.isEmpty() ? "You" : myName) : m.sender, sp(watch ? 10 : 11.5f), mine ? BLUE : GREY, true);
+            name.setPadding(mine ? px(5) : px(5), 0, mine ? px(5) : 0, 0);
             name.setMaxWidth((int) (W * (watch ? 0.36f : 0.45f))); // long names shorten; the time stays
             name.setSingleLine(true);
             name.setEllipsize(TextUtils.TruncateAt.END);
             // the time: "13m" and the actual time ("5:34 PM") take turns (see stampFlip)
             TextView when = label(whenText(m.at), sp(watch ? 10 : 11.5f), mine ? BLUE : GREY, true);
-            when.setPadding(px(5), 0, mine ? px(5) : 0, 0);
+            when.setPadding(mine ? 0 : px(5), 0, 0, 0);
             when.setSingleLine(true);
             when.setAlpha(0.85f);
             times.put(when, m.at);
-            if (mine) {
-                who.addView(name, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (mine) { // yours mirror everyone else's: time, then your name, then your picture
                 who.addView(when);
+                who.addView(name, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 who.addView(av, new LinearLayout.LayoutParams(as, as));
             } else {
                 who.addView(av, new LinearLayout.LayoutParams(as, as));
