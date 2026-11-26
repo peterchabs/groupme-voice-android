@@ -154,7 +154,8 @@ public class MainActivity extends Activity {
         else stage.show(OrbView.Mode.ERROR, "Microphone is off",
                 "Allow it to talk, or type your message instead.",
                 "Allow", (Runnable) this::begin,
-                "Type it", (Runnable) () -> showTyping(null));
+                "Type it", (Runnable) () -> showTyping(null),
+                "Chats", (Runnable) this::openChats); // reading chats needs no mic
     }
 
     private void listen() {
