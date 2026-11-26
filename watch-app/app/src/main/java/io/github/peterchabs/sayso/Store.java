@@ -49,6 +49,17 @@ final class Store {
     /** Sounds on or off: notification sounds (they buzz either way) and Say So's own send/receive tones. */
     static boolean pushSound(Context c) { return p(c).getBoolean("push_sound", true); }
 
+    // The live connection's last known state, for the Connection line in settings (times in ms since 1970).
+    static long pushConnectedAt(Context c) { return p(c).getLong("push_connected_at", 0); }
+    static long pushMessageAt(Context c) { return p(c).getLong("push_message_at", 0); }
+    static long pushErrorAt(Context c) { return p(c).getLong("push_error_at", 0); }
+    static String pushError(Context c) { return p(c).getString("push_error", ""); }
+    static void pushConnected(Context c) { p(c).edit().putLong("push_connected_at", System.currentTimeMillis()).apply(); }
+    static void pushMessage(Context c) { p(c).edit().putLong("push_message_at", System.currentTimeMillis()).apply(); }
+    static void pushFailed(Context c, String why) {
+        p(c).edit().putLong("push_error_at", System.currentTimeMillis()).putString("push_error", why == null ? "" : why).apply();
+    }
+
     static void setPushSound(Context c, boolean on) { p(c).edit().putBoolean("push_sound", on).apply(); }
 
     /** "light" (default), "dark" or "system" (see Palette). */

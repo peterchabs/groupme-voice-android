@@ -1102,6 +1102,12 @@ public class HomeActivity extends Activity {
             PushService.sync(this);
             fillSettings();
         });
+        if (Store.pushOn(this)) { // whether new messages can reach you right now
+            TextView conn = label(PushService.connectionLine(this), sp(watch ? 10.5f : 12), GREY, false);
+            conn.setGravity(Gravity.CENTER);
+            conn.setPadding(px(watch ? 14 : 8), px(2), px(watch ? 14 : 8), px(6));
+            col.addView(conn);
+        }
         // One switch for every sound: notifications (they still buzz without it) and the chat tones
         addSettingButton(col, "Sounds: " + (Store.pushSound(this) ? "on" : "off"), false, () -> {
             Store.setPushSound(this, !Store.pushSound(this));

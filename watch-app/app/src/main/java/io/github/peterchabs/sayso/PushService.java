@@ -69,6 +69,38 @@ public class PushService extends Service {
         }
     }
 
+    /**
+     * The Connection line in settings: whether new messages can reach you, in plain words. Problems first
+     * (notifications blocked on the watch, can't reach GroupMe), then when it connected and when the
+     * last message came in.
+     */
+    static String connectionLine(Context c) {
+        NotificationManager nm = c.getSystemService(NotificationManager.class);
+        if (nm != null && !nm.areNotificationsEnabled()) return "Notifications for Say So are blocked in your watch's settings";
+        if (nm != null && Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel ch = nm.getNotificationChannel(Store.pushSound(c) ? CH_MESSAGES : CH_QUIET);
+            if (ch != null && ch.getImportance() == NotificationManager.IMPORTANCE_NONE)
+                return "\u201C" + ch.getName() + "\u201D notifications are off in your watch's settings";
+        }
+        long on = Store.pushConnectedAt(c), err = Store.pushErrorAt(c), msg = Store.pushMessageAt(c);
+        if (on == 0 && err == 0) return "Connecting to GroupMe...";
+        if (err > on) return "Can't reach GroupMe (" + Store.pushError(c) + "), trying again. Last tried " + when(err);
+        return "Connected since " + when(on) + (msg > 0 ? ". Last message " + when(msg) : ". No messages yet");
+    }
+
+    /** "7:44 AM" today, "Yesterday 7:44 AM", or "11/24 7:44 AM". */
+    static String when(long ms) {
+        java.util.Calendar t = java.util.Calendar.getInstance(), x = java.util.Calendar.getInstance();
+        x.setTimeInMillis(ms);
+        String time = new java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(new java.util.Date(ms));
+        if (t.get(java.util.Calendar.YEAR) == x.get(java.util.Calendar.YEAR)
+                && t.get(java.util.Calendar.DAY_OF_YEAR) == x.get(java.util.Calendar.DAY_OF_YEAR)) return time;
+        t.add(java.util.Calendar.DAY_OF_YEAR, -1);
+        if (t.get(java.util.Calendar.YEAR) == x.get(java.util.Calendar.YEAR)
+                && t.get(java.util.Calendar.DAY_OF_YEAR) == x.get(java.util.Calendar.DAY_OF_YEAR)) return "Yesterday " + time;
+        return new java.text.SimpleDateFormat("M/d h:mm a", java.util.Locale.US).format(new java.util.Date(ms));
+    }
+
     /** Opening a chat clears its notification. */
     static void clear(Context c, String key) {
         synchronized (HISTORY) { HISTORY.remove(key); }
@@ -118,6 +150,7 @@ public class PushService extends Service {
             try {
                 Push push = new Push(token, me);
                 push.open();
+                Store.pushConnected(this);
                 android.util.Log.i("SaySo", "push: connected to GroupMe's live feed");
                 wait = 2000;
                 // GroupMe sometimes keeps a connection open that never delivers anything (seen after
@@ -126,14 +159,18 @@ public class PushService extends Service {
                 while (running && android.os.SystemClock.elapsedRealtime() < fresh) {
                     for (Push.Event e : push.poll()) {
                         android.util.Log.i("SaySo", "push: new message in " + (e.dm ? "a DM" : "a group"));
+                        Store.pushMessage(this);
                         show(e);
                     }
                 }
             } catch (Api.AuthException e) {
+                Store.pushFailed(this, "GroupMe refused the sign-in");
                 android.util.Log.w("SaySo", "push: GroupMe refused the sign-in; stopping");
                 break; // signed out: nothing to listen for
             } catch (IOException | RuntimeException e) {
                 android.util.Log.i("SaySo", "push: connection dropped (" + e.getMessage() + "), retrying in " + wait / 1000 + "s");
+                Store.pushFailed(this, e instanceof java.net.UnknownHostException || e instanceof java.net.SocketTimeoutException
+                        ? "no internet" : "connection dropped");
                 // dropped connection or no network: try again, waiting longer each time (max 1 min)
                 try {
                     Thread.sleep(wait);
