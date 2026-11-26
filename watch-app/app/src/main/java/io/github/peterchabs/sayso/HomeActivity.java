@@ -3643,6 +3643,7 @@ public class HomeActivity extends Activity {
         }
 
         @Override public void onError(int code) {
+            android.util.Log.w("SaySo", "speech error " + code + " ready=" + ready + " heard=" + !heardSoFar.isEmpty());
             if (!listening) return;
             if (!ready && !autoRetried && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
                     && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {

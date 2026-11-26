@@ -26,4 +26,15 @@ public class TidyTest {
     @Test public void wordsWithIInsideAreUntouched() {
         assertEquals("Visit it in the evening.", Tidy.spoken("visit it in the evening"));
     }
+
+    @Test public void aCommaAfterAnOpeningYesOrHey() {
+        assertEquals("Yes, see you at 9:00.", Tidy.spoken("Yes see you at 9:00."));
+        assertEquals("Okay, thanks.", Tidy.spoken("okay thanks"));
+        assertEquals("Hey, are you coming?", Tidy.spoken("hey are you coming"));
+        assertEquals("Thanks a lot.", Tidy.spoken("thanks a lot"));
+        assertEquals("Hey there.", Tidy.spoken("hey there"));
+        assertEquals("No problem.", Tidy.spoken("no problem"));
+        assertEquals("Yes, sir.", Tidy.spoken("yes, sir"));
+        assertEquals("Yesterday was fun.", Tidy.spoken("yesterday was fun"));
+    }
 }

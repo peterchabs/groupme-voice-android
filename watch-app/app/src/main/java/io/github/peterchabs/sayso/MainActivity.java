@@ -237,6 +237,7 @@ public class MainActivity extends Activity {
         }
 
         @Override public void onError(int code) {
+            android.util.Log.w("SaySo", "speech error " + code + " ready=" + ready);
             if (!listening) return; // some watches report a late error after results
             listening = false;
             if (!ready && !autoRetried && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
