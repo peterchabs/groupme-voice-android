@@ -694,7 +694,7 @@ public class HomeActivity extends Activity {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(watch ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER);
-        head.setPadding(px(10), watch ? (int) (H * 0.04f) : px(6), px(10), px(watch ? 2 : 5));
+        head.setPadding(px(10), watch ? (int) (H * 0.04f) : px(6), px(10), px(watch ? 6 : 8)); // room for the line under it
         head.setBackgroundColor(BG);
         head.setElevation(px(2));
         chatAvatar = new ImageView(this);
@@ -733,6 +733,8 @@ public class HomeActivity extends Activity {
         if (watch) chatStatus.setVisibility(View.GONE);
         if (watch) head.addView(titles, new LinearLayout.LayoutParams((int) (W * 0.58f), ViewGroup.LayoutParams.WRAP_CONTENT));
         else head.addView(titles);
+        head.setElevation(0);
+        head.setBackground(new LayerDrawableCompat(BG, new TaperLine(Palette.dark ? 0x5500AFF0 : 0x4000AFF0, px(2.2f))));
         FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hl.gravity = Gravity.TOP;
         chatLayer.addView(head, hl);
@@ -1288,6 +1290,45 @@ public class HomeActivity extends Activity {
     }
 
     // ---------------- message looks, replies and reactions ----------------
+
+    /**
+     * The line under a header bar: thickest in the middle, thinning smoothly to a hairline at
+     * both edges, and running the full width.
+     */
+    private static final class TaperLine extends android.graphics.drawable.Drawable {
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final float thick;
+
+        TaperLine(int color, float thick) {
+            paint.setColor(color);
+            this.thick = thick;
+        }
+
+        @Override public void draw(android.graphics.Canvas c) {
+            android.graphics.Rect b = getBounds();
+            float y = b.bottom - thick / 2f - 0.5f, w = b.width(), half = thick / 2f, edge = 0.35f;
+            android.graphics.Path p = new android.graphics.Path();
+            p.moveTo(b.left, y - edge);
+            p.cubicTo(b.left + w * 0.3f, y - edge, b.left + w * 0.35f, y - half, b.left + w / 2f, y - half);
+            p.cubicTo(b.left + w * 0.65f, y - half, b.left + w * 0.7f, y - edge, b.right, y - edge);
+            p.lineTo(b.right, y + edge);
+            p.cubicTo(b.left + w * 0.7f, y + edge, b.left + w * 0.65f, y + half, b.left + w / 2f, y + half);
+            p.cubicTo(b.left + w * 0.35f, y + half, b.left + w * 0.3f, y + edge, b.left, y + edge);
+            p.close();
+            c.drawPath(p, paint);
+        }
+
+        @Override public void setAlpha(int a) { paint.setAlpha(a); }
+        @Override public void setColorFilter(android.graphics.ColorFilter f) { paint.setColorFilter(f); }
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+    }
+
+    /** A solid background with a drawable (the taper line) over it. */
+    private static final class LayerDrawableCompat extends android.graphics.drawable.LayerDrawable {
+        LayerDrawableCompat(int color, android.graphics.drawable.Drawable over) {
+            super(new android.graphics.drawable.Drawable[]{new android.graphics.drawable.ColorDrawable(color), over});
+        }
+    }
 
     /** Tagged names in the draft being typed ({start, length}, no "@"). */
     private final List<int[]> draftNames = new ArrayList<>();
@@ -2163,6 +2204,7 @@ public class HomeActivity extends Activity {
                 FrameLayout box;
                 ImageView img;
                 ImageView play;
+                Avatar who;
                 if (v == null) {
                     box = new FrameLayout(HomeActivity.this);
                     img = new ImageView(HomeActivity.this);
@@ -2179,16 +2221,35 @@ public class HomeActivity extends Activity {
                     FrameLayout.LayoutParams pl = new FrameLayout.LayoutParams(ps, ps);
                     pl.gravity = Gravity.CENTER;
                     box.addView(play, pl);
-                    box.setTag(new Object[]{img, play});
+                    // who posted it: a small picture in a corner, ringed so it shows on any photo
+                    who = new Avatar(watch ? 22 : 20);
+                    GradientDrawable ring = new GradientDrawable();
+                    ring.setShape(GradientDrawable.OVAL);
+                    ring.setStroke(px(1.5f), Color.WHITE);
+                    who.view.setForeground(ring);
+                    who.view.setElevation(px(3));
+                    box.addView(who.view, new FrameLayout.LayoutParams(who.size, who.size));
+                    box.setTag(new Object[]{img, play, who});
                 } else {
                     box = (FrameLayout) v;
                     Object[] t = (Object[]) box.getTag();
                     img = (ImageView) t[0];
                     play = (ImageView) t[1];
+                    who = (Avatar) t[2];
                 }
                 box.setLayoutParams(new android.widget.AbsListView.LayoutParams(cell, cell));
                 Feed.Media m = photos.get(i);
                 play.setVisibility(m.kind == Feed.Media.VIDEO ? View.VISIBLE : View.GONE);
+                // Watch: the corner toward the middle of the round screen (left column: bottom
+                // right, right column: bottom left), where it never falls off the edge.
+                // Phone: bottom left on every tile.
+                FrameLayout.LayoutParams wl = (FrameLayout.LayoutParams) who.view.getLayoutParams();
+                boolean leftColumn = i % cols == 0;
+                wl.gravity = Gravity.BOTTOM | (watch && leftColumn ? Gravity.END : Gravity.START);
+                wl.leftMargin = wl.rightMargin = wl.bottomMargin = px(watch ? 6 : 4);
+                who.view.setLayoutParams(wl);
+                who.view.setVisibility(m.from.isEmpty() ? View.GONE : View.VISIBLE);
+                who.set(m.from, posterPicture(m), true);
                 if (m.kind == Feed.Media.VIDEO && m.preview.isEmpty()) Images.loadVideoFrame(img, m.url, cell);
                 else Images.load(img, m.kind == Feed.Media.VIDEO ? m.preview : Feed.sized(m.preview, watch ? "large" : "preview"), cell, false);
                 return box;
@@ -2291,11 +2352,28 @@ public class HomeActivity extends Activity {
             public View getView(int i, View v, ViewGroup parent) {
                 Feed.Event e = events.get(i);
                 boolean past = Math.max(e.startMs, e.endMs) < System.currentTimeMillis();
+                LinearLayout card = new LinearLayout(HomeActivity.this); // the event's photo on top, if it has one
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setAlpha(past ? 0.55f : 1f);
+                String photo = !e.imageUrl.isEmpty() ? e.imageUrl : e.albumCover;
+                if (!photo.isEmpty() && photosOn()) {
+                    ImageView pic = new ImageView(HomeActivity.this);
+                    pic.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    GradientDrawable ph = new GradientDrawable();
+                    ph.setColor(Palette.PLACEHOLDER);
+                    float r = px(watch ? 22 : 18);
+                    ph.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
+                    pic.setBackground(ph);
+                    pic.setClipToOutline(true);
+                    int bh = px(watch ? 70 : 110);
+                    card.addView(pic, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, bh));
+                    Images.load(pic, Feed.sized(photo, "preview"), (int) (W * 0.8f), false);
+                }
                 LinearLayout row = new LinearLayout(HomeActivity.this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setGravity(Gravity.CENTER_VERTICAL);
                 row.setPadding(px(6), px(watch ? 6 : 9), px(6), px(watch ? 6 : 9));
-                row.setAlpha(past ? 0.55f : 1f);
+                card.addView(row);
                 // a little calendar page: month over day
                 LinearLayout badge = new LinearLayout(HomeActivity.this);
                 badge.setOrientation(LinearLayout.VERTICAL);
@@ -2325,9 +2403,19 @@ public class HomeActivity extends Activity {
                 text.addView(when);
                 if (e.going > 0) text.addView(label(e.going + " going", sp(watch ? 10 : 12), BLUE, false));
                 row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-                row.setBackground(pressable());
-                liftRow(row);
-                return row;
+                Feed.Member maker = eventPeople.get(e.creatorId);
+                if (maker != null) { // who made it
+                    Avatar av = new Avatar(watch ? 22 : 28);
+                    av.set(maker.name, maker.avatarUrl, true);
+                    av.view.setContentDescription("Made by " + maker.name);
+                    LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(av.size, av.size);
+                    al.leftMargin = px(6);
+                    row.addView(av.view, al);
+                }
+                card.setBackground(pressable());
+                card.setClipToOutline(true);
+                liftRow(card);
+                return card;
             }
         };
         eventList.setAdapter(eventAdapter);
@@ -2339,6 +2427,9 @@ public class HomeActivity extends Activity {
         eventsLayer.addView(eventList, match());
         root.addView(eventsLayer, match());
     }
+
+    /** The current group's people by id, for event creators' pictures. */
+    private final java.util.HashMap<String, Feed.Member> eventPeople = new java.util.HashMap<>();
 
     private void openEvents() {
         if (current == null || current.isDm) return;
@@ -2358,7 +2449,15 @@ public class HomeActivity extends Activity {
         bg.execute(() -> {
             try {
                 List<Feed.Event> fresh = Feed.events(token, c.id, System.currentTimeMillis());
+                java.util.HashMap<String, Feed.Member> people = new java.util.HashMap<>();
+                try { // who made each event: their picture beside it
+                    for (Feed.Member m : Feed.members(token, c.id)) people.put(m.userId, m);
+                } catch (IOException ignored) {
+                    // the events still show, just without the creators' pictures
+                }
                 ui.post(() -> {
+                    eventPeople.clear();
+                    eventPeople.putAll(people);
                     if (current == null || !current.id.equals(c.id)) return;
                     eventsFor = c.id;
                     if (events.isEmpty() && !fresh.isEmpty()) fadeList(eventList);
@@ -2428,9 +2527,39 @@ public class HomeActivity extends Activity {
         col.setGravity(Gravity.CENTER_HORIZONTAL);
         int side = watch ? (int) (W * 0.15f) : px(28);
         col.setPadding(side, watch ? (int) (H * 0.12f) : px(40), side, watch ? (int) (H * 0.2f) : px(32));
+        String photo = !e.imageUrl.isEmpty() ? e.imageUrl : e.albumCover;
+        if (!photo.isEmpty() && photosOn()) { // the event's photo, across the top
+            ImageView pic = new ImageView(this);
+            pic.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            GradientDrawable ph = new GradientDrawable();
+            ph.setColor(Palette.PLACEHOLDER);
+            ph.setCornerRadius(px(16));
+            pic.setBackground(ph);
+            pic.setClipToOutline(true);
+            LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(watch ? 96 : 170));
+            pp.bottomMargin = px(10);
+            col.addView(pic, pp);
+            Images.load(pic, Feed.sized(photo, "large"), (int) W, false);
+        }
         TextView name = label(e.name, sp(watch ? 15 : 20), INK, true);
         name.setGravity(Gravity.CENTER);
         col.addView(name);
+        Feed.Member maker = eventPeople.get(e.creatorId);
+        if (maker != null) { // "[picture] Made by Sam"
+            LinearLayout by = new LinearLayout(this);
+            by.setOrientation(LinearLayout.HORIZONTAL);
+            by.setGravity(Gravity.CENTER);
+            by.setPadding(0, px(5), 0, 0);
+            Avatar av = new Avatar(watch ? 18 : 22);
+            av.set(maker.name, maker.avatarUrl, true);
+            by.addView(av.view);
+            TextView t = label("Made by " + maker.name, sp(watch ? 10.5f : 13), GREY, false);
+            t.setPadding(px(6), 0, 0, 0);
+            t.setSingleLine(true);
+            t.setEllipsize(TextUtils.TruncateAt.END);
+            by.addView(t);
+            col.addView(by);
+        }
         String when = eventWhen(e);
         if (!e.allDay && e.endMs > e.startMs) when += " \u2013 " + fmt(e.endMs, "h:mm a");
         TextView w = label(when, sp(watch ? 11.5f : 14), BLUE, true);
@@ -2452,6 +2581,21 @@ public class HomeActivity extends Activity {
             d.setGravity(watch ? Gravity.CENTER : Gravity.START);
             d.setPadding(0, px(10), 0, 0);
             col.addView(d);
+        }
+        if (!e.albumCover.isEmpty() && !e.albumCover.equals(photo) && photosOn()) { // its photo album
+            TextView at = label(e.albumTitle.isEmpty() ? "Photos" : "Photos \u00B7 " + e.albumTitle, sp(watch ? 11 : 13), GREY, true);
+            at.setGravity(Gravity.CENTER);
+            at.setPadding(0, px(12), 0, px(4));
+            col.addView(at);
+            ImageView cover = new ImageView(this);
+            cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            GradientDrawable ph = new GradientDrawable();
+            ph.setColor(Palette.PLACEHOLDER);
+            ph.setCornerRadius(px(14));
+            cover.setBackground(ph);
+            cover.setClipToOutline(true);
+            col.addView(cover, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(watch ? 90 : 160)));
+            Images.load(cover, Feed.sized(e.albumCover, "large"), (int) W, false);
         }
         sv.addView(col);
         profileLayer.addView(sv, match());
@@ -2765,30 +2909,45 @@ public class HomeActivity extends Activity {
         LinearLayout who = new LinearLayout(this);
         who.setOrientation(LinearLayout.HORIZONTAL);
         who.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView av = new ImageView(this);
-        int as = px(watch ? 18 : 26);
-        GradientDrawable o = new GradientDrawable();
-        o.setShape(GradientDrawable.OVAL);
-        o.setColor(0x55FFFFFF);
-        av.setBackground(o);
-        who.addView(av, new LinearLayout.LayoutParams(as, as));
-        if (photosOn()) Images.load(av, Feed.sized(m.fromAvatar, "avatar"), as, true);
-        TextView name = label(m.from + (m.at > 0 ? "  \u00B7  " + Feed.ago(m.at, System.currentTimeMillis()) : ""),
-                sp(watch ? 11 : 13), Color.WHITE, true);
+        // Their picture: the gallery feed sometimes leaves it out, so fall back to the chat or the
+        // members list, and to their initials if there's none at all.
+        Avatar av = new Avatar(watch ? 20 : 28);
+        av.set(m.from, posterPicture(m), true);
+        who.addView(av.view);
+        TextView name = label(m.from, sp(watch ? 11 : 13), 0xFF8FDCFF, true); // the poster: bold, light blue
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
-        name.setPadding(px(6), 0, 0, 0);
+        name.setMaxWidth((int) (W * (watch ? 0.4f : 0.5f)));
+        name.setPadding(px(7), 0, 0, 0);
+        name.setShadowLayer(px(3), 0, px(1), 0x99000000);
         who.addView(name);
+        if (m.at > 0) {
+            TextView when = label("  \u00B7  " + Feed.ago(m.at, System.currentTimeMillis()), sp(watch ? 10 : 12), 0xB3FFFFFF, false);
+            when.setSingleLine(true);
+            who.addView(when);
+        }
         box.addView(who);
         if (!m.caption.isEmpty()) {
-            TextView cap = label(m.caption, sp(watch ? 11.5f : 14), 0xF2FFFFFF, false);
+            TextView cap = label(m.caption, sp(watch ? 12 : 15), 0xFFFFFFFF, false); // what they said: plain, larger
             cap.setGravity(watch ? Gravity.CENTER : Gravity.START);
+            cap.setLineSpacing(0, 1.05f);
+            cap.setShadowLayer(px(3), 0, px(1), 0x99000000);
             cap.setMaxLines(watch ? 3 : 6);
             cap.setEllipsize(TextUtils.TruncateAt.END);
             cap.setPadding(0, px(4), 0, 0);
             box.addView(cap);
         }
         return box;
+    }
+
+    /** The poster's picture for a photo or video: from the media, its chat message, or the members list. */
+    private String posterPicture(Feed.Media m) {
+        if (!m.fromAvatar.isEmpty()) return m.fromAvatar;
+        int i = m.msgId.isEmpty() ? -1 : indexOf(m.msgId);
+        if (i >= 0 && !msgs.get(i).avatarUrl.isEmpty()) return msgs.get(i).avatarUrl;
+        for (Feed.Msg x : msgs) if (x.sender.equals(m.from) && !x.avatarUrl.isEmpty()) return x.avatarUrl;
+        for (Feed.Member x : members) if (x.name.equals(m.from) && !x.avatarUrl.isEmpty()) return x.avatarUrl;
+        return "";
     }
 
     private void stopVideo() {
@@ -3574,7 +3733,7 @@ public class HomeActivity extends Activity {
                     }
                 }, "Cancel", (Runnable) this::cancelPanel});
         voicePanel.addView(e, 2, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        e.requestFocus();
+        if (!watch) e.requestFocus(); // a watch keyboard covers the whole screen: it opens when you tap the box
     }
 
     /** Shows what's about to go out, with 3 seconds to cancel, then sends it. */

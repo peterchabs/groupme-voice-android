@@ -246,4 +246,16 @@ public class FeedTest {
         c.set(2025, java.util.Calendar.MARCH, 3);
         assertEquals("Mar 3, 2025", Feed.stamp(c.getTimeInMillis() / 1000, now));
     }
+
+    @Test
+    public void eventsKnowTheirPhotoAlbumAndCreator() throws Exception {
+        JSONObject r = new JSONObject("{\"events\":[{\"event_id\":\"e1\",\"name\":\"Picnic\",\"creator_id\":\"77\","
+                + "\"start_at\":\"2026-12-01T18:00:00Z\",\"image_url\":\"https://i.groupme.com/1080x1080.jpeg.abc\","
+                + "\"album\":{\"title\":\"Picnic pics \",\"cover_image_url\":\"https://m.groupme.com/uploads/x/1.jpeg\"}}]}");
+        Feed.Event e = Feed.parseEvents(r, 0).get(0);
+        assertEquals("77", e.creatorId);
+        assertEquals("https://i.groupme.com/1080x1080.jpeg.abc", e.imageUrl);
+        assertEquals("https://m.groupme.com/uploads/x/1.jpeg", e.albumCover);
+        assertEquals("Picnic pics", e.albumTitle);
+    }
 }

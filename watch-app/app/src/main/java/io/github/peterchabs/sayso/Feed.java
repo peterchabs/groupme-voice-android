@@ -204,6 +204,8 @@ final class Feed {
     /** A group calendar event. Times are milliseconds since 1970 (0 when missing). */
     static final class Event {
         final String id, name, description, place;
+        /** Who made it, the event's own photo, and its photo album's cover and title ("" if none). */
+        String creatorId = "", imageUrl = "", albumCover = "", albumTitle = "";
         final long startMs, endMs;
         final boolean allDay;
         final int going;
@@ -270,9 +272,17 @@ final class Feed {
             String place = loc == null ? "" : str(loc, "name");
             if (place.isEmpty() && loc != null) place = str(loc, "address");
             JSONArray going = e.optJSONArray("going");
-            out.add(new Event(str(e, "event_id"), str(e, "name"), str(e, "description"), place,
+            Event ev = new Event(str(e, "event_id"), str(e, "name"), str(e, "description"), place,
                     when(str(e, "start_at")), when(str(e, "end_at")), e.optBoolean("is_all_day", false),
-                    going == null ? 0 : going.length()));
+                    going == null ? 0 : going.length());
+            ev.creatorId = str(e, "creator_id");
+            ev.imageUrl = str(e, "image_url");
+            JSONObject album = e.optJSONObject("album");
+            if (album != null) {
+                ev.albumCover = str(album, "cover_image_url");
+                ev.albumTitle = str(album, "title").trim();
+            }
+            out.add(ev);
         }
         out.sort((x, y) -> {
             boolean xu = Math.max(x.startMs, x.endMs) >= nowMs, yu = Math.max(y.startMs, y.endMs) >= nowMs;
@@ -525,6 +535,10 @@ final class Feed {
                     }
                 }
             }
+        }
+        if (!out.mentions.isEmpty()) { // photo captions read like the chat: names without "@"
+            String plain = withoutAts(text, out.mentions, new ArrayList<>());
+            for (Media x : media) x.caption = plain;
         }
         return out;
     }
