@@ -43,6 +43,8 @@ final class Feed {
         /** What GroupMe itself says you've read (in its own apps): -1 / "" when it doesn't say. */
         int unread = -1;
         String lastReadId = "";
+        /** Groups: the last message on its own, and its sender's name and picture (for the chat list). */
+        String previewText = "", previewWho = "", previewPic = "";
         /** DM only: the other person has read up to this message, at this time (seconds), or "" / 0. */
         String peerReadId = "";
         long peerReadAt;
@@ -554,6 +556,11 @@ final class Feed {
             preview = who.isEmpty() ? body : who + ": " + body;
         }
         Convo c = new Convo(str(g, "id"), str(g, "name"), str(g, "image_url"), false, at, preview);
+        if (prev != null) {
+            c.previewText = describe(str(prev, "text"), prev.optJSONArray("attachments"));
+            c.previewWho = str(prev, "nickname");
+            c.previewPic = str(prev, "image_url");
+        }
         if (msgs != null) {
             c.count = msgs.optInt("count", -1);
             c.lastMsgId = str(msgs, "last_message_id");

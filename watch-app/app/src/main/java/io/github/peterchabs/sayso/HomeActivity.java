@@ -534,7 +534,15 @@ public class HomeActivity extends Activity {
             }
             Feed.Convo c = convos.get(i);
             r.name.setText(c.name);
-            r.preview.setText(c.preview.isEmpty() ? (c.isDm ? "Direct message" : " ") : c.preview);
+            // groups: the sender's picture, then just what they said; DMs: the message as is
+            boolean pic = !c.isDm && !c.previewPic.isEmpty() && photosOn();
+            r.who.view.setVisibility(pic ? View.VISIBLE : View.GONE);
+            if (pic) {
+                r.who.set(c.previewWho, c.previewPic, true);
+                r.preview.setText(c.previewText.isEmpty() ? " " : c.previewText);
+            } else {
+                r.preview.setText(c.preview.isEmpty() ? (c.isDm ? "Direct message" : " ") : c.preview);
+            }
             r.time.setText(Feed.ago(c.lastAt, System.currentTimeMillis()));
             r.avatar.set(c.name, c.avatarUrl, c.isDm);
             int n = unreadOf(c);
@@ -554,16 +562,16 @@ public class HomeActivity extends Activity {
 
     private final class Row {
         TextView name, preview, time, badge;
-        Avatar avatar;
+        Avatar avatar, who;
 
         View build() {
             LinearLayout row = new LinearLayout(HomeActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(px(watch ? 6 : 10), px(watch ? 7 : 10), px(watch ? 6 : 10), px(watch ? 7 : 10));
+            row.setPadding(px(watch ? 6 : 10), px(watch ? 6 : 10), px(watch ? 6 : 10), px(watch ? 6 : 10));
             row.setBackground(pressable());
             liftRow(row);
-            avatar = new Avatar(watch ? 38 : 48);
+            avatar = new Avatar(watch ? 34 : 48);
             // the picture, with the unread count over its top-left corner
             FrameLayout pic = new FrameLayout(HomeActivity.this);
             pic.setClipChildren(false);
@@ -589,12 +597,22 @@ public class HomeActivity extends Activity {
             LinearLayout text = new LinearLayout(HomeActivity.this);
             text.setOrientation(LinearLayout.VERTICAL);
             text.setPadding(px(watch ? 8 : 12), 0, px(4), 0);
-            name = label("", sp(watch ? 14 : 16), INK, true);
-            name.setSingleLine(true);
+            name = label("", sp(watch ? 13.5f : 16), INK, true);
+            name.setMaxLines(2); // chat names are long: two lines rather than cut short
             name.setEllipsize(TextUtils.TruncateAt.END);
+            name.setLineSpacing(0, 0.9f);
             preview = label("", sp(watch ? 11.5f : 13.5f), GREY, false);
             preview.setSingleLine(true);
             preview.setEllipsize(TextUtils.TruncateAt.END);
+            // who sent the last message: their small picture before it, instead of their name
+            who = new Avatar(watch ? 15 : 18);
+            LinearLayout bottom = new LinearLayout(HomeActivity.this);
+            bottom.setOrientation(LinearLayout.HORIZONTAL);
+            bottom.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(who.size, who.size);
+            wl.rightMargin = px(4);
+            bottom.addView(who.view, wl);
+            bottom.addView(preview, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             // top line: the name, and the time at the top right; the preview gets the full width below
             LinearLayout top = new LinearLayout(HomeActivity.this);
             top.setOrientation(LinearLayout.HORIZONTAL);
@@ -603,8 +621,11 @@ public class HomeActivity extends Activity {
             time = label("", sp(watch ? 10.5f : 12), BLUE, true);
             time.setPadding(px(6), 0, 0, 0);
             top.addView(time, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            top.setGravity(Gravity.TOP);
             text.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            text.addView(preview);
+            LinearLayout.LayoutParams bl2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            bl2.topMargin = px(1);
+            text.addView(bottom, bl2);
             row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             row.setTag(this);
             Press.attach(row);
