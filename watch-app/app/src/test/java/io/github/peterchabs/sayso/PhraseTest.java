@@ -163,6 +163,16 @@ public class PhraseTest {
         said("Weekend Crew that was fun", "Weekend Crew", "that was fun");
     }
 
+    @Test public void theShorterOfTwoSimilarNamesIsStillReachable() {
+        // default "Yolk West Loop", sending to "Yolk"
+        said("tell Yolk we need eggs", "Yolk", "we need eggs");
+        said("we need eggs, tell Yolk", "Yolk", "we need eggs");
+        said("Yolk we need eggs", "Yolk", "we need eggs");
+        // the message itself starts with the rest of the longer name: "that" separates them
+        said("tell Yolk West Loop is out of eggs", "Yolk West Loop", "is out of eggs");
+        said("tell Yolk that West Loop is out of eggs", "Yolk", "West Loop is out of eggs");
+    }
+
     @Test public void twoGroupsNamedEquallyIsNeverAGuess() {
         assertNull(Phrase.parseNamed("tell Weekend Crew and tell Test I'm late", withTest()));
         // a clear command beats a name that's merely first
