@@ -286,6 +286,23 @@ public final class Phrase {
         return ANSWER_TAIL.matcher(s).replaceFirst("").trim();
     }
 
+    /**
+     * "Which group?" answered for a message already said. A group name ("Test", "send it to the Test group")
+     * gives that group with empty text: keep the message. Saying it all again with a group ("Tell Test I'm on
+     * my way") gives the group and the new text. Null when no group is in it, meaning these words are the
+     * message again.
+     */
+    public static Phrase whichGroupAnswer(String heard, List<Group> groups) {
+        if (heard == null || heard.trim().isEmpty()) return null;
+        Phrase p = parse(heard);
+        if (p == null) p = parseNamed(heard, groups);
+        if (p != null && match(groups, p.group).group != null) return p;
+        String name = groupAnswer(Tidy.plain(heard));
+        // a group name is a few words; a longer answer is a message, never squeezed into a name
+        if (!name.isEmpty() && name.split("\\s+").length <= 4 && match(groups, name).group != null) return new Phrase(name, "");
+        return null;
+    }
+
     private static String strip(String s, String chars) {
         int a = 0, b = s.length();
         while (a < b && chars.indexOf(s.charAt(a)) >= 0) a++;

@@ -179,6 +179,23 @@ public class PhraseTest {
         said("Yolk is slammed, tell Weekend Crew", "Weekend Crew", "Yolk is slammed");
     }
 
+    @Test public void whichGroupTakesANameOrTheWholeThingAgain() {
+        Phrase a = Phrase.whichGroupAnswer("Test", withTest());
+        assertEquals("Test", a.group);
+        assertEquals("", a.text);                                          // keep the message said before
+        a = Phrase.whichGroupAnswer("send it to the weekend crew group", withTest());
+        assertEquals("Weekend Crew", Phrase.match(withTest(), a.group).group.name);
+        assertEquals("", a.text);
+        a = Phrase.whichGroupAnswer("Tell Test I'm on my way", withTest()); // said it all again, with the group
+        assertEquals("Test", a.group);
+        assertEquals("I'm on my way", a.text);
+        a = Phrase.whichGroupAnswer("I'm on my way, tell Weekend Crew", withTest());
+        assertEquals("I'm on my way", a.text);
+        assertNull(Phrase.whichGroupAnswer("I'm on my way", withTest()));   // the message again: no group in it
+        assertNull(Phrase.whichGroupAnswer("I'll be there in ten minutes", withTest()));
+        assertNull(Phrase.whichGroupAnswer("", withTest()));
+    }
+
     @Test public void answeringWhichGroup() {
         assertEquals("Test", Phrase.groupAnswer("Test"));
         assertEquals("Test", Phrase.groupAnswer("to Test"));

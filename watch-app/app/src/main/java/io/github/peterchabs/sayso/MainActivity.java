@@ -274,8 +274,11 @@ public class MainActivity extends Activity {
             stage.live(all.isEmpty() ? null : Tidy.live(all));
             // the moment a group is recognized, the screen says where it's going, before you finish
             if (orphan != null && !all.isEmpty()) { // naming the group for the message you said
-                Phrase.Match m = Phrase.match(Store.groups(MainActivity.this), Phrase.groupAnswer(Tidy.plain(all)));
-                if (m.group != null) stage.retitle("To " + m.group.name, quote(out(orphan)));
+                Phrase a = Phrase.whichGroupAnswer(all, Store.groups(MainActivity.this));
+                Phrase.Match m = a == null ? null : Phrase.match(Store.groups(MainActivity.this), a.group);
+                if (m != null && m.group != null) {
+                    stage.retitle("To " + m.group.name, quote(out(a.text.isEmpty() ? orphan : a.text)));
+                }
                 return;
             }
             if (awaiting == null && pendingSend == null && !all.isEmpty()) {
@@ -572,14 +575,22 @@ public class MainActivity extends Activity {
         if (orphan != null) { // the group for the message you already said
             String msg = orphan;
             orphan = null;
-            Phrase.Match m = Phrase.match(Store.groups(this), Phrase.groupAnswer(heard == null ? "" : Tidy.plain(heard)));
-            if (m.group != null) {
-                confirmGroup(m.group, msg);
-            } else {
+            String said = heard == null ? "" : heard.trim();
+            Phrase a = Phrase.whichGroupAnswer(said, Store.groups(this));
+            Phrase.Match m = a == null ? null : Phrase.match(Store.groups(this), a.group);
+            if (m != null && m.group != null) {
+                String text = a.text.isEmpty() ? msg : a.text; // the group alone keeps what you said before
+                if (!tooLong(text)) confirmGroup(m.group, text);
+            } else if (said.isEmpty()) {
                 stopListeningQuietly();
-                stage.show(OrbView.Mode.ERROR, m.problem, quote(out(msg)) + "\nNothing was sent yet.",
+                stage.show(OrbView.Mode.ERROR, "Which group is it for?", quote(out(msg)) + "\nNothing was sent yet.",
                         "Try again", (Runnable) () -> askWhichGroup(msg),
                         "Chats", (Runnable) this::openChats);
+            } else if (!tooLong(said)) {
+                // no group in it: you said the message again, so that's the message now, still asking where
+                orphan = said;
+                spokenSoFar = "";
+                stage.show(OrbView.Mode.LISTEN, "Which group?", quote(out(said)), "Chats", (Runnable) this::openChats);
             }
             return;
         }
