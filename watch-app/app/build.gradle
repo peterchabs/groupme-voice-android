@@ -69,6 +69,8 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.3'   // draws the sign-in QR code
     // watch: stop the phone's copies of notifications while the watch shows its own (no doubles)
     watchImplementation 'androidx.wear:wear-phone-interactions:1.1.1'
+    // watch: the live-connection notice as an Ongoing Activity (watch-face icon, Recents), as Wear OS asks
+    watchImplementation 'androidx.wear:wear-ongoing:1.0.0'
     phoneImplementation 'androidx.core:core-google-shortcuts:1.1.0'   // offers the shortcut to Google Assistant
     implementation 'androidx.appfunctions:appfunctions:1.0.0'    // lets Gemini send through Say So (Android 16+ / Wear OS 6+)
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'

@@ -84,19 +84,8 @@ public class PushService extends Service {
         // Its own group, sorted last: a watch stacks an app's notifications, and without this the
         // stack could lead with this notice instead of the new message ("Getting your GroupMe
         // messages" in place of what was said). Kept on this device, quiet, never the headline.
-        Notification.Builder rb = new Notification.Builder(this, CH_RUNNING)
-                .setSmallIcon(R.drawable.ic_stat_sayso)
-                .setContentText("Getting your GroupMe messages")
-                .setOngoing(true)
-                .setGroup(GROUP_RUNNING)
-                .setSortKey("z")
-                .setLocalOnly(true)
-                .setShowWhen(false)
-                .setOnlyAlertOnce(true)
-                .setCategory(Notification.CATEGORY_SERVICE)
-                .setContentIntent(openChats(this, null, null, null, false));
-        if (Build.VERSION.SDK_INT >= 31) rb.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_DEFERRED);
-        Notification on = rb.build();
+        Notification on = Ongoing.running(this, CH_RUNNING, RUNNING_ID, R.drawable.ic_stat_sayso,
+                "Getting your GroupMe messages", openChats(this, null, null, null, false), GROUP_RUNNING);
         if (Build.VERSION.SDK_INT >= 34) startForeground(RUNNING_ID, on, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
         else startForeground(RUNNING_ID, on);
     }
