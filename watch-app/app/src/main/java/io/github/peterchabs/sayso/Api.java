@@ -60,6 +60,30 @@ final class Api {
                 me.isNull("image_url") ? "" : me.optString("image_url", "")};
     }
 
+    /**
+     * Which app made this sign-in, from GroupMe's list of your sign-ins: "groupme-web" for GroupMe's
+     * own sign-in, "gm-dev" for its developer site. Null if GroupMe didn't say.
+     */
+    static String tokenApp(String token) throws IOException {
+        JSONObject r = call("GET", "https://v2.groupme.com/access_tokens", token, null);
+        Object resp = r.opt("response");
+        JSONArray list = resp instanceof JSONArray ? (JSONArray) resp
+                : resp instanceof JSONObject ? ((JSONObject) resp).optJSONArray("access_tokens") : null;
+        return currentApp(list);
+    }
+
+    /** The app_id of the entry marked "current" (the sign-in that asked). */
+    static String currentApp(JSONArray list) {
+        for (int i = 0; list != null && i < list.length(); i++) {
+            JSONObject t = list.optJSONObject(i);
+            if (t != null && t.optBoolean("current", false)) {
+                String app = t.optString("app_id", "");
+                return app.isEmpty() ? null : app;
+            }
+        }
+        return null;
+    }
+
     /** The newest message someone else sent in one of your groups. */
     static final class Incoming {
         final String id, groupId, groupName, sender, text;

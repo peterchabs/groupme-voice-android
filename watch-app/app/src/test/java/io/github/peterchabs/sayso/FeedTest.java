@@ -300,4 +300,15 @@ public class FeedTest {
         assertEquals("GroupMe didn't allow that: Not an admin", Api.refusal("/conversations/1/messages/2/pin", "Not an admin"));
         assertEquals("GroupMe didn't allow that.", Api.refusal("/groups/1/messages", ""));
     }
+
+    @Test
+    public void tellsAnOldDeveloperSignInFromGroupMesOwn() throws Exception {
+        // the shape of GroupMe's list of your sign-ins (v2/access_tokens), as it came back 11/26/2026
+        org.json.JSONArray list = new org.json.JSONArray("[{\"app_id\":\"groupme-web\",\"current\":false},"
+                + "{\"app_id\":\"GroupMe-iOS\",\"current\":false},{\"app_id\":\"gm-dev\",\"current\":true}]");
+        assertEquals("gm-dev", Api.currentApp(list));
+        assertEquals("groupme-web", Api.currentApp(new org.json.JSONArray("[{\"app_id\":\"groupme-web\",\"current\":true}]")));
+        org.junit.Assert.assertNull(Api.currentApp(new org.json.JSONArray("[{\"app_id\":\"gm-dev\",\"current\":false}]")));
+        org.junit.Assert.assertNull(Api.currentApp(null));
+    }
 }

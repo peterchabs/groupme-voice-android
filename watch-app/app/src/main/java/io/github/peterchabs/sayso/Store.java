@@ -104,6 +104,12 @@ final class Store {
      * the next screen is sign-in, but keep who you were and your default group so signing back
      * in picks up where you left off.
      */
+    // Old developer-site sign-ins are signed out once (see SignInCheck); these remember that.
+    static boolean signInUpgrade(Context c) { return p(c).getBoolean("signin_upgrade", false); }
+    static void setSignInUpgrade(Context c, boolean on) { p(c).edit().putBoolean("signin_upgrade", on).apply(); }
+    static String checkedSignIn(Context c) { return p(c).getString("signin_checked", ""); }
+    static void setCheckedSignIn(Context c, String key) { p(c).edit().putString("signin_checked", key).apply(); }
+
     static void forgetSignIn(Context c) {
         p(c).edit().remove("token").remove("groups").remove("groups_at")
                 .remove("contacts").remove("contacts_at").apply();

@@ -346,7 +346,7 @@ To turn it off, go to **Settings** > **Default group** (watch: **Default**) > **
 | The watch says **"That code expired"** | Codes last 10 minutes. Tap **Get a new code** and scan again. |
 | **Open Say So** on the page downloads the app instead | The phone app isn't installed yet. Install it, then tap **Open Say So** again. |
 | **"GroupMe signed you out"** | Your sign-in stopped working (it expired, or you signed out of GroupMe everywhere). Tap **Sign in again** and do Step 2 again. If you were sending something, tap **Send it now** after signing in. |
-| **"To send direct messages, sign in again with the Say So phone app"** | Your watch was signed in the older way, which GroupMe no longer lets send direct messages. Pull down for Settings, tap **Sign out**, then do Step 2. Groups work either way. |
+| The watch says **"Say So now uses GroupMe's own sign-in"** | Your watch was signed in the older way, which GroupMe no longer lets send direct messages, so Say So signed it out. Do Step 2 once with the phone app. Your default group and settings are kept. |
 | It can't find your group | Say more of the group's name, a little slower. |
 | **"I didn't catch that"** | Tap **Try again** and speak a little closer, or tap **Type it** and type what you'd say (for example **Tell Family hi**). Typing works exactly like talking. |
 

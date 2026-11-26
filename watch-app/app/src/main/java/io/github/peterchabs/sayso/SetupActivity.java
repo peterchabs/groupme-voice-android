@@ -53,6 +53,7 @@ public class SetupActivity extends Activity {
         super.onCreate(saved);
         stage = new Stage(this);
         darkAtCreate = Palette.dark;
+        if (!Store.token(this).isEmpty()) SignInCheck.run(this);
         if (fromBrowser(getIntent())) return;
         fromHome = getIntent().getBooleanExtra(EXTRA_FROM_HOME, false);
         String open = getIntent().getStringExtra(EXTRA_OPEN);
@@ -384,8 +385,10 @@ public class SetupActivity extends Activity {
             // Phone: GroupMe's own web login inside the app; it picks up the sign-in.
             stage.showOrb();
             boolean again = Store.token(this).isEmpty() && !Store.name(this).isEmpty(); // signed out by GroupMe
-            stage.show(OrbView.Mode.IDLE, again ? "Sign in again" : "Sign in to GroupMe",
-                    (again ? "GroupMe needs you to sign in again. " : "")
+            boolean upgrade = Store.signInUpgrade(this);
+            stage.show(OrbView.Mode.IDLE, again || upgrade ? "Sign in again" : "Sign in to GroupMe",
+                    (upgrade ? "Say So now uses GroupMe's own sign-in, so direct messages work. "
+                            : again ? "GroupMe needs you to sign in again. " : "")
                             + "You'll log in on GroupMe's own sign-in page, right here in the app. Then open"
                             + " Say So on your watch and scan its code with this phone to sign the watch in."
                             + "\n\nNot affiliated with GroupMe or Microsoft.",
@@ -395,7 +398,9 @@ public class SetupActivity extends Activity {
         Bitmap code = qr(link.pageUrl());
         if (code != null) stage.showQr(code);
         stage.show(OrbView.Mode.BUSY, "Code: " + link.pretty(),
-                "Scan it with your Android phone to sign in with the Say So phone app");
+                Store.signInUpgrade(this)
+                        ? "Say So now uses GroupMe's own sign-in. Scan with your Android phone to sign in again"
+                        : "Scan it with your Android phone to sign in with the Say So phone app");
         final long started = System.currentTimeMillis();
         waitingFor = link;
         polling = waiters.submit(() -> poll(link, started));
@@ -508,6 +513,8 @@ public class SetupActivity extends Activity {
                 String name = me[1];
                 List<Phrase.Group> groups = Api.listGroups(token);
                 Store.setToken(this, token);
+                Store.setSignInUpgrade(this, false);
+                Store.setCheckedSignIn(this, "");
                 Store.setName(this, name);
                 Store.setMyId(this, me[0]);
                 Store.setAvatar(this, me[2]);

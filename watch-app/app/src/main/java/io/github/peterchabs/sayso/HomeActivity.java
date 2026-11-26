@@ -127,6 +127,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        SignInCheck.run(this);
         Palette.apply(this);
         INK = Palette.INK;
         GREY = Palette.SUB;
