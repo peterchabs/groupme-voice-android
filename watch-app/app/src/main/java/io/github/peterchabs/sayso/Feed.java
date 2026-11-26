@@ -545,6 +545,17 @@ final class Feed {
         return out;
     }
 
+    /** Saves your pinned chats, in order (the whole list: GroupMe replaces it). */
+    static void setPinnedChats(String token, List<String> ids) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("pinned_conversation_ids", new JSONArray(ids));
+        } catch (org.json.JSONException e) {
+            throw new IOException(e);
+        }
+        Api.call("PUT", "https://api.groupme.com/v4/pinned_conversations", token, body.toString());
+    }
+
     /** A chat's pinned messages, newest first. */
     static List<Msg> pinnedMessages(String token, Convo c) throws IOException {
         JSONObject r = c.isDm

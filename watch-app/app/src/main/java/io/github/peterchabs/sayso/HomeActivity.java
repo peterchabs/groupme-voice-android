@@ -352,13 +352,15 @@ public class HomeActivity extends Activity {
             if (i < 0 || i >= convos.size()) return false;
             Feed.Convo c = convos.get(i);
             v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
-            if (c.isDm) {
-                showChoices(c.name, new String[]{c.request ? "Accept request" : "Open", c.request ? "Decline" : "Cancel"},
-                        new Runnable[]{() -> { if (c.request) answerRequest(c, true); else openChat(c); },
-                                () -> { if (c.request) answerRequest(c, false); }});
+            if (c.request) {
+                showChoices(c.name, new String[]{"Accept request", "Decline"},
+                        new Runnable[]{() -> answerRequest(c, true), () -> answerRequest(c, false)});
+            } else if (c.isDm) {
+                showChoices(c.name, new String[]{c.pinned ? "Unpin" : "Pin to top", "Cancel"},
+                        new Runnable[]{() -> setPinned(c, !c.pinned), () -> { }});
             } else {
-                showChoices(c.name, new String[]{c.muted ? "Unmute" : "Mute", "Cancel"},
-                        new Runnable[]{() -> setMuted(c, !c.muted), () -> { }});
+                showChoices(c.name, new String[]{c.pinned ? "Unpin" : "Pin to top", c.muted ? "Unmute" : "Mute", "Cancel"},
+                        new Runnable[]{() -> setPinned(c, !c.pinned), () -> setMuted(c, !c.muted), () -> { }});
             }
             return true;
         });
@@ -625,6 +627,43 @@ public class HomeActivity extends Activity {
                 // just the name and picture this time
             }
         });
+    }
+
+    /**
+     * Pins a chat to the top of your list, or unpins it, in GroupMe itself: its phone and web apps
+     * show the same pins. A new pin goes last among the pinned, as GroupMe's apps do.
+     */
+    private void setPinned(Feed.Convo c, boolean on) {
+        c.pinned = on;
+        sortPinned();
+        final String token = Store.token(this);
+        final String id = conversationIdOf(c);
+        bg.execute(() -> {
+            try {
+                List<String> pins = Feed.pinnedChats(token); // the current list, pins from other apps included
+                pins.remove(id);
+                pins.remove(c.id);
+                if (on) pins.add(id);
+                Feed.setPinnedChats(token, pins);
+            } catch (IOException e) {
+                ui.post(() -> {
+                    c.pinned = !on;
+                    sortPinned();
+                    listStatus.setText("Couldn't reach GroupMe");
+                });
+            }
+        });
+    }
+
+    /** Pinned chats first (in the order they are), then the rest newest first. */
+    private void sortPinned() {
+        List<Feed.Convo> pinned = new ArrayList<>(), rest = new ArrayList<>();
+        for (Feed.Convo x : convos) (x.pinned ? pinned : rest).add(x);
+        rest.sort((x, y) -> Long.compare(y.lastAt, x.lastAt));
+        convos.clear();
+        convos.addAll(pinned);
+        convos.addAll(rest);
+        convoAdapter.notifyDataSetChanged();
     }
 
     /** Mutes or unmutes a group's notifications in GroupMe (its apps follow it too). */
@@ -1244,6 +1283,8 @@ public class HomeActivity extends Activity {
         nameRow.setGravity(Gravity.CENTER);
         nameRow.addView(chatTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         ImageView pin = new ImageView(this);
+        chatPinIcon = pin;
+        pin.setVisibility(View.GONE); // only for a chat that has pinned messages (see prepareChat)
         pin.setImageDrawable(new Icons(Icons.PIN, BLUE, 0));
         pin.setContentDescription("Pinned messages");
         int pp = px(watch ? 18 : 22);
@@ -1660,6 +1701,29 @@ public class HomeActivity extends Activity {
         }
     };
 
+    /** The pin beside a chat's name: shown only when it has pinned messages. */
+    private ImageView chatPinIcon;
+    /** Which chats have pinned messages, as last checked (so the pin doesn't blink on reopening). */
+    private final java.util.Map<String, Boolean> hasPins = new java.util.HashMap<>();
+
+    /** Shows the header pin if {@code c} has pinned messages; checks GroupMe in the background. */
+    private void checkPins(Feed.Convo c) {
+        Boolean known = hasPins.get(c.key());
+        chatPinIcon.setVisibility(Boolean.TRUE.equals(known) ? View.VISIBLE : View.GONE);
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                boolean any = !Feed.pinnedMessages(token, c).isEmpty();
+                ui.post(() -> {
+                    hasPins.put(c.key(), any);
+                    if (current == c) chatPinIcon.setVisibility(any ? View.VISIBLE : View.GONE);
+                });
+            } catch (IOException ignored) {
+                // as last known
+            }
+        });
+    }
+
     private void openChat(Feed.Convo c) {
         prepareChat(c);
         go(1, true);
@@ -1685,6 +1749,7 @@ public class HomeActivity extends Activity {
         PushService.visibleKey = c.key();
         PushService.clear(this, c.key());
         chatTitle.setText(c.name);
+        checkPins(c);
         status(c.isDm ? "Direct message" : "Group");
         chatAvatar.setImageDrawable(null);
         if (watch) chatAvatar.setVisibility(c.avatarUrl.isEmpty() || !photosOn() ? View.GONE : View.VISIBLE);
@@ -1921,8 +1986,7 @@ public class HomeActivity extends Activity {
             if (!m.replyId.isEmpty()) { // the message this answers, quoted small above it
                 int at = indexOf(m.replyId);
                 Feed.Msg orig = at >= 0 ? msgs.get(at) : null;
-                TextView q = quoteLabel(orig == null ? "Reply to an earlier message" : quoteText(orig), false);
-                q.setMaxWidth(maxW);
+                View q = quoteView(orig, maxW);
                 LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 qp.topMargin = px(3);
                 row.addView(q, qp);
@@ -2351,6 +2415,76 @@ public class HomeActivity extends Activity {
         q.setPadding(px(9), px(4), px(9), px(5));
         q.setMaxWidth((int) (W * (watch ? 0.7f : 0.68f)));
         return q;
+    }
+
+    /**
+     * The message a reply answers, quoted small above it the way GroupMe shows it: the original's
+     * picture (if it had one) on the left, who wrote it, and what they said.
+     */
+    private View quoteView(Feed.Msg orig, int maxW) {
+        if (orig == null) {
+            TextView q = quoteLabel("Reply to an earlier message", false);
+            q.setMaxWidth(maxW);
+            return q;
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(Palette.ROW);
+        g.setCornerRadius(px(10));
+        g.setStroke(Math.max(1, px(0.75f)), Palette.ROW_EDGE);
+        box.setBackground(g);
+        int textRoom = maxW - px(9 + 9);
+        Feed.Media pic = null;
+        for (Feed.Media md : orig.media) {
+            String still = md.kind == Feed.Media.VIDEO ? md.preview : (md.preview.isEmpty() ? md.url : md.preview);
+            if (still != null && !still.isEmpty()) {
+                pic = md;
+                break;
+            }
+        }
+        if (pic != null && photosOn()) {
+            int ts = px(watch ? 28 : 36);
+            ImageView th = new ImageView(this);
+            th.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            GradientDrawable r = new GradientDrawable();
+            r.setColor(Palette.AVATAR);
+            r.setCornerRadius(px(6));
+            th.setBackground(r);
+            th.setClipToOutline(true);
+            String still = pic.kind == Feed.Media.VIDEO ? pic.preview : (pic.preview.isEmpty() ? pic.url : pic.preview);
+            Images.load(th, still, ts * 2, false);
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(ts, ts);
+            tp.rightMargin = px(7);
+            box.addView(th, tp);
+            box.setPadding(px(5), px(5), px(10), px(5));
+            textRoom -= ts + px(7) - px(4);
+        } else {
+            box.setPadding(px(9), px(4), px(10), px(5));
+        }
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        String who = orig.senderId.equals(Store.myId(this)) ? "You" : orig.sender;
+        TextView name = label("\u21A9 " + who, sp(watch ? 10 : 11.5f), GREY, true);
+        name.setSingleLine(true);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        name.setMaxWidth(textRoom);
+        col.addView(name);
+        String said = Feed.withoutAts(orig.text, orig.mentions, new ArrayList<>());
+        if (said.isEmpty() && !orig.media.isEmpty()) {
+            said = orig.media.get(0).kind == Feed.Media.VIDEO ? "Video" : "Photo";
+        }
+        if (!said.isEmpty()) {
+            TextView what = label(said, sp(watch ? 10.5f : 12), GREY, false);
+            what.setSingleLine(true);
+            what.setEllipsize(TextUtils.TruncateAt.END);
+            what.setMaxWidth(textRoom);
+            what.setAlpha(0.9f);
+            col.addView(what);
+        }
+        box.addView(col);
+        return box;
     }
 
     private String quoteText(Feed.Msg m) {
@@ -2860,20 +2994,23 @@ public class HomeActivity extends Activity {
 
     private View mediaView(Feed.Media media, int maxW) {
         FrameLayout box = new FrameLayout(this);
-        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(maxW, ViewGroup.LayoutParams.WRAP_CONTENT);
+        // as wide as the picture: a tall screenshot is narrower, never boxed with empty space beside it
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         bl.topMargin = px(4);
         box.setLayoutParams(bl);
         ImageView img = new ImageView(this);
         img.setAdjustViewBounds(true);
         img.setMaxHeight((int) (H * (watch ? 0.45f : 0.4f)));
-        img.setScaleType(ImageView.ScaleType.FIT_START);
+        img.setMaxWidth(maxW);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
         img.setMinimumHeight(px(watch ? 60 : 90));
+        img.setMinimumWidth(px(watch ? 90 : 120)); // the placeholder while it loads
         GradientDrawable ph = new GradientDrawable();
         ph.setColor(Palette.PLACEHOLDER);
         ph.setCornerRadius(px(12));
         img.setBackground(ph);
         img.setClipToOutline(true);
-        box.addView(img, new FrameLayout.LayoutParams(maxW, ViewGroup.LayoutParams.WRAP_CONTENT));
+        box.addView(img, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         if (photosOn()) {
             if (media.kind == Feed.Media.VIDEO && media.preview.isEmpty()) {
                 Images.loadVideoFrame(img, media.url, maxW); // no still from GroupMe: take one from the video
