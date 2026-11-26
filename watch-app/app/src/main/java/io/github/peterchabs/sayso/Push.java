@@ -120,6 +120,19 @@ final class Push {
             for (int i = 0; i < a.length(); i++) if (!a.optString(i).isEmpty()) sg.ids.add(a.optString(i));
             return sg;
         }
+        if ("line.create".equals(type) || "direct_message.create".equals(type)) {
+            // someone pinned or unpinned a message (in any GroupMe app): GroupMe posts a system line for it
+            JSONObject s = data.optJSONObject("subject");
+            JSONObject ev = s == null ? null : s.optJSONObject("event");
+            if (ev != null && "message.pinned".equals(ev.optString("type"))) {
+                JSONObject d = ev.optJSONObject("data");
+                String chat = s.optString("group_id", "");
+                if (chat.isEmpty()) chat = s.optString("chat_id", "");
+                return new Signal("pinned", d == null ? "" : d.optString("pinned_by", ""),
+                        d == null ? "" : d.optString("message_id", ""), chat, d == null ? 0 : d.optLong("pinned_at", 0));
+            }
+            return null;
+        }
         if ("read_receipt.sync".equals(type)) { // you read a chat somewhere else: unread counts changed
             return new Signal("sync", "", "", "", 0);
         }

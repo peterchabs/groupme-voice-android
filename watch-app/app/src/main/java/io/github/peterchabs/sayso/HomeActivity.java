@@ -2200,8 +2200,14 @@ public class HomeActivity extends Activity {
                                 ui.post(() -> { if (current == c) heardTyping(sg.userId); });
                             } else if ("read".equals(sg.type) && c.isDm && sg.userId.equals(c.id)) {
                                 ui.post(() -> { if (current == c) loadMessages(false); }); // "Read" moves down
+                            } else if ("pinned".equals(sg.type) && !c.isDm && sg.chatId.equals(c.id)) {
+                                // pinned in any GroupMe app: the header pin and GroupMe's "pinned a message" line
+                                ui.post(() -> { if (current == c && !history) loadMessages(false); });
                             }
                         }
+                        // new messages may come with pin changes (an unpin sends nothing of its own)
+                        if (here || p.signals.stream().anyMatch(s -> "pinned".equals(s.type)))
+                            ui.post(() -> { if (current == c) checkPins(c); });
                         if (here) ui.post(() -> { if (current == c && !history) loadMessages(false); });
                     }
                 } catch (Api.AuthException e) {

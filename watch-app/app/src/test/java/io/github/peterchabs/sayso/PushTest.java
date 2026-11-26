@@ -87,4 +87,18 @@ public class PushTest {
         assertEquals("sync", Push.signal(new JSONObject("{\"channel\":\"/user/1\",\"data\":{\"type\":\"read_receipt.sync\","
                 + "\"subject\":{\"receipts\":[]}}}"), "1").type);
     }
+
+    @Test public void aMessagePinnedInAnotherAppArrivesLive() throws Exception {
+        // the shape GroupMe pushed when a message was pinned in Test (11/26/2026)
+        Push.Signal p = Push.signal(new JSONObject("{\"channel\":\"/user/1\",\"data\":{\"type\":\"line.create\","
+                + "\"alert\":\"Sam pinned a message.\",\"subject\":{\"group_id\":\"109842457\",\"system\":true,"
+                + "\"sender_type\":\"system\",\"text\":\"Sam pinned a message.\",\"event\":{\"type\":\"message.pinned\","
+                + "\"data\":{\"message_id\":\"179569028660723805\",\"pinned\":true,\"pinned_by\":\"7\",\"pinned_at\":1795691252}}}}}"), "1");
+        assertEquals("pinned", p.type);
+        assertEquals("109842457", p.chatId);
+        assertEquals("179569028660723805", p.messageId);
+        // an ordinary message is not a signal (it's an Event)
+        assertNull(Push.signal(new JSONObject("{\"channel\":\"/user/1\",\"data\":{\"type\":\"line.create\","
+                + "\"subject\":{\"group_id\":\"109842457\",\"text\":\"hi\",\"user_id\":\"7\"}}}"), "1"));
+    }
 }
