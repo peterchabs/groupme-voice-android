@@ -38,6 +38,7 @@ import android.widget.VideoView;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -50,7 +51,7 @@ import java.util.concurrent.Executors;
 public class HomeActivity extends Activity {
     private static final int BLUE = Palette.BLUE;
     private int INK, GREY, BG; // from Palette (light or dark), set first thing in onCreate
-    private static final int REQ_MIC = 7, REQ_NOTIF = 8;
+    private static final int REQ_MIC = 7, REQ_NOTIF = 8, REQ_FIND = 9;
     private static final long SEND_DELAY_MS = 3000;
     private static final Typeface REGULAR = Typeface.create("sans-serif", Typeface.NORMAL);
     private static final Typeface BOLD = Typeface.create("sans-serif", Typeface.BOLD);
@@ -90,6 +91,62 @@ public class HomeActivity extends Activity {
     private TextView membersStatus;
     private Button tagButton;
     private final List<Feed.Member> members = new ArrayList<>();
+
+    // ---------------- who's online (needs the browser the phone signed in with) ----------------
+
+    /** DM partner's user id to "online"/"away" (Chats list dots). */
+    private final Map<String, String> dmPresence = new java.util.concurrent.ConcurrentHashMap<>();
+    /** The open group's members: user id to "online"/"away". */
+    private final Map<String, String> memberPresence = new java.util.concurrent.ConcurrentHashMap<>();
+    /** The open DM's "Active now" / "Active 5 min ago" line, "" when unknown. */
+    private String dmActive = "";
+    private static final long PRESENCE_EVERY_MS = 3 * 60 * 1000L; // GroupMe's own apps check every 3 minutes
+
+    private final Runnable presenceTick = new Runnable() {
+        @Override
+        public void run() {
+            refreshPresence();
+            ui.postDelayed(this, PRESENCE_EVERY_MS);
+        }
+    };
+
+    /** Dots for the people you have DMs with (the newest 20), and the open DM's line. */
+    private void refreshPresence() {
+        final String token = Store.token(this), browser = Store.webAgent(this);
+        if (token.isEmpty() || browser.isEmpty()) return;
+        final List<String> ids = new ArrayList<>();
+        for (Feed.Convo c : convos) if (c.isDm && ids.size() < 20) ids.add(c.id);
+        final Feed.Convo open = current;
+        bg.execute(() -> {
+            boolean changed = false;
+            for (String id : ids) {
+                Api.Presence p = Api.presence(token, browser, id);
+                if (p == null) continue;
+                String was = dmPresence.put(id, p.status);
+                changed |= !p.status.equals(was);
+            }
+            final boolean redraw = changed;
+            ui.post(() -> { if (redraw) convoAdapter.notifyDataSetChanged(); });
+            if (open != null && open.isDm) refreshDmActive(open);
+        });
+    }
+
+    private void refreshDmActive(Feed.Convo c) {
+        final String token = Store.token(this), browser = Store.webAgent(this);
+        if (token.isEmpty() || browser.isEmpty()) return;
+        bg.execute(() -> {
+            Api.Presence p = Api.presence(token, browser, c.id);
+            if (p == null) return;
+            String line = Api.activeLine(p, System.currentTimeMillis());
+            dmPresence.put(c.id, p.status);
+            ui.post(() -> {
+                if (current != c) return;
+                dmActive = line;
+                CharSequence now = chatStatus.getText();
+                if (now.length() == 0 || "Direct message".contentEquals(now) || now.toString().startsWith("Active")) status("Direct message");
+            });
+        });
+    }
     private final java.util.LinkedHashSet<String> picked = new java.util.LinkedHashSet<>(); // user ids, in tap order
     private boolean picking;
     private MemberAdapter memberAdapter;
@@ -224,6 +281,8 @@ public class HomeActivity extends Activity {
         super.onResume();
         if (settingsOpen) fillSettings(); // back from the watch's own settings: show what changed
         PushService.banner = bannerHook; // new messages while Say So is on screen: its own banner
+        ui.removeCallbacks(presenceTick);
+        ui.postDelayed(presenceTick, 4000); // who's online, once the chats are in
         PushService.visibleKey = level >= 1 && current != null ? current.key() : null;
         if (PushService.visibleKey != null) PushService.clear(this, PushService.visibleKey);
         if (level >= 1 && current != null && (liveConvo != current || !liveOn)) startLive(); // back in a chat: live again
@@ -243,6 +302,8 @@ public class HomeActivity extends Activity {
     @Override
     protected void onPause() {
         if (PushService.banner == bannerHook) PushService.banner = null;
+        stopFinding(); // leaving: the mic lets go
+        ui.removeCallbacks(presenceTick);
         saveChatPosition();
         stopLive();
         PushService.visibleKey = null;
@@ -377,6 +438,146 @@ public class HomeActivity extends Activity {
         if (watch) curve(list);
         listWrap.addView(list, match());
         homeLayer.addView(listWrap, match());
+        buildFind();
+    }
+
+    // ---------------- find a chat by saying its name (Chats screen) ----------------
+
+    private ImageView findButton;
+    private TextView findHint;
+    private android.speech.SpeechRecognizer finder;
+
+    /** A magnifier at the bottom of Chats: tap it and say a group's or a person's name. */
+    private void buildFind() {
+        ImageView b = new ImageView(this);
+        b.setImageDrawable(new Icons(Icons.SEARCH, Color.WHITE, 0));
+        b.setBackground(domed());
+        b.getBackground().mutate().setAlpha(218);
+        b.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View v, android.graphics.Outline o) {
+                o.setOval(0, 0, v.getWidth(), v.getHeight());
+                o.setAlpha(0.9f);
+            }
+        });
+        b.setElevation(px(8));
+        b.setOutlineAmbientShadowColor(0xFF000000);
+        b.setOutlineSpotShadowColor(Palette.dark ? 0xFF000000 : 0xFF0077B6);
+        b.setPadding(px(10), px(10), px(10), px(10));
+        b.setContentDescription("Find a chat by voice");
+        b.setOnClickListener(v -> { if (finder != null) finder.stopListening(); else findByVoice(); });
+        Press.attach(b);
+        int m = px(watch ? 46 : 60);
+        FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(m, m);
+        bl.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        bl.bottomMargin = watch ? (int) (H * 0.02f) : px(20);
+        homeLayer.addView(b, bl);
+        findButton = b;
+
+        // what to do, while it listens: just above the button
+        findHint = label("", sp(watch ? 11 : 13), Color.WHITE, true);
+        findHint.setGravity(Gravity.CENTER);
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(0xE6000000 | (BLUE & 0x00FFFFFF));
+        g.setCornerRadius(px(14));
+        findHint.setBackground(g);
+        findHint.setPadding(px(12), px(5), px(12), px(6));
+        findHint.setVisibility(View.GONE);
+        FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hl.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        hl.bottomMargin = bl.bottomMargin + m + px(6);
+        homeLayer.addView(findHint, hl);
+    }
+
+    private void findByVoice() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_FIND);
+            return;
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            toast("Voice isn't set up on this watch");
+            return;
+        }
+        if (convos.isEmpty()) {
+            toast("Your chats are still loading");
+            return;
+        }
+        stopFinding();
+        finder = SpeechRecognizer.createSpeechRecognizer(this);
+        finder.setRecognitionListener(new android.speech.RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle b) { }
+            @Override public void onBeginningOfSpeech() { }
+            @Override public void onRmsChanged(float v) { }
+            @Override public void onBufferReceived(byte[] b) { }
+            @Override public void onEndOfSpeech() { showFindHint("Looking..."); }
+            @Override public void onEvent(int t, Bundle b) { }
+            @Override public void onPartialResults(Bundle b) {
+                java.util.ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (r != null && !r.isEmpty() && !r.get(0).trim().isEmpty()) showFindHint(r.get(0));
+            }
+            @Override public void onError(int error) {
+                stopFinding();
+                toast(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                        ? "I didn't catch a name" : "Couldn't listen. Try again");
+            }
+            @Override public void onResults(Bundle b) {
+                java.util.ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                stopFinding();
+                if (r == null || r.isEmpty()) { toast("I didn't catch a name"); return; }
+                openSpokenChat(r.get(0));
+            }
+        });
+        Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        showFindHint("Say a chat or a name");
+        findButton.animate().scaleX(1.12f).scaleY(1.12f).setDuration(160).start();
+        finder.startListening(i);
+    }
+
+    private void showFindHint(String text) {
+        findHint.setText(text);
+        if (findHint.getVisibility() != View.VISIBLE) {
+            findHint.setVisibility(View.VISIBLE);
+            findHint.setAlpha(0f);
+            findHint.animate().alpha(1f).setDuration(160).start();
+        }
+    }
+
+    private void stopFinding() {
+        if (finder != null) {
+            finder.destroy();
+            finder = null;
+        }
+        if (findHint != null) findHint.setVisibility(View.GONE);
+        if (findButton != null) findButton.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
+    }
+
+    /** Opens the chat that was named; asks which one when two fit, says so when none does. */
+    private void openSpokenChat(String heard) {
+        Phrase said = Phrase.parse(heard); // "tell Test ..." names a chat too
+        String name = said != null && !said.group.isEmpty() ? said.group : heard;
+        List<Phrase.Group> all = new ArrayList<>();
+        for (int i = 0; i < convos.size(); i++) all.add(new Phrase.Group(String.valueOf(i), convos.get(i).name));
+        List<Phrase.Group> hits = Phrase.findChats(all, name);
+        if (hits.isEmpty()) {
+            toast("No chat called \u201C" + Phrase.chatAnswer(name) + "\u201D");
+            return;
+        }
+        if (Phrase.clearWinner(all, name) || hits.size() == 1) {
+            openChat(convos.get(Integer.parseInt(hits.get(0).id)));
+            return;
+        }
+        String[] labels = new String[hits.size() + 1];
+        Runnable[] acts = new Runnable[hits.size() + 1];
+        for (int i = 0; i < hits.size(); i++) {
+            Feed.Convo c = convos.get(Integer.parseInt(hits.get(i).id));
+            labels[i] = c.name;
+            acts[i] = () -> openChat(c);
+        }
+        labels[hits.size()] = "Cancel";
+        acts[hits.size()] = () -> { };
+        showChoices("Which chat?", labels, acts);
     }
 
     private volatile boolean avatarAsked;
@@ -855,6 +1056,7 @@ public class HomeActivity extends Activity {
             r.time.setCompoundDrawables(mark, null, null, null);
             r.time.setCompoundDrawablePadding(px(3));
             r.avatar.set(c.name, c.avatarUrl, c.isDm);
+            r.avatar.setPresence(c.isDm ? dmPresence.get(c.id) : null);
             if (!c.avatarUrl.isEmpty()) { // the picture itself: full screen; the rest of the card opens the chat
                 r.avatar.view.setOnClickListener(x -> openPicture(c.name, c.avatarUrl));
             } else {
@@ -1014,6 +1216,31 @@ public class HomeActivity extends Activity {
                 @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
             });
             if (!(Palette.dark && watch)) view.setElevation(px(1.5f));
+        }
+
+        private View dot;
+
+        /** A small dot at the picture's corner: green online, amber away; none otherwise. */
+        void setPresence(String status) {
+            boolean on = "online".equals(status), away = "away".equals(status);
+            if (!on && !away) {
+                if (dot != null) dot.setVisibility(View.GONE);
+                return;
+            }
+            if (dot == null) {
+                dot = new View(HomeActivity.this);
+                int d = Math.max(px(7), (int) (size * 0.3f));
+                FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(d, d, Gravity.BOTTOM | Gravity.END);
+                view.addView(dot, dl);
+                dot.setElevation(px(2)); // above the picture
+            }
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor(on ? 0xFF2FC973 : 0xFFF2B33D);
+            g.setStroke(Math.max(1, px(1.5f)), Palette.dark ? 0xFF14171C : Color.WHITE); // a ring, so it reads on any picture
+            dot.setBackground(g);
+            dot.setContentDescription(on ? "Online" : "Away");
+            dot.setVisibility(View.VISIBLE);
         }
 
         void set(String name, String url, boolean person) {
@@ -1812,7 +2039,9 @@ public class HomeActivity extends Activity {
         chatTitle.setText(c.name);
         checkPins(c);
         checkCanPin(c);
+        if (!same) dmActive = "";
         status(c.isDm ? "Direct message" : "Group");
+        if (c.isDm) refreshDmActive(c);
         chatAvatar.setImageDrawable(null);
         if (watch) chatAvatar.setVisibility(c.avatarUrl.isEmpty() || !photosOn() ? View.GONE : View.VISIBLE);
         if (photosOn()) Images.load(chatAvatar, Feed.sized(c.avatarUrl, "avatar"), px(watch ? 22 : 36), true);
@@ -1836,6 +2065,10 @@ public class HomeActivity extends Activity {
      */
     private void status(String text) {
         boolean plain = text.equals("Group") || text.equals("Direct message");
+        if (text.equals("Direct message") && !dmActive.isEmpty()) { // the person: "Active 5 min ago"
+            text = dmActive;
+            plain = false;
+        }
         chatStatus.setText(text);
         if (watch) chatStatus.setVisibility(plain ? View.GONE : View.VISIBLE);
     }
@@ -3435,6 +3668,13 @@ public class HomeActivity extends Activity {
                     memberAdapter.notifyDataSetChanged();
                     membersStatus.setText(hint());
                 });
+                Map<String, String> who = Api.groupPresence(token, Store.webAgent(this), c.id);
+                if (who != null) ui.post(() -> {
+                    if (current == null || !current.id.equals(c.id)) return;
+                    memberPresence.clear();
+                    memberPresence.putAll(who);
+                    memberAdapter.notifyDataSetChanged();
+                });
             } catch (Api.AuthException e) {
                 ui.post(this::signedOut);
             } catch (IOException e) {
@@ -3567,6 +3807,7 @@ public class HomeActivity extends Activity {
             r.section.setVisibility(first ? View.VISIBLE : View.GONE);
             if (first) r.section.setText(sectionTitle(rk));
             r.avatar.set(m.name, m.avatarUrl, true);
+            r.avatar.setPresence(memberPresence.get(m.userId));
             boolean on = picked.contains(m.userId);
             r.check.setVisibility(picking && !me ? View.VISIBLE : View.GONE);
             ((GradientDrawable) r.check.getBackground()).setColor(on ? BLUE : Color.TRANSPARENT);
@@ -5325,6 +5566,11 @@ public class HomeActivity extends Activity {
             Store.setPushOn(this, yes);
             PushService.sync(this);
             fillSettings();
+            return;
+        }
+        if (req == REQ_FIND) {
+            if (res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED) findByVoice();
+            else toast("The microphone is off");
             return;
         }
         if (req != REQ_MIC) return;

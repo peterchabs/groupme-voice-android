@@ -372,6 +372,85 @@ public final class Phrase {
         return new Match(hits.get(0), null);
     }
 
+    // ---------------- finding a chat by voice (Chats screen) ----------------
+
+    private static final Pattern FIND_LEAD = Pattern.compile(
+            "^(?:(?:please|can you|could you)\\s+)?(?:open(?:\\s+up)?|go\\s+to|find|show(?:\\s+me)?|search(?:\\s+for)?|look\\s+up"
+                    + "|chat\\s+with|message|text|talk\\s+to|switch\\s+to|take\\s+me\\s+to)\\s+(?:my\\s+|the\\s+)?", CI);
+    private static final Pattern FIND_TAIL = Pattern.compile(
+            "(?:\\s+(?:group|chat|conversation|dm|messages?))?(?:\\s+on groupme)?(?:\\s+please)?[\\s.!?]*$", CI);
+
+    /** "Open the Test group", "find Old Man River", "Test chat" all give the name alone. */
+    public static String chatAnswer(String heard) {
+        if (heard == null) return "";
+        String s = PREFIX.matcher(Tidy.plain(heard)).replaceFirst("").trim();
+        s = FIND_LEAD.matcher(s).replaceFirst("");
+        return FIND_TAIL.matcher(s).replaceFirst("").trim();
+    }
+
+    /**
+     * Chats whose names fit what was said, best first (at most four). Whole names beat parts of
+     * names, parts beat sound-alikes. Nothing that only faintly resembles it.
+     */
+    public static List<Group> findChats(List<Group> chats, String spoken) {
+        String key = norm(chatAnswer(spoken));
+        List<Group> out = new ArrayList<>();
+        if (key.isEmpty()) return out;
+        String[] words = key.split(" ");
+        List<double[]> scored = new ArrayList<>(); // {score, index}
+        for (int i = 0; i < chats.size(); i++) {
+            String n = norm(chats.get(i).name);
+            if (n.isEmpty()) continue;
+            double sc = 0;
+            if (n.equals(key)) sc = 1.0;
+            else if ((" " + n + " ").contains(" " + key + " ")) sc = 0.9;
+            else if (n.contains(key) && key.length() >= 3) sc = 0.8;
+            else if (allPrefixes(words, n.split(" "))) sc = 0.75;
+            else {
+                double sim = Math.max(similarity(key, n), bestWindow(key, n));
+                if (sim >= 0.6) sc = sim * 0.85;
+            }
+            if (sc > 0) scored.add(new double[]{sc, i});
+        }
+        scored.sort((a, b) -> Double.compare(b[0], a[0]));
+        for (double[] d : scored) {
+            if (out.size() == 4) break;
+            out.add(chats.get((int) d[1]));
+        }
+        return out;
+    }
+
+    /** True when the best fit is clear enough to open it without asking. */
+    public static boolean clearWinner(List<Group> chats, String spoken) {
+        List<Group> hits = findChats(chats, spoken);
+        if (hits.isEmpty()) return false;
+        if (hits.size() == 1) return true;
+        String key = norm(chatAnswer(spoken));
+        boolean exact = norm(hits.get(0).name).equals(key);
+        return exact && !norm(hits.get(1).name).equals(key); // two chats with that exact name: ask
+    }
+
+    /** Every spoken word starts some word of the name ("old riv" fits "Old Man River"). */
+    private static boolean allPrefixes(String[] said, String[] name) {
+        for (String w : said) {
+            boolean hit = false;
+            for (String n : name) if (n.startsWith(w)) { hit = true; break; }
+            if (!hit) return false;
+        }
+        return said.length > 0;
+    }
+
+    /** How well what was said fits the closest run of the name's words of the same length. */
+    private static double bestWindow(String key, String name) {
+        String[] n = name.split(" ");
+        int k = key.split(" ").length;
+        double best = 0;
+        for (int i = 0; i + k <= n.length; i++) {
+            best = Math.max(best, similarity(key, String.join(" ", java.util.Arrays.copyOfRange(n, i, i + k))));
+        }
+        return best;
+    }
+
     /** 1.0 = identical, 0.0 = nothing alike (edit-distance based). */
     static double similarity(String a, String b) {
         int n = a.length(), m = b.length();

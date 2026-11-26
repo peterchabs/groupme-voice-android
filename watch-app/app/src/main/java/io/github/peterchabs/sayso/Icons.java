@@ -10,7 +10,7 @@ import android.graphics.drawable.Drawable;
 
 /** Small icons drawn as shapes, so the app never depends on emoji fonts. */
 final class Icons extends Drawable {
-    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4, DOWN = 5, PIN = 6, MUTED = 7;
+    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4, DOWN = 5, PIN = 6, MUTED = 7, SEARCH = 8;
 
     private final int kind;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -62,6 +62,17 @@ final class Icons extends Drawable {
                 p.setStrokeCap(Paint.Cap.ROUND);
                 c.drawArc(new RectF(cx - 2.4f * u, cy - 2.2f * u, cx + 2.4f * u, cy + 2.2f * u), 0, 180, false, p);
                 c.drawLine(cx, cy + 2.2f * u, cx, cy + 3.4f * u, p);
+                break;
+            }
+            case SEARCH: { // a magnifying glass: a ring and a short handle
+                float u = s * 0.085f;
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.1f * u);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                float rx = cx - 0.7f * u, ry = cy - 0.7f * u, r = 2.6f * u;
+                c.drawCircle(rx, ry, r, p);
+                float d = r * 0.7071f;
+                c.drawLine(rx + d + 0.3f * u, ry + d + 0.3f * u, cx + 3.6f * u, cy + 3.6f * u, p);
                 break;
             }
             case PIN: { // a pushpin: a round head, a short body, a needle

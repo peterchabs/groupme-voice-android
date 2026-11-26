@@ -45,6 +45,15 @@ public final class Link {
 
     /** Returns the token, or null if this payload isn't a valid, recent one for this code. */
     public String open(String payload, long nowMs) {
+        String[] t = openSignIn(payload, nowMs);
+        return t == null ? null : t[0];
+    }
+
+    /**
+     * {token, browser} from a payload, or null. "v2" also carries the User-Agent of the browser that
+     * signed in to GroupMe on the phone ("" from a "v1" payload, which has only the token).
+     */
+    public String[] openSignIn(String payload, long nowMs) {
         try {
             byte[] all = Base64.getDecoder().decode(payload.trim());
             if (all.length < 12 + 16 + 1) return null;
@@ -52,12 +61,14 @@ public final class Link {
             c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(sha256("gmv-key:" + code), "AES"),
                     new GCMParameterSpec(128, all, 0, 12));
             String plain = new String(c.doFinal(all, 12, all.length - 12), StandardCharsets.UTF_8);
-            String[] p = plain.split("\n", 3);           // "v1" \n timestamp-ms \n token
-            if (p.length != 3 || !"v1".equals(p[0])) return null;
+            String[] p = plain.split("\n", 4);           // version \n timestamp-ms \n token [\n browser]
+            boolean v2 = "v2".equals(p[0]);
+            if (v2 ? p.length != 4 : (p.length != 3 || !"v1".equals(p[0]))) return null;
             long ts = Long.parseLong(p[1].trim());
             if (Math.abs(nowMs - ts) > MAX_AGE_MS) return null;
             String token = p[2].replaceAll("\\s+", "");
-            return token.isEmpty() ? null : token;
+            if (token.isEmpty()) return null;
+            return new String[]{token, v2 ? p[3].trim() : ""};
         } catch (GeneralSecurityException | IllegalArgumentException e) {
             return null; // wrong code, tampered, or not ours: ignore
         }
@@ -68,13 +79,25 @@ public final class Link {
      * Same format as the sign-in page: base64(iv + AES-GCM("v1\n" + ms + "\n" + token)).
      */
     public String seal(String token, long nowMs) {
+        return sealText("v1\n" + nowMs + "\n" + token);
+    }
+
+    /**
+     * The token with the User-Agent of the browser that signed in to GroupMe ("v2"). Older watches
+     * ignore this one, so the phone sends a plain {@link #seal} as well.
+     */
+    public String sealWithBrowser(String token, String browser, long nowMs) {
+        return sealText("v2\n" + nowMs + "\n" + token + "\n" + browser.replace('\n', ' '));
+    }
+
+    private String sealText(String plain) {
         try {
             byte[] iv = new byte[12];
             new SecureRandom().nextBytes(iv);
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(sha256("gmv-key:" + code), "AES"),
                     new GCMParameterSpec(128, iv));
-            byte[] ct = c.doFinal(("v1\n" + nowMs + "\n" + token).getBytes(StandardCharsets.UTF_8));
+            byte[] ct = c.doFinal(plain.getBytes(StandardCharsets.UTF_8));
             byte[] all = new byte[iv.length + ct.length];
             System.arraycopy(iv, 0, all, 0, iv.length);
             System.arraycopy(ct, 0, all, iv.length, ct.length);

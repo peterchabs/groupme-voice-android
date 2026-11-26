@@ -111,9 +111,16 @@ final class Store {
     static void setCheckedSignIn(Context c, String key) { p(c).edit().putString("signin_checked", key).apply(); }
 
     static void forgetSignIn(Context c) {
-        p(c).edit().remove("token").remove("groups").remove("groups_at")
+        p(c).edit().remove("token").remove("web_agent").remove("groups").remove("groups_at")
                 .remove("contacts").remove("contacts_at").apply();
     }
+
+    /**
+     * The User-Agent of the browser the phone signed in to GroupMe with ("" when it wasn't sent:
+     * an older phone app). GroupMe answers who's online only for a browser.
+     */
+    static String webAgent(Context c) { return p(c).getString("web_agent", ""); }
+    static void setWebAgent(Context c, String agent) { p(c).edit().putString("web_agent", agent == null ? "" : agent).apply(); }
 
     /** People you have direct messages with (id = their user id). */
     static List<Phrase.Group> contacts(Context c) { return read(c, "contacts"); }

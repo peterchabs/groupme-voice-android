@@ -14,6 +14,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Minimal GroupMe v3 client. Runs on a background thread only. */
@@ -346,6 +347,83 @@ final class Api {
             call("POST", path, token, new JSONObject().put("message", msg).toString());
         } catch (JSONException e) {
             throw new IOException(e);
+        }
+    }
+
+    // ---------------- who's online (GroupMe presence) ----------------
+
+    /** One person's presence: "online", "away" or "offline", and when they were last active (ms, 0 unknown). */
+    static final class Presence {
+        final String status;
+        final long lastActiveMs;
+
+        Presence(String status, long lastActiveMs) {
+            this.status = status;
+            this.lastActiveMs = lastActiveMs;
+        }
+    }
+
+    /**
+     * GroupMe answers presence only for a browser, so it goes with the User-Agent of the browser the
+     * phone signed in with. Null when that's missing or GroupMe says no: then nothing is shown. A
+     * refusal here never signs anyone out (it isn't about the sign-in).
+     */
+    static Presence presence(String token, String browser, String userId) {
+        JSONObject o = presenceGet(token, browser, "presence/users/" + userId);
+        return o == null ? null : parsePresence(o);
+    }
+
+    /** Group members who are online or away (user id to "online"/"away"); null when unavailable. */
+    static Map<String, String> groupPresence(String token, String browser, String groupId) {
+        JSONObject o = presenceGet(token, browser, "presence/groups/" + groupId + "/members");
+        return o == null ? null : parseGroupPresence(o);
+    }
+
+    static Presence parsePresence(JSONObject o) {
+        return new Presence(o.optString("status", "offline"), o.optLong("last_active", 0));
+    }
+
+    static Map<String, String> parseGroupPresence(JSONObject o) {
+        Map<String, String> out = new java.util.HashMap<>();
+        for (String kind : new String[]{"away", "online"}) { // online wins if someone is in both
+            JSONArray a = o.optJSONArray(kind);
+            for (int i = 0; a != null && i < a.length(); i++) {
+                JSONObject u = a.optJSONObject(i);
+                String id = u == null ? "" : u.optString("user_id", "");
+                if (!id.isEmpty()) out.put(id, kind);
+            }
+        }
+        return out;
+    }
+
+    /** "Active now", "Active 5 min ago", "Active 2 hr ago"; "" when it's been longer than GroupMe shows (6 hours). */
+    static String activeLine(Presence p, long nowMs) {
+        if (p == null) return "";
+        if ("online".equals(p.status)) return "Active now";
+        if (p.lastActiveMs <= 0) return "";
+        long min = (nowMs - p.lastActiveMs) / 60000;
+        if (min < 0 || min > 360) return "";
+        if (min < 1) return "Active just now";
+        if (min < 60) return "Active " + min + " min ago";
+        return "Active " + (min / 60) + " hr ago";
+    }
+
+    private static JSONObject presenceGet(String token, String browser, String path) {
+        if (token == null || token.isEmpty() || browser == null || browser.isEmpty()) return null;
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL("https://api.groupme.com/v1/" + path).openConnection();
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(15000);
+            c.setRequestProperty("X-Access-Token", token);
+            c.setRequestProperty("User-Agent", browser);
+            c.setRequestProperty("Accept", "application/json");
+            if (c.getResponseCode() != 200) return null;
+            return new JSONObject(read(c.getInputStream()));
+        } catch (IOException | JSONException | RuntimeException e) {
+            return null;
+        } finally {
+            if (c != null) c.disconnect();
         }
     }
 

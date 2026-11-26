@@ -288,10 +288,19 @@ public class SetupActivity extends Activity {
         }
         stage.showOrb();
         stage.show(OrbView.Mode.BUSY, "Sending to your watch", null);
+        // The browser GroupMe's sign-in ran in (this app's web view): GroupMe only answers some
+        // requests, like who's online, for a browser, so the watch gets its User-Agent with the token.
+        String browser = "";
+        try {
+            browser = android.webkit.WebSettings.getDefaultUserAgent(this);
+        } catch (RuntimeException ignored) { // no web view on this phone: the token alone still works
+        }
+        final String agent = browser;
         bg.execute(() -> {
             try {
                 Link link = new Link(code);
-                Api.relayPost(link.topic(), link.seal(token, System.currentTimeMillis()));
+                if (!agent.isEmpty()) Api.relayPost(link.topic(), link.sealWithBrowser(token, agent, System.currentTimeMillis()));
+                Api.relayPost(link.topic(), link.seal(token, System.currentTimeMillis())); // for older watch apps
                 ui.post(() -> {
                     watchCode = null;
                     stage.show(OrbView.Mode.DONE, "Sent to your watch",
@@ -439,16 +448,20 @@ public class SetupActivity extends Activity {
             try {
                 long left = CODE_LIFE_MS - (System.currentTimeMillis() - started);
                 List<String> msgs = Api.relayWait(link.topic(), sinceSec, Math.min(50000, Math.max(1000, left)));
-                for (int i = msgs.size() - 1; i >= 0; i--) { // newest first
-                    String token = link.open(msgs.get(i), System.currentTimeMillis());
-                    if (token != null) {
-                        ui.post(() -> {
-                            if (waitingFor != link) return;
-                            waitingFor = null;
-                            verify(token);
-                        });
-                        return;
-                    }
+                String[] best = null;
+                for (int i = msgs.size() - 1; i >= 0; i--) { // newest first; one with the browser wins
+                    String[] t = link.openSignIn(msgs.get(i), System.currentTimeMillis());
+                    if (t != null && (best == null || (best[1].isEmpty() && !t[1].isEmpty()))) best = t;
+                }
+                if (best != null) {
+                    final String token = best[0], agent = best[1];
+                    ui.post(() -> {
+                        if (waitingFor != link) return;
+                        waitingFor = null;
+                        Store.setWebAgent(this, agent);
+                        verify(token);
+                    });
+                    return;
                 }
             } catch (Api.BusyException e) {
                 pause = 15000; // the relay is limiting this address: back off, then wait again
