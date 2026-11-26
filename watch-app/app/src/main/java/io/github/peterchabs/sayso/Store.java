@@ -82,7 +82,11 @@ final class Store {
 
     static void setPendingCode(Context c, String code) { p(c).edit().putString("pending_code", code).apply(); }
 
-    static void clear(Context c) { p(c).edit().clear().apply(); }
+    /** Signs out: forgets the account and everything about it, but keeps the light or dark look. */
+    static void clear(Context c) {
+        String theme = theme(c);
+        p(c).edit().clear().putString("theme", theme).apply();
+    }
 
     /**
      * GroupMe stopped accepting the token (expired, reset, or signed out elsewhere). Forget it so

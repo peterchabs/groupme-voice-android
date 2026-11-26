@@ -52,6 +52,7 @@ public class SetupActivity extends Activity {
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         stage = new Stage(this);
+        darkAtCreate = Palette.dark;
         if (fromBrowser(getIntent())) return;
         fromHome = getIntent().getBooleanExtra(EXTRA_FROM_HOME, false);
         String open = getIntent().getStringExtra(EXTRA_OPEN);
@@ -62,10 +63,23 @@ public class SetupActivity extends Activity {
         else showAccount();
     }
 
+    /** The look this screen was built with; changing the theme while it waits behind others rebuilds it. */
+    private boolean darkAtCreate;
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
+        if (themeChanged()) return;
         fromBrowser(intent);
+    }
+
+    /** Rebuilds the screen in the current light or dark look if it changed since this screen was made. */
+    private boolean themeChanged() {
+        Palette.apply(this);
+        if (Palette.dark == darkAtCreate) return false;
+        recreate();
+        return true;
     }
 
     /** sayso://signin?p=... from the sign-in page: unlock it with our pending code. */
@@ -131,6 +145,7 @@ public class SetupActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (themeChanged()) return;
         if (onShortcuts) showShortcuts(); // back from Android's settings: show the new state
     }
 
