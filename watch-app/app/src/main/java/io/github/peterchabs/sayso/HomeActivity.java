@@ -533,7 +533,7 @@ public class HomeActivity extends Activity {
                 r = (Row) v.getTag();
             }
             Feed.Convo c = convos.get(i);
-            r.name.setText(c.name);
+            splitName(r, c.name);
             // groups: the sender's picture, then just what they said; DMs: the message as is
             boolean pic = !c.isDm && !c.previewPic.isEmpty() && photosOn();
             r.who.view.setVisibility(pic ? View.VISIBLE : View.GONE);
@@ -560,17 +560,46 @@ public class HomeActivity extends Activity {
         }
     }
 
+    /**
+     * Fits a chat name in two lines: as many whole words as fit beside the time on the first,
+     * the rest on the second, which runs the full width (cut with "..." if it's still too long).
+     */
+    private void splitName(Row r, String full) {
+        r.name.setText(full);
+        r.name2.setVisibility(View.GONE);
+        r.name.setTag(R.id.img_key, full);
+        r.name.post(() -> {
+            if (!full.equals(r.name.getTag(R.id.img_key))) return; // the row now shows another chat
+            int room = r.name.getWidth() - r.name.getPaddingLeft() - r.name.getPaddingRight();
+            if (room <= 0) return;
+            android.text.TextPaint paint = r.name.getPaint();
+            if (paint.measureText(full) <= room) return; // fits on one line
+            int n = paint.breakText(full, true, room, null);
+            int cut = full.lastIndexOf(' ', n);       // break between words when there's a space
+            if (cut <= 0) cut = n;
+            String first = full.substring(0, cut).trim(), rest = full.substring(cut).trim();
+            r.name.setText(first);
+            r.name2.setText(rest);
+            r.name2.setVisibility(rest.isEmpty() ? View.GONE : View.VISIBLE);
+        });
+    }
+
     private final class Row {
-        TextView name, preview, time, badge;
+        TextView name, name2, preview, time, badge;
         Avatar avatar, who;
 
         View build() {
+            // Two parts: the picture beside the name and time, then the last message on its own
+            // line underneath, the full width of the card.
+            LinearLayout card = new LinearLayout(HomeActivity.this);
+            card.setOrientation(LinearLayout.VERTICAL);
             LinearLayout row = new LinearLayout(HomeActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(px(watch ? 6 : 10), px(watch ? 6 : 10), px(watch ? 6 : 10), px(watch ? 6 : 10));
-            row.setBackground(pressable());
-            liftRow(row);
+            card.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            card.setPadding(px(watch ? 6 : 10), px(watch ? 6 : 10), px(watch ? 6 : 10), px(watch ? 7 : 10));
+            card.setBackground(pressable());
+            liftRow(card);
             avatar = new Avatar(watch ? 34 : 48);
             // the picture, with the unread count over its top-left corner
             FrameLayout pic = new FrameLayout(HomeActivity.this);
@@ -597,10 +626,14 @@ public class HomeActivity extends Activity {
             LinearLayout text = new LinearLayout(HomeActivity.this);
             text.setOrientation(LinearLayout.VERTICAL);
             text.setPadding(px(watch ? 8 : 12), 0, px(4), 0);
+            // The name: its first line beside the time, its second line the full width (under the time too)
             name = label("", sp(watch ? 13.5f : 16), INK, true);
-            name.setMaxLines(2); // chat names are long: two lines rather than cut short
+            name.setSingleLine(true);
             name.setEllipsize(TextUtils.TruncateAt.END);
-            name.setLineSpacing(0, 0.9f);
+            name2 = label("", sp(watch ? 13.5f : 16), INK, true);
+            name2.setSingleLine(true);
+            name2.setEllipsize(TextUtils.TruncateAt.END);
+            name2.setVisibility(View.GONE);
             preview = label("", sp(watch ? 11.5f : 13.5f), GREY, false);
             preview.setSingleLine(true);
             preview.setEllipsize(TextUtils.TruncateAt.END);
@@ -623,13 +656,17 @@ public class HomeActivity extends Activity {
             top.addView(time, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             top.setGravity(Gravity.TOP);
             text.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams n2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            n2.topMargin = -px(2);
+            text.addView(name2, n2);
             LinearLayout.LayoutParams bl2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            bl2.topMargin = px(1);
-            text.addView(bottom, bl2);
+            bl2.topMargin = px(4);
+            bl2.leftMargin = px(watch ? 4 : 6);
+            card.addView(bottom, bl2); // the last message: its own line, under the picture too
             row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            row.setTag(this);
-            Press.attach(row);
-            return row;
+            card.setTag(this);
+            Press.attach(card);
+            return card;
         }
     }
 
