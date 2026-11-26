@@ -27,6 +27,11 @@ final class Store {
 
     static void setName(Context c, String n) { p(c).edit().putString("name", n == null ? "" : n).apply(); }
 
+    /** People whose DM to you is still a request (so a notification from them can offer Accept). */
+    static java.util.Set<String> requests(Context c) { return p(c).getStringSet("dm_requests", new java.util.HashSet<>()); }
+
+    static void setRequests(Context c, java.util.Set<String> ids) { p(c).edit().putStringSet("dm_requests", new java.util.HashSet<>(ids)).apply(); }
+
     /** Where you were reading a chat: the message at the top of the screen, and how far down it sat (px). */
     static String viewId(Context c, String key) { return p(c).getString("view_id_" + key, ""); }
 

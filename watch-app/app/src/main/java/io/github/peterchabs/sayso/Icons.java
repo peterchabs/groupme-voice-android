@@ -10,7 +10,7 @@ import android.graphics.drawable.Drawable;
 
 /** Small icons drawn as shapes, so the app never depends on emoji fonts. */
 final class Icons extends Drawable {
-    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4, DOWN = 5;
+    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4, DOWN = 5, PIN = 6, MUTED = 7;
 
     private final int kind;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -62,6 +62,40 @@ final class Icons extends Drawable {
                 p.setStrokeCap(Paint.Cap.ROUND);
                 c.drawArc(new RectF(cx - 2.4f * u, cy - 2.2f * u, cx + 2.4f * u, cy + 2.2f * u), 0, 180, false, p);
                 c.drawLine(cx, cy + 2.2f * u, cx, cy + 3.4f * u, p);
+                break;
+            }
+            case PIN: { // a pushpin: a round head, a short body, a needle
+                float u = s * 0.09f;
+                p.setStyle(Paint.Style.FILL);
+                c.drawCircle(cx, cy - 2.2f * u, 2.2f * u, p);
+                path.moveTo(cx - 3.2f * u, cy + 0.6f * u);
+                path.lineTo(cx + 3.2f * u, cy + 0.6f * u);
+                path.lineTo(cx + 1.6f * u, cy - 1.2f * u);
+                path.lineTo(cx - 1.6f * u, cy - 1.2f * u);
+                path.close();
+                c.drawPath(path, p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(0.9f * u);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                c.drawLine(cx, cy + 0.6f * u, cx, cy + 4.4f * u, p);
+                break;
+            }
+            case MUTED: { // a bell with a slash through it
+                float u = s * 0.09f;
+                p.setStyle(Paint.Style.FILL);
+                path.moveTo(cx - 3.4f * u, cy + 2.2f * u);
+                path.lineTo(cx + 3.4f * u, cy + 2.2f * u);
+                path.lineTo(cx + 2.6f * u, cy + 1f * u);
+                path.lineTo(cx + 2.6f * u, cy - 1.2f * u);
+                path.cubicTo(cx + 2.6f * u, cy - 4.4f * u, cx - 2.6f * u, cy - 4.4f * u, cx - 2.6f * u, cy - 1.2f * u);
+                path.lineTo(cx - 2.6f * u, cy + 1f * u);
+                path.close();
+                c.drawPath(path, p);
+                c.drawCircle(cx, cy + 3.2f * u, 1f * u, p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(0.9f * u);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                c.drawLine(cx - 4f * u, cy - 4f * u, cx + 4f * u, cy + 4f * u, p);
                 break;
             }
             case DOWN: { // a chevron pointing down: "to the newest"

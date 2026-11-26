@@ -249,6 +249,16 @@ public class PushService extends Service {
         noUi.putBoolean("android.support.action.showsUserInterface", false); // what AndroidX writes
         ab.addExtras(noUi);
         Notification.Action act = ab.build();
+        // a DM request: Accept it right from the notification
+        Notification.Action accept = null;
+        if (dm && Store.requests(c).contains(id)) {
+            PendingIntent ai = PendingIntent.getBroadcast(c, key.hashCode() ^ 0x0acc,
+                    new Intent(c, ReplyReceiver.class).setAction(ReplyReceiver.ACTION_ACCEPT)
+                            .putExtra(EXTRA_KEY, key).putExtra(EXTRA_ID, id),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            accept = new Notification.Action.Builder(
+                    android.graphics.drawable.Icon.createWithResource(c, R.drawable.ic_stat_sayso), "Accept", ai).build();
+        }
         // A hidden "mark as read" the assistant uses after reading the chat aloud.
         PendingIntent markRead = PendingIntent.getBroadcast(c, key.hashCode() ^ 0x5a5a,
                 new Intent(c, ReplyReceiver.class).setAction(ReplyReceiver.ACTION_READ).putExtra(EXTRA_KEY, key),
@@ -288,6 +298,7 @@ public class PushService extends Service {
                 .addAction(act)
                 .setContentIntent(openChats(c, key, id, title, dm))
                 .build();
+        if (accept != null) n.actions = new Notification.Action[]{accept, act}; // Accept first, then Reply
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm != null) nm.notify(key.hashCode(), n);
     }

@@ -47,6 +47,12 @@ final class Feed {
         String previewText = "", previewWho = "", previewPic = "";
         /** Who sent the last message (a user id), so the list can tell when it was you. */
         String previewSenderId = "";
+        /** Pinned to the top of the chat list (in GroupMe's apps too), muted, or a DM request. */
+        boolean pinned, muted, request;
+        /** Group details: description, when it was made (seconds), its share link, member count. */
+        String description = "", shareUrl = "";
+        long createdAt;
+        int memberCount = -1;
         /** DM only: the other person has read up to this message, at this time (seconds), or "" / 0. */
         String peerReadId = "";
         long peerReadAt;
@@ -530,6 +536,61 @@ final class Feed {
         return a == null ? 0 : Math.min(cap, a.length());
     }
 
+    /** The chats you've pinned to the top of your list in GroupMe (its own order), as conversation ids. */
+    static List<String> pinnedChats(String token) throws IOException {
+        List<String> out = new ArrayList<>();
+        JSONObject r = Api.call("GET", "https://api.groupme.com/v4/pinned_conversations", token, null).optJSONObject("response");
+        JSONArray a = r == null ? null : r.optJSONArray("pinned_conversation_ids");
+        for (int i = 0; a != null && i < a.length(); i++) out.add(a.optString(i));
+        return out;
+    }
+
+    /** A chat's pinned messages, newest first. */
+    static List<Msg> pinnedMessages(String token, Convo c) throws IOException {
+        JSONObject r = c.isDm
+                ? Api.call("GET", "/pinned/direct_messages?other_user_id=" + enc(c.id), token, null).optJSONObject("response")
+                : Api.call("GET", "/pinned/groups/" + enc(c.id) + "/messages", token, null).optJSONObject("response");
+        JSONArray a = r == null ? null : (r.has("messages") ? r.optJSONArray("messages") : r.optJSONArray("direct_messages"));
+        List<Msg> out = new ArrayList<>();
+        for (int i = 0; a != null && i < a.length(); i++) {
+            Msg m = parseMessage(a.optJSONObject(i));
+            if (m != null) out.add(m);
+        }
+        return out;
+    }
+
+    /** Silences a group's notifications (until you unmute), or turns them back on, in GroupMe itself. */
+    static void mute(String token, String groupId, boolean on) throws IOException {
+        Api.call("POST", "https://v2.groupme.com/groups/" + enc(groupId) + "/memberships/" + (on ? "mute" : "unmute"), token, "{}");
+    }
+
+    /** Accepts a DM request (they can message you), or declines it (the chat is removed). */
+    static void answerRequest(String token, String otherUserId, boolean accept) throws IOException {
+        if (accept) Api.call("POST", "/chats/" + enc(otherUserId) + "/approve", token, "{}");
+        else Api.call("DELETE", "/chats/" + enc(otherUserId), token, null);
+    }
+
+    /** Unsends one of your messages, for everyone. Throws if GroupMe says it's too late. */
+    static void unsend(String token, String conversationId, String messageId) throws IOException {
+        Api.call("DELETE", "/conversations/" + enc(conversationId) + "/messages/" + enc(messageId), token, null);
+    }
+
+    /** A group's topics (its smaller side chats), each a chat of its own. */
+    static List<Convo> topics(String token, String groupId) throws IOException {
+        JSONArray a = Api.call("GET", "/groups/" + enc(groupId) + "/subgroups", token, null).optJSONArray("response");
+        List<Convo> out = new ArrayList<>();
+        for (int i = 0; a != null && i < a.length(); i++) {
+            Convo c = parseGroup(a.optJSONObject(i));
+            if (c != null && !c.id.isEmpty()) out.add(c);
+        }
+        return out;
+    }
+
+    /** One group's details (description, member count, share link). */
+    static Convo groupInfo(String token, String groupId) throws IOException {
+        return parseGroup(Api.call("GET", "/groups/" + enc(groupId), token, null).optJSONObject("response"));
+    }
+
     /** GroupMe's id for a DM's messages (likes, reactions): the two user ids, lower first. */
     static String dmConversationId(String myId, String otherId) {
         long a = parseLong(myId), b = parseLong(otherId);
@@ -569,6 +630,12 @@ final class Feed {
             c.lastMsgId = str(msgs, "last_message_id");
         }
         readState(c, g);
+        c.muted = !g.isNull("muted_until") && g.has("muted_until");
+        c.description = str(g, "description");
+        c.shareUrl = str(g, "share_url");
+        c.createdAt = g.optLong("created_at", 0);
+        JSONArray mem = g.optJSONArray("members");
+        c.memberCount = mem != null ? mem.length() : g.optInt("members_count", -1);
         return c;
     }
 
@@ -592,6 +659,7 @@ final class Feed {
             c.previewPic = str(last, "avatar_url");
         }
         c.count = ch.optInt("messages_count", -1);
+        c.request = ch.optBoolean("requires_approval", false); // a DM request you haven't accepted
         c.lastMsgId = last == null ? "" : str(last, "id");
         readState(c, ch);
         return c;

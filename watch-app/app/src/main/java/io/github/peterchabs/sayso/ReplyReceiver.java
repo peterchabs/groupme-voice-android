@@ -12,9 +12,32 @@ import java.io.IOException;
 public class ReplyReceiver extends BroadcastReceiver {
     /** "Mark as read" (used by the phone's assistant after reading a chat aloud): just clears it. */
     static final String ACTION_READ = "io.github.peterchabs.sayso.READ";
+    /** "Accept" on a DM request's notification: lets them message you. */
+    static final String ACTION_ACCEPT = "io.github.peterchabs.sayso.ACCEPT";
 
     @Override
     public void onReceive(Context c, Intent intent) {
+        if (ACTION_ACCEPT.equals(intent.getAction())) {
+            final String who = intent.getStringExtra(PushService.EXTRA_ID), k = intent.getStringExtra(PushService.EXTRA_KEY);
+            final String tok = Store.token(c);
+            if (who == null || tok.isEmpty()) return;
+            final PendingResult wait = goAsync();
+            final Context app = c.getApplicationContext();
+            new Thread(() -> {
+                try {
+                    Feed.answerRequest(tok, who, true);
+                    java.util.Set<String> r = new java.util.HashSet<>(Store.requests(app));
+                    r.remove(who);
+                    Store.setRequests(app, r);
+                    if (k != null) PushService.clear(app, k);
+                } catch (java.io.IOException ignored) {
+                    // still a request; Accept again later
+                } finally {
+                    wait.finish();
+                }
+            }, "sayso-accept").start();
+            return;
+        }
         if (ACTION_READ.equals(intent.getAction())) {
             String key = intent.getStringExtra(PushService.EXTRA_KEY);
             if (key != null) PushService.clear(c, key);

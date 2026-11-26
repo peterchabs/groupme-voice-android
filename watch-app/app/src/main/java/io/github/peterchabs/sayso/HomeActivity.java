@@ -343,6 +343,21 @@ public class HomeActivity extends Activity {
             int i = pos - list.getHeaderViewsCount();
             if (i >= 0 && i < convos.size()) openChat(convos.get(i));
         });
+        list.setOnItemLongClickListener((parent, v, pos, id) -> { // hold a chat: mute or unmute it
+            int i = pos - list.getHeaderViewsCount();
+            if (i < 0 || i >= convos.size()) return false;
+            Feed.Convo c = convos.get(i);
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            if (c.isDm) {
+                showChoices(c.name, new String[]{c.request ? "Accept request" : "Open", c.request ? "Decline" : "Cancel"},
+                        new Runnable[]{() -> { if (c.request) answerRequest(c, true); else openChat(c); },
+                                () -> { if (c.request) answerRequest(c, false); }});
+            } else {
+                showChoices(c.name, new String[]{c.muted ? "Unmute" : "Mute", "Cancel"},
+                        new Runnable[]{() -> setMuted(c, !c.muted), () -> { }});
+            }
+            return true;
+        });
         if (watch) curve(list);
         listWrap.addView(list, match());
         homeLayer.addView(listWrap, match());
@@ -413,6 +428,22 @@ public class HomeActivity extends Activity {
                 }
                 List<Feed.Convo> fresh = Feed.conversations(token);
                 syncReadState(token, fresh);
+                try { // your pinned chats first, in your GroupMe order
+                    List<String> pins = Feed.pinnedChats(token);
+                    java.util.Map<String, Integer> order = new java.util.HashMap<>();
+                    for (int k = 0; k < pins.size(); k++) order.put(pins.get(k), k);
+                    for (Feed.Convo c : fresh) c.pinned = order.containsKey(conversationIdOf(c)) || order.containsKey(c.id);
+                    List<Feed.Convo> pinned = new ArrayList<>(), rest = new ArrayList<>();
+                    for (Feed.Convo c : fresh) (c.pinned ? pinned : rest).add(c);
+                    pinned.sort((x, y) -> Integer.compare(
+                            order.getOrDefault(conversationIdOf(x), order.getOrDefault(x.id, 0)),
+                            order.getOrDefault(conversationIdOf(y), order.getOrDefault(y.id, 0))));
+                    fresh.clear();
+                    fresh.addAll(pinned);
+                    fresh.addAll(rest);
+                } catch (IOException ignored) {
+                    // no pins this time: newest first, as before
+                }
                 ui.post(() -> {
                     boolean first = convos.isEmpty();
                     java.util.HashMap<String, Long> had = new java.util.HashMap<>();
@@ -427,7 +458,16 @@ public class HomeActivity extends Activity {
                     }
                     convos.clear();
                     convos.addAll(fresh);
+                    java.util.Set<String> reqs = new java.util.HashSet<>(); // for Accept on their notifications
+                    for (Feed.Convo c : fresh) if (c.isDm && c.request) reqs.add(c.id);
+                    Store.setRequests(HomeActivity.this, reqs);
                     convoAdapter.notifyDataSetChanged();
+                    int pins = 0;
+                    for (Feed.Convo c : fresh) if (c.pinned) pins++;
+                    if (first && pins > 0) { // opens on your pinned chats, then glides to the newest
+                        final int to = list.getHeaderViewsCount() + pins;
+                        list.postDelayed(() -> list.smoothScrollToPositionFromTop(to, list.getPaddingTop(), 600), 700);
+                    }
                     listStatus.setText(fresh.isEmpty() ? "No chats yet" : "Pull down for settings");
                 });
             } catch (Api.AuthException e) {
@@ -443,6 +483,184 @@ public class HomeActivity extends Activity {
      * How many messages in a chat you haven't seen: since where you left off in Say So, or
      * GroupMe's own count (from its apps) if that's lower. 0 when neither knows.
      */
+    /** The open chat's pinned messages, newest first. Tap one to jump to it in the chat. */
+    private void openPinned() {
+        final Feed.Convo c = current;
+        if (c == null) return;
+        profileFrom = 1;
+        profileLayer.removeAllViews();
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        int side = watch ? (int) (W * 0.12f) : px(20);
+        col.setPadding(side, watch ? (int) (H * 0.12f) : px(32), side, watch ? (int) (H * 0.2f) : px(32));
+        TextView t = label("Pinned", sp(watch ? 15 : 20), INK, true);
+        t.setGravity(Gravity.CENTER);
+        col.addView(t);
+        TextView st = label("Loading...", sp(watch ? 10.5f : 12), GREY, false);
+        st.setGravity(Gravity.CENTER);
+        st.setPadding(0, 0, 0, px(8));
+        col.addView(st);
+        sv.addView(col);
+        profileLayer.addView(sv, match());
+        if (watch) curveScroll(sv);
+        go(3, true);
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                List<Feed.Msg> pins = Feed.pinnedMessages(token, c);
+                ui.post(() -> {
+                    st.setText(pins.isEmpty() ? "No pinned messages" : pins.size() + (pins.size() == 1 ? " message" : " messages"));
+                    for (Feed.Msg m : pins) {
+                        LinearLayout card = new LinearLayout(this);
+                        card.setOrientation(LinearLayout.VERTICAL);
+                        card.setBackground(pressable());
+                        card.setPadding(px(12), px(8), px(12), px(9));
+                        TextView who = label(m.sender + "  \u00B7  " + Feed.stamp(m.at, System.currentTimeMillis()), sp(watch ? 10 : 11.5f), BLUE, true);
+                        who.setSingleLine(true);
+                        who.setEllipsize(TextUtils.TruncateAt.END);
+                        card.addView(who);
+                        TextView body = label(m.text.isEmpty() ? (m.media.isEmpty() ? "Message" : "Photo") : m.text, sp(watch ? 12.5f : 14.5f), INK, false);
+                        body.setMaxLines(4);
+                        body.setEllipsize(TextUtils.TruncateAt.END);
+                        card.addView(body);
+                        final String id = m.id;
+                        card.setOnClickListener(v -> jumpTo(id));
+                        Press.attach(card);
+                        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                        cl.topMargin = px(5);
+                        col.addView(card, cl);
+                    }
+                });
+            } catch (IOException e) {
+                ui.post(() -> st.setText("Couldn't reach GroupMe"));
+            }
+        });
+    }
+
+    /** A DM request: who wants to message you, with Accept and Decline. */
+    private void showRequestBar(Feed.Convo c) {
+        showPanel("Message request", c.name + " wants to message you.",
+                new Object[]{"Accept", (Runnable) () -> answerRequest(c, true), "Decline", (Runnable) () -> answerRequest(c, false)});
+    }
+
+    private void hideRequestBar() {
+        hidePanel();
+    }
+
+    /** The group's details: its picture, name, description, when it started, members and its link. */
+    private void openGroupInfo() {
+        final Feed.Convo c = current;
+        if (c == null || c.isDm) return;
+        profileFrom = 2;
+        profileLayer.removeAllViews();
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        int side = watch ? (int) (W * 0.15f) : px(28);
+        col.setPadding(side, watch ? (int) (H * 0.1f) : px(40), side, watch ? (int) (H * 0.2f) : px(32));
+        Avatar pic = new Avatar(watch ? 70 : 110);
+        pic.setLive(c.name, c.avatarUrl, false);
+        if (!c.avatarUrl.isEmpty()) {
+            pic.view.setOnClickListener(v -> openPicture(c.name, c.avatarUrl));
+            Press.attach(pic.view);
+        }
+        col.addView(pic.view);
+        TextView name = label(c.name, sp(watch ? 15 : 20), INK, true);
+        name.setGravity(Gravity.CENTER);
+        name.setMaxLines(3);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        name.setPadding(0, px(8), 0, 0);
+        col.addView(name);
+        TextView facts = label("", sp(watch ? 11 : 13), GREY, false);
+        facts.setGravity(Gravity.CENTER);
+        facts.setPadding(0, px(4), 0, 0);
+        col.addView(facts);
+        TextView desc = label("", sp(watch ? 12 : 14.5f), INK, false);
+        desc.setGravity(watch ? Gravity.CENTER : Gravity.START);
+        desc.setPadding(0, px(10), 0, 0);
+        desc.setVisibility(View.GONE);
+        col.addView(desc);
+        TextView link = label("", sp(watch ? 10.5f : 12.5f), BLUE, true);
+        link.setGravity(Gravity.CENTER);
+        link.setPadding(0, px(10), 0, 0);
+        link.setVisibility(View.GONE);
+        col.addView(link);
+        addProfileButton(col, c.muted ? "Unmute" : "Mute", false, () -> {
+            setMuted(c, !c.muted);
+            openGroupInfo();
+        });
+        sv.addView(col);
+        profileLayer.addView(sv, match());
+        if (watch) curveScroll(sv);
+        go(3, true);
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                Feed.Convo g = Feed.groupInfo(token, c.id);
+                ui.post(() -> {
+                    if (g == null) return;
+                    String since = g.createdAt > 0 ? "Since " + new java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+                            .format(new java.util.Date(g.createdAt * 1000)) : "";
+                    String count = g.memberCount > 0 ? g.memberCount + (g.memberCount == 1 ? " member" : " members") : "";
+                    facts.setText(count + (count.isEmpty() || since.isEmpty() ? "" : "  \u00B7  ") + since);
+                    if (!g.description.isEmpty()) {
+                        desc.setText(g.description);
+                        desc.setVisibility(View.VISIBLE);
+                    }
+                    if (!g.shareUrl.isEmpty()) {
+                        link.setText(g.shareUrl.replace("https://", ""));
+                        link.setVisibility(View.VISIBLE);
+                    }
+                });
+            } catch (IOException ignored) {
+                // just the name and picture this time
+            }
+        });
+    }
+
+    /** Mutes or unmutes a group's notifications in GroupMe (its apps follow it too). */
+    private void setMuted(Feed.Convo c, boolean on) {
+        c.muted = on;
+        convoAdapter.notifyDataSetChanged();
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                Feed.mute(token, c.id, on);
+            } catch (IOException e) {
+                ui.post(() -> {
+                    c.muted = !on;
+                    convoAdapter.notifyDataSetChanged();
+                    listStatus.setText("Couldn't reach GroupMe");
+                });
+            }
+        });
+    }
+
+    /** Accepts or declines a DM request. */
+    private void answerRequest(Feed.Convo c, boolean accept) {
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                Feed.answerRequest(token, c.id, accept);
+                ui.post(() -> {
+                    c.request = false;
+                    if (!accept) convos.remove(c);
+                    convoAdapter.notifyDataSetChanged();
+                    if (accept && current == c) { hideRequestBar(); loadMessages(false); }
+                    if (!accept && current == c) go(0, false);
+                    refreshList();
+                });
+            } catch (IOException e) {
+                ui.post(() -> listStatus.setText("Couldn't reach GroupMe"));
+            }
+        });
+    }
+
     /** Unread, but how many isn't known: shown as a red dot without a number. */
     private static final int UNKNOWN = -2;
 
@@ -571,8 +789,20 @@ public class HomeActivity extends Activity {
             } else {
                 r.preview.setText(c.preview.isEmpty() ? (c.isDm ? "Direct message" : " ") : c.preview);
             }
-            r.time.setText(Feed.ago(c.lastAt, System.currentTimeMillis()));
+            // a pin for pinned chats, a muted bell for muted ones (drawn, not emoji), "Request" for a DM request
+            r.time.setText(c.request ? "Request" : Feed.ago(c.lastAt, System.currentTimeMillis()));
+            int is = px(watch ? 13 : 15);
+            Icons mark = c.request ? null : c.muted ? new Icons(Icons.MUTED, GREY, 0) : c.pinned ? new Icons(Icons.PIN, BLUE, 0) : null;
+            if (mark != null) mark.setBounds(0, 0, is, is);
+            r.time.setCompoundDrawables(mark, null, null, null);
+            r.time.setCompoundDrawablePadding(px(3));
             r.avatar.set(c.name, c.avatarUrl, c.isDm);
+            if (!c.avatarUrl.isEmpty()) { // the picture itself: full screen; the rest of the card opens the chat
+                r.avatar.view.setOnClickListener(x -> openPicture(c.name, c.avatarUrl));
+            } else {
+                r.avatar.view.setOnClickListener(null);
+                r.avatar.view.setClickable(false);
+            }
             int n = unreadOf(c);
             boolean dot = n == UNKNOWN; // new messages, number not known: a plain red dot
             r.badge.setVisibility(n > 0 || dot ? View.VISIBLE : View.GONE);
@@ -979,6 +1209,10 @@ public class HomeActivity extends Activity {
         head.setElevation(px(2));
         chatAvatar = new ImageView(this);
         chatAvatar.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        chatAvatar.setContentDescription("Chat picture");
+        chatAvatar.setOnClickListener(v -> { // the chat's picture, full screen, its name at the bottom
+            if (current != null) openPicture(current.name, current.avatarUrl);
+        });
         int a = px(watch ? 26 : 36);
         if (!watch) head.addView(chatAvatar, new LinearLayout.LayoutParams(a, a));
         LinearLayout titles = new LinearLayout(this);
@@ -998,9 +1232,24 @@ public class HomeActivity extends Activity {
             chatTitle.setMaxLines(2);
             chatTitle.setEllipsize(TextUtils.TruncateAt.END);
             chatTitle.setLineSpacing(0, 0.92f);
-            chatTitle.setMaxWidth((int) (W * 0.58f));
+            chatTitle.setMaxWidth((int) (W * 0.5f)); // room for the pin; long names lose their end, never their start
         }
-        titles.addView(chatTitle);
+        // the chat's name, with a pin at its right edge for the chat's pinned messages
+        LinearLayout nameRow = new LinearLayout(this);
+        nameRow.setOrientation(LinearLayout.HORIZONTAL);
+        nameRow.setGravity(Gravity.CENTER);
+        nameRow.addView(chatTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        ImageView pin = new ImageView(this);
+        pin.setImageDrawable(new Icons(Icons.PIN, BLUE, 0));
+        pin.setContentDescription("Pinned messages");
+        int pp = px(watch ? 18 : 22);
+        pin.setPadding(px(2), px(2), px(2), px(2));
+        pin.setOnClickListener(v -> openPinned());
+        Press.attach(pin);
+        LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(pp, pp);
+        pl.leftMargin = px(4);
+        nameRow.addView(pin, pl);
+        titles.addView(nameRow, new LinearLayout.LayoutParams(watch ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         // Who this message will tag: their faces side by side in one row, no names.
         tagRow = new LinearLayout(this);
         tagRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -1155,7 +1404,7 @@ public class HomeActivity extends Activity {
         draftNote.setSingleLine(true);
         draftNote.setEllipsize(TextUtils.TruncateAt.END);
         draftNote.setGravity(Gravity.END);
-        draftNote.setPadding(0, px(2), px(4), 0);
+        draftNote.setPadding(0, px(2), px(4), px(4)); // room under the line, so the "g" in Listening isn't cut
         draft.addView(draftNote);
         draft.setVisibility(View.GONE);
         draft.setPadding(0, px(4), 0, px(2));
@@ -1167,7 +1416,7 @@ public class HomeActivity extends Activity {
         // "Sam is typing…": who's writing right now, just above where your own words go
         typingLabel = label("", sp(watch ? 10.5f : 12), GREY, false);
         typingLabel.setTypeface(Typeface.create(REGULAR, Typeface.ITALIC));
-        typingLabel.setPadding(px(watch ? 6 : 8), px(4), px(6), px(2));
+        typingLabel.setPadding(px(watch ? 6 : 8), px(4), px(6), px(5));
         typingLabel.setSingleLine(true);
         typingLabel.setEllipsize(TextUtils.TruncateAt.END);
         typingLabel.setVisibility(View.GONE);
@@ -1440,6 +1689,7 @@ public class HomeActivity extends Activity {
         closeReactions();
         replying = null;
         hideVoice();
+        if (c.request) ui.postDelayed(() -> { if (current == c && c.request) showRequestBar(c); }, 500);
         if (!same || !liveOn) startLive();
         loadMessages(true);
         ui.removeCallbacks(chatPoll);
@@ -1729,6 +1979,67 @@ public class HomeActivity extends Activity {
     /** A watch pop-up's backdrop over the whole screen: the page color, mostly opaque. */
     private static int scrim() {
         return (Palette.BG & 0x00FFFFFF) | (Palette.dark ? 0xE0000000 : 0xE8000000);
+    }
+
+    // ---------------- a menu of choices (long-presses) ----------------
+
+    private FrameLayout menu;
+
+    /**
+     * A short list of choices over the whole (dimmed) screen, like the pop-ups: a title, then a
+     * card for each choice. Tap one, or tap outside or press Back to close.
+     */
+    private void showChoices(String title, String[] labels, Runnable[] actions) {
+        closeChoices();
+        menu = new FrameLayout(this);
+        menu.setBackgroundColor(scrim());
+        menu.setClickable(true);
+        menu.setOnClickListener(v -> closeChoices());
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        TextView t = label(title, sp(watch ? 12.5f : 15), GREY, true);
+        t.setGravity(Gravity.CENTER);
+        t.setMaxLines(2);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        t.setPadding(0, 0, 0, px(6));
+        col.addView(t);
+        for (int i = 0; i < labels.length; i++) {
+            final Runnable r = actions[i];
+            boolean danger = labels[i].startsWith("Unsend") || labels[i].startsWith("Decline");
+            Button b = new Button(this);
+            b.setGravity(Gravity.CENTER);
+            b.setAllCaps(false);
+            b.setText(labels[i]);
+            b.setTextSize(sp(watch ? 13 : 15));
+            b.setTypeface(BOLD);
+            b.setTextColor(i == 0 && !danger ? Color.WHITE : danger ? 0xFFFF3B30 : BLUE);
+            b.setBackground(Press.button(this, i == 0 && !danger));
+            b.setStateListAnimator(null);
+            fitButtonText(b);
+            b.setOnClickListener(v -> {
+                closeChoices();
+                r.run();
+            });
+            Press.attach(b);
+            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(watch ? 40 : 48));
+            bl.topMargin = px(5);
+            col.addView(b, bl);
+        }
+        FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(watch ? (int) (W * 0.72f) : (int) (W * 0.8f), ViewGroup.LayoutParams.WRAP_CONTENT);
+        cl.gravity = Gravity.CENTER;
+        menu.addView(col, cl);
+        root.addView(menu, match());
+        menu.setAlpha(0f);
+        menu.animate().alpha(1f).setDuration(200).start();
+    }
+
+    private boolean closeChoices() {
+        if (menu == null) return false;
+        View m = menu;
+        menu = null;
+        m.animate().alpha(0f).setDuration(160).withEndAction(() -> root.removeView(m)).start();
+        return true;
     }
 
     // ---------------- chat sounds ----------------
@@ -2055,7 +2366,7 @@ public class HomeActivity extends Activity {
             @Override public void onLongPress(MotionEvent e) {
                 if (dragging || pulling) return;
                 v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
-                startReply(m);
+                messageActions(m, v);
             }
         });
         g.setIsLongpressEnabled(true);
@@ -2079,6 +2390,48 @@ public class HomeActivity extends Activity {
                 if (action == R.id.act_reply) { startReply(m); return true; }
                 if (action == R.id.act_react) { showReactions(m, host); return true; }
                 return super.performAccessibilityAction(host, action, args);
+            }
+        });
+    }
+
+    /** Hold a message: reply to it by voice, react to it, or (yours) unsend it. */
+    private void messageActions(Feed.Msg m, View anchor) {
+        boolean mine = m.senderId.equals(Store.myId(this));
+        String what = m.text.isEmpty() ? (m.media.isEmpty() ? "Message" : "Photo") : m.text;
+        List<String> labels = new ArrayList<>();
+        List<Runnable> runs = new ArrayList<>();
+        labels.add("Reply by voice");
+        runs.add(() -> startReply(m));
+        labels.add("React");
+        runs.add(() -> showReactions(m, anchor));
+        if (mine) {
+            labels.add("Unsend");
+            runs.add(() -> unsend(m));
+        }
+        showChoices(what, labels.toArray(new String[0]), runs.toArray(new Runnable[0]));
+    }
+
+    /** Takes one of your messages back, for everyone (GroupMe allows it for a while after sending). */
+    private void unsend(Feed.Msg m) {
+        final Feed.Convo c = current;
+        if (c == null) return;
+        int at = msgs.indexOf(m);
+        if (at >= 0) { // gone at once; it comes back if GroupMe says no
+            msgs.remove(at);
+            msgAdapter.notifyDataSetChanged();
+        }
+        final String token = Store.token(this), conv = conversationIdOf(c);
+        bg.execute(() -> {
+            try {
+                Feed.unsend(token, conv, m.id);
+                ui.post(() -> status(c.isDm ? "Direct message" : "Group"));
+            } catch (Api.AuthException e) {
+                ui.post(this::signedOut);
+            } catch (IOException e) {
+                ui.post(() -> {
+                    status("Couldn't unsend that one");
+                    loadMessages(false);
+                });
             }
         });
     }
@@ -2544,6 +2897,11 @@ public class HomeActivity extends Activity {
         membersStatus = label("", sp(watch ? 10.5f : 12), GREY, false);
         membersStatus.setGravity(Gravity.CENTER);
         header.addView(membersStatus);
+        // the group's details, and its topics (side chats), above the people
+        membersTop = new LinearLayout(this);
+        membersTop.setOrientation(LinearLayout.VERTICAL);
+        membersTop.setPadding(0, px(6), 0, 0);
+        header.addView(membersTop, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         memberList.addHeaderView(header, null, false);
 
         memberAdapter = new MemberAdapter();
@@ -2596,6 +2954,45 @@ public class HomeActivity extends Activity {
         return i >= 0 && i < members.size() ? members.get(i) : null;
     }
 
+    private LinearLayout membersTop;
+
+    /** A card on the members page that leads somewhere (Group info, a topic). */
+    private void membersCard(String text, String sub, Runnable tap) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setBackground(pressable());
+        liftRow(row);
+        row.setPadding(px(14), px(8), px(14), px(9));
+        TextView t = label(text, sp(watch ? 13 : 15), INK, true);
+        t.setSingleLine(true);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(t);
+        if (!sub.isEmpty()) {
+            TextView st = label(sub, sp(watch ? 10.5f : 12), GREY, false);
+            st.setSingleLine(true);
+            st.setEllipsize(TextUtils.TruncateAt.END);
+            row.addView(st);
+        }
+        row.setOnClickListener(v -> tap.run());
+        Press.attach(row);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = px(5);
+        membersTop.addView(row, lp);
+    }
+
+    private void fillMembersTop(List<Feed.Convo> topics) {
+        membersTop.removeAllViews();
+        membersCard("Group info", "Description, members, link", this::openGroupInfo);
+        if (!topics.isEmpty()) {
+            TextView h = label("TOPICS  \u00B7  " + topics.size(), sp(watch ? 10.5f : 12), GREY, true);
+            h.setLetterSpacing(0.08f);
+            h.setGravity(watch ? Gravity.CENTER : Gravity.START);
+            h.setPadding(px(6), px(12), px(6), px(2));
+            membersTop.addView(h);
+            for (Feed.Convo t : topics) membersCard("# " + t.name, t.preview, () -> openChat(t));
+        }
+    }
+
     private void openMembers() {
         if (current == null || current.isDm) return;
         prepareMembers();
@@ -2609,14 +3006,23 @@ public class HomeActivity extends Activity {
         if (!membersFor.equals(c.id)) {
             members.clear();
             memberAdapter.notifyDataSetChanged();
+            fillMembersTop(new ArrayList<>());
         }
         membersStatus.setText(members.isEmpty() ? "Loading..." : hint());
         final String token = Store.token(this);
         bg.execute(() -> {
             try {
                 List<Feed.Member> fresh = Feed.members(token, c.id);
+                List<Feed.Convo> topics;
+                try {
+                    topics = Feed.topics(token, c.id);
+                } catch (IOException e) {
+                    topics = new ArrayList<>();
+                }
+                final List<Feed.Convo> tp = topics;
                 ui.post(() -> {
                     if (current == null || !current.id.equals(c.id)) return;
+                    fillMembersTop(tp);
                     membersFor = c.id;
                     if (members.isEmpty() && !fresh.isEmpty()) fadeList(memberList);
                     members.clear();
@@ -3471,6 +3877,10 @@ public class HomeActivity extends Activity {
         profileLayer.addView(sv, match());
     }
 
+    /** The swipeable photo row on a profile: sideways drags on it scroll it, not the page. */
+    private android.widget.HorizontalScrollView photoStrip;
+    private boolean stripTouch;
+
     /** Which profile is showing, so late answers from GroupMe land only on the right one. */
     private String profileShowing = "";
     /** Groups' member ids, fetched for "Groups you share" (phone), kept for 10 minutes. */
@@ -3563,8 +3973,9 @@ public class HomeActivity extends Activity {
         String ago = Feed.ago(atSec, now);                 // "now", "13m", "5h", "Mon", "Nov 4"
         String when = Feed.stamp(atSec, now);              // "5:34 PM", "Yesterday 5:34 PM", "Nov 4, 5:34 PM"
         boolean recent = ago.equals("now") || ago.matches("\\d+[mh]");
+        // "how long ago" goes on its own line, whole: never "1h" on one line and "ago" on the next
         last.setText("Last posted " + when.replace("Yesterday", "yesterday")
-                + (recent ? "  \u00B7  " + (ago.equals("now") ? "just now" : ago + " ago") : ""));
+                + (recent ? "\n" + (ago.equals("now") ? "just now" : ago.replace(" ", "\u00A0") + "\u00A0ago") : ""));
         if (last.getVisibility() != View.VISIBLE) {
             last.setVisibility(View.VISIBLE);
             last.setAlpha(0f);
@@ -3584,6 +3995,7 @@ public class HomeActivity extends Activity {
         t.setPadding(0, px(14), 0, px(6));
         box.addView(t);
         android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+        photoStrip = hs;
         hs.setHorizontalScrollBarEnabled(false);
         hs.setClipToPadding(false);
         LinearLayout row = new LinearLayout(this);
@@ -4024,7 +4436,9 @@ public class HomeActivity extends Activity {
         // A swipe from the watch's edge is also the system's Back: both arrive for one swipe.
         if (settling()) return;
         navAt = android.os.SystemClock.uptimeMillis();
-        if (reactCard != null) {
+        if (menu != null) {
+            closeChoices();
+        } else if (reactCard != null) {
             closeReactions();
         } else if (settingsOpen) {
             closeSettings();
@@ -4211,6 +4625,7 @@ public class HomeActivity extends Activity {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
+        if (menu != null) return super.dispatchTouchEvent(e); // a menu is up: it gets the touch
         // The emoji row is up: a touch on it picks, a touch anywhere else just closes it.
         if (reactCard != null || reactTouch) {
             if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
@@ -4262,6 +4677,9 @@ public class HomeActivity extends Activity {
                 downX = e.getRawX();
                 downY = e.getRawY();
                 pulling = closing = false;
+                android.graphics.Rect sr = new android.graphics.Rect();
+                stripTouch = level == 3 && photoStrip != null && photoStrip.isShown()
+                        && photoStrip.getGlobalVisibleRect(sr) && sr.contains((int) e.getRawX(), (int) e.getRawY());
                 if (vt != null) vt.recycle();
                 vt = VelocityTracker.obtain();
                 vt.addMovement(e);
@@ -4294,6 +4712,7 @@ public class HomeActivity extends Activity {
                     setPull(closing ? 1f + dy / H : dy / (H * 0.8f));
                     return true;
                 }
+                if (stripTouch && photoStrip.canScrollHorizontally(dx < 0 ? 1 : -1)) break; // the strip scrolls first
                 if (!dragging && Math.abs(dx) > slop * 1.5f && Math.abs(dx) > Math.abs(dy) * 1.3f
                         && !(settingsOpen && (level != 0 || Math.abs(dy) > Math.abs(dx)))) {
                     MotionEvent c = MotionEvent.obtain(e);
@@ -4481,7 +4900,7 @@ public class HomeActivity extends Activity {
         voicePanel.animate().alpha(1f).translationY(0).setDuration(240)
                 .setInterpolator(new OvershootInterpolator(1.2f)).withLayer().start();
         ui.removeCallbacks(panelTimeout);
-        if (buttons != null && !"Type it".equals(title)) ui.postDelayed(panelTimeout, 7000); // a notice, not a trap
+        if (buttons != null && !"Type it".equals(title) && !"Message request".equals(title)) ui.postDelayed(panelTimeout, 7000); // a notice, not a trap
         micButton.animate().cancel();
         micButton.animate().alpha(0f).translationX(0).translationY(0).scaleX(0.6f).scaleY(0.6f).setDuration(180).start();
     }
