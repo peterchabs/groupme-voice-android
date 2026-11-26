@@ -222,6 +222,7 @@ public class HomeActivity extends Activity {
         PushService.visibleKey = level >= 1 && current != null ? current.key() : null;
         if (PushService.visibleKey != null) PushService.clear(this, PushService.visibleKey);
         if (level >= 1 && current != null && !liveOn) startLive(); // back in a chat: live again
+        if (level == 0 && !liveOn) startListLive(); // the chat list: pins and new messages as they happen
         ui.post(ticker);
         ui.removeCallbacks(stampFlip);
         ui.postDelayed(stampFlip, 8000);
@@ -2216,6 +2217,75 @@ public class HomeActivity extends Activity {
         }, "sayso-live");
         liveThread.setDaemon(true);
         liveThread.start();
+    }
+
+    /**
+     * While the chat list is showing: a live connection to your own GroupMe channel, the way its
+     * web app keeps one. A chat pinned or unpinned in any GroupMe app moves at once, and the list
+     * refreshes the moment a message comes in or you read a chat somewhere else.
+     */
+    private void startListLive() {
+        stopLive();
+        final String token = Store.token(this), me = Store.myId(this);
+        if (token.isEmpty() || me.isEmpty()) return;
+        liveOn = true;
+        liveThread = new Thread(() -> {
+            while (liveOn && level == 0) {
+                try {
+                    Push p = new Push(token, me);
+                    p.open();
+                    livePush = p;
+                    long until = android.os.SystemClock.elapsedRealtime() + 10 * 60_000L;
+                    while (liveOn && level == 0 && android.os.SystemClock.elapsedRealtime() < until) {
+                        List<Push.Event> events = p.poll();
+                        for (Push.Signal sg : p.signals) {
+                            if ("pins".equals(sg.type)) {
+                                final List<String> ids = new ArrayList<>(sg.ids);
+                                ui.post(() -> { if (level == 0) applyPins(ids); });
+                            } else if ("sync".equals(sg.type)) {
+                                ui.post(this::refreshListSoon);
+                            }
+                        }
+                        if (!events.isEmpty()) ui.post(this::refreshListSoon);
+                    }
+                } catch (Api.AuthException e) {
+                    return;
+                } catch (IOException | RuntimeException e) {
+                    try {
+                        Thread.sleep(3000);
+                    } catch (InterruptedException ie) {
+                        return;
+                    }
+                }
+            }
+        }, "sayso-list-live");
+        liveThread.setDaemon(true);
+        liveThread.start();
+    }
+
+    /** Your pinned chats as GroupMe just sent them: pinned first in that order, the rest newest first. */
+    private void applyPins(List<String> ids) {
+        java.util.Map<String, Integer> order = new java.util.HashMap<>();
+        for (int k = 0; k < ids.size(); k++) order.put(ids.get(k), k);
+        for (Feed.Convo c : convos) c.pinned = order.containsKey(conversationIdOf(c)) || order.containsKey(c.id);
+        List<Feed.Convo> pinned = new ArrayList<>(), rest = new ArrayList<>();
+        for (Feed.Convo x : convos) (x.pinned ? pinned : rest).add(x);
+        pinned.sort((x, y) -> Integer.compare(
+                order.getOrDefault(conversationIdOf(x), order.getOrDefault(x.id, 0)),
+                order.getOrDefault(conversationIdOf(y), order.getOrDefault(y.id, 0))));
+        rest.sort((x, y) -> Long.compare(y.lastAt, x.lastAt));
+        convos.clear();
+        convos.addAll(pinned);
+        convos.addAll(rest);
+        convoAdapter.notifyDataSetChanged();
+    }
+
+    private final Runnable listRefresh = this::refreshList;
+
+    /** Refreshes the list in a moment (several events in a row make one refresh). */
+    private void refreshListSoon() {
+        ui.removeCallbacks(listRefresh);
+        ui.postDelayed(listRefresh, 800);
     }
 
     private void stopLive() {
@@ -4522,6 +4592,7 @@ public class HomeActivity extends Activity {
         if (to == 0) PushService.visibleKey = null;
         if (to == 0) {
             stopLive();
+            startListLive();
             ui.removeCallbacks(chatPoll);
             newSince = ""; // the "New messages" line is worked out again next time
             tagging.clear();

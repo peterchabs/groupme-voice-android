@@ -53,6 +53,8 @@ final class Push {
     static final class Signal {
         final String type, userId, messageId, chatId;
         final long readAt; // seconds since 1970
+        /** "pins": your pinned chats, in order, as conversation ids. */
+        final List<String> ids = new ArrayList<>();
 
         Signal(String type, String userId, String messageId, String chatId, long readAt) {
             this.type = type;
@@ -109,6 +111,17 @@ final class Push {
         if ("typing".equals(type) && (ch.startsWith("/group/") || ch.startsWith("/direct_message/"))) {
             String who = data.optString("user_id", "");
             return who.isEmpty() || who.equals(myId) ? null : new Signal("typing", who, "", ch, 0);
+        }
+        if ("user.pinned_chats".equals(type)) { // you pinned or unpinned a chat (in any GroupMe app)
+            JSONObject s = data.optJSONObject("subject");
+            JSONArray a = s == null ? null : s.optJSONArray("pinned_conversation_ids");
+            if (a == null) return null;
+            Signal sg = new Signal("pins", "", "", "", 0);
+            for (int i = 0; i < a.length(); i++) if (!a.optString(i).isEmpty()) sg.ids.add(a.optString(i));
+            return sg;
+        }
+        if ("read_receipt.sync".equals(type)) { // you read a chat somewhere else: unread counts changed
+            return new Signal("sync", "", "", "", 0);
         }
         if ("read_receipt.create".equals(type)) {
             JSONObject s = data.optJSONObject("subject");

@@ -75,4 +75,16 @@ public class PushTest {
         assertEquals("/direct_message/1_2", Push.chatChannel(true, "1+2"));
         assertEquals("/group/9", Push.chatChannel(false, "9"));
     }
+
+    @Test public void pinsChangedInAnotherAppArriveLive() throws Exception {
+        Push.Signal p = Push.signal(new JSONObject("{\"channel\":\"/user/1\",\"data\":{\"type\":\"user.pinned_chats\","
+                + "\"subject\":{\"pinned_conversation_ids\":[\"109842457\",\"1+2\"]}}}"), "1");
+        assertEquals("pins", p.type);
+        assertEquals(java.util.Arrays.asList("109842457", "1+2"), p.ids);
+        Push.Signal none = Push.signal(new JSONObject("{\"channel\":\"/user/1\",\"data\":{\"type\":\"user.pinned_chats\","
+                + "\"subject\":{\"pinned_conversation_ids\":[]}}}"), "1");
+        assertEquals(0, none.ids.size()); // everything unpinned
+        assertEquals("sync", Push.signal(new JSONObject("{\"channel\":\"/user/1\",\"data\":{\"type\":\"read_receipt.sync\","
+                + "\"subject\":{\"receipts\":[]}}}"), "1").type);
+    }
 }
