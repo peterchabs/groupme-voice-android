@@ -26,7 +26,7 @@ import java.util.Map;
 public class PushService extends Service {
     static final String CH_MESSAGES = "messages", CH_QUIET = "messages_quiet", CH_RUNNING = "running";
     static final String EXTRA_KEY = "convo_key", EXTRA_ID = "convo_id", EXTRA_NAME = "convo_name", EXTRA_DM = "convo_dm",
-            EXTRA_REPLY_TO = "reply_to";
+            EXTRA_REPLY_TO = "reply_to", EXTRA_MSG = "msg_id";
     static final String REPLY = "reply";
     private static final int RUNNING_ID = 1;
     /** Notification groups: one per chat for messages, and one for the "staying connected" notice. */
@@ -41,7 +41,8 @@ public class PushService extends Service {
      * notification is posted for it. Called on the listener thread.
      */
     interface Banner {
-        void show(String key, String convoId, boolean dm, String title, String sender, String line, android.graphics.Bitmap pic);
+        void show(String key, String convoId, boolean dm, String title, String sender, String line, android.graphics.Bitmap pic,
+                  String msgId);
     }
     static volatile Banner banner;
 
@@ -127,7 +128,7 @@ public class PushService extends Service {
         // stack could lead with this notice instead of the new message ("Getting your GroupMe
         // messages" in place of what was said). Kept on this device, quiet, never the headline.
         Notification on = Ongoing.running(this, CH_RUNNING, RUNNING_ID, R.drawable.ic_stat_connected,
-                "Connected to GroupMe. The mic is off.", openChats(this, null, null, null, false), GROUP_RUNNING);
+                "Connected to GroupMe. The mic is off.", openChats(this, null, null, null, false, null), GROUP_RUNNING);
         if (Build.VERSION.SDK_INT >= 34) startForeground(RUNNING_ID, on, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
         else startForeground(RUNNING_ID, on);
     }
@@ -217,7 +218,7 @@ public class PushService extends Service {
             lines = new ArrayList<>(lines);
         }
         Banner b = banner;
-        if (b != null) b.show(key, e.convoId, e.dm, title, e.sender, line, pic); // Say So is open: its own drawer only
+        if (b != null) b.show(key, e.convoId, e.dm, title, e.sender, line, pic, e.msgId); // Say So is open: its own drawer only
         else notify(this, key, e.convoId, title, e.dm, lines);
     }
 
@@ -334,7 +335,7 @@ public class PushService extends Service {
                 .setAutoCancel(true)
                 .setColor(Palette.BLUE)
                 .addAction(act)
-                .setContentIntent(openChats(c, key, id, title, dm))
+                .setContentIntent(openChats(c, key, id, title, dm, replyTo))
                 .build();
         if (accept != null) n.actions = new Notification.Action[]{accept, act}; // Accept first, then Reply
         NotificationManager nm = c.getSystemService(NotificationManager.class);
@@ -376,15 +377,16 @@ public class PushService extends Service {
         notify(c, key, id, title, dm, lines);
     }
 
-    /** The Chats screen, opened on one chat when key isn't null. */
-    static Intent chatIntent(Context c, String key, String id, String name, boolean dm) {
+    /** The Chats screen, opened on one chat (at message msgId, when known) when key isn't null. */
+    static Intent chatIntent(Context c, String key, String id, String name, boolean dm, String msgId) {
         Intent i = new Intent(c, HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        if (key != null) i.putExtra(EXTRA_KEY, key).putExtra(EXTRA_ID, id).putExtra(EXTRA_NAME, name).putExtra(EXTRA_DM, dm);
+        if (key != null) i.putExtra(EXTRA_KEY, key).putExtra(EXTRA_ID, id).putExtra(EXTRA_NAME, name).putExtra(EXTRA_DM, dm)
+                .putExtra(EXTRA_MSG, msgId == null ? "" : msgId);
         return i;
     }
 
-    private static PendingIntent openChats(Context c, String key, String id, String name, boolean dm) {
-        Intent i = chatIntent(c, key, id, name, dm);
+    private static PendingIntent openChats(Context c, String key, String id, String name, boolean dm, String msgId) {
+        Intent i = chatIntent(c, key, id, name, dm, msgId);
         return PendingIntent.getActivity(c, key == null ? 0 : key.hashCode(), i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }

@@ -93,11 +93,11 @@ public class MainActivity extends Activity {
 
     /** New messages while this screen is up: the watch would only flash a small icon, so show them here. */
     private InAppBanner banner;
-    private final PushService.Banner bannerHook = (key, convoId, dm, title, sender, line, pic) -> ui.post(() -> {
+    private final PushService.Banner bannerHook = (key, convoId, dm, title, sender, line, pic, msgId) -> ui.post(() -> {
         if (banner == null) banner = new InAppBanner(this, (android.view.ViewGroup) getWindow().getDecorView());
         banner.show(title, sender, line, dm, pic, () -> {
             cancelPending();
-            startActivity(PushService.chatIntent(this, key, convoId, title, dm));
+            startActivity(PushService.chatIntent(this, key, convoId, title, dm, msgId));
         });
     });
 

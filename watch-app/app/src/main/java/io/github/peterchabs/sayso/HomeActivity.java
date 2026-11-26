@@ -186,6 +186,7 @@ public class HomeActivity extends Activity {
         if (intent != null && intent.hasExtra(PushService.EXTRA_KEY)) { // from a message notification
             String id = intent.getStringExtra(PushService.EXTRA_ID), name = intent.getStringExtra(PushService.EXTRA_NAME);
             boolean dm = intent.getBooleanExtra(PushService.EXTRA_DM, false);
+            String msg = intent.getStringExtra(PushService.EXTRA_MSG);
             intent.removeExtra(PushService.EXTRA_KEY);
             if (id != null) {
                 if (settingsOpen) closeSettings();
@@ -193,6 +194,7 @@ public class HomeActivity extends Activity {
                 for (Feed.Convo c : convos) if (c.isDm == dm && c.id.equals(id)) pic = c.avatarUrl;
                 instant = level == 0;
                 fromNotification = true;
+                openAtMsg = msg == null || msg.isEmpty() ? "" : msg;
                 openChat(new Feed.Convo(id, name == null ? "" : name, pic, dm, 0, ""));
                 fromNotification = false;
             }
@@ -770,6 +772,11 @@ public class HomeActivity extends Activity {
     /** The chat being opened came from tapping a notification: open at the newest, not where you were. */
     private boolean fromNotification;
 
+    /** Set before openChat: open the chat on this message (the one a notification or banner was about). */
+    private String openAtMsg;
+    /** Show this message when the chat's messages arrive. Once per opening. */
+    private String jumpToMsg;
+
     /** In the open chat: the "New messages" line goes above the first message newer than this. */
     private String newSince = "";
     /** Open the chat at that line (the first new message), not at the newest. Once per opening. */
@@ -1346,7 +1353,8 @@ public class HomeActivity extends Activity {
         if (watch) head.addView(titles, new LinearLayout.LayoutParams((int) (W * 0.58f), ViewGroup.LayoutParams.WRAP_CONTENT));
         else head.addView(titles);
         head.setElevation(0);
-        head.setBackground(new LayerDrawableCompat(BG, new TaperLine(Palette.dark ? 0x5500AFF0 : 0x4000AFF0, px(2.2f))));
+        // see-through: messages scroll faintly behind the name (the list runs under it, see clipToPadding)
+        head.setBackground(new LayerDrawableCompat((BG & 0x00FFFFFF) | 0xC7000000, new TaperLine(Palette.dark ? 0x5500AFF0 : 0x4000AFF0, px(2.2f))));
         FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hl.gravity = Gravity.TOP;
         chatLayer.addView(head, hl);
@@ -1793,6 +1801,11 @@ public class HomeActivity extends Activity {
             jumpToNew = !newSince.isEmpty();
             restoreView = !fromNotification;
         }
+        if (openAtMsg != null) { // tapped a notification or banner: straight to that message
+            jumpToMsg = openAtMsg;
+            openAtMsg = null;
+            restoreView = false;
+        }
         current = c;
         PushService.visibleKey = c.key();
         PushService.clear(this, c.key());
@@ -1873,6 +1886,15 @@ public class HomeActivity extends Activity {
                         // Opening the chat: back where you were reading; failing that, the first new
                         // message; failing that, the newest.
                         int jump = -1, jumpY = chatList.getPaddingTop();
+                        boolean toEnd = false;
+                        if (jumpToMsg != null && !fresh.isEmpty()) {
+                            int at = indexOf(jumpToMsg);
+                            if (at >= 0 && at < msgs.size() - 1) jump = at; // an older one: show it near the top
+                            else toEnd = true; // the newest (or not in the list): all the way down, above the mic
+                            jumpToMsg = null;
+                            jumpToNew = false;
+                            restoreView = false;
+                        }
                         if (restoreView) {
                             restoreView = false;
                             int at = indexOf(Store.viewId(HomeActivity.this, c.key()));
@@ -1891,7 +1913,7 @@ public class HomeActivity extends Activity {
                                 chatList.setSelectionFromTop(to, y);
                                 chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
                             });
-                        } else if (atEnd || mineArrived || first) {
+                        } else if (atEnd || mineArrived || first || toEnd) {
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
                             msgAdapter.notifyDataSetChanged();
                             chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
@@ -2102,14 +2124,14 @@ public class HomeActivity extends Activity {
     }
 
     /** New messages while Say So is open, from the notification service (its listener thread). */
-    private final PushService.Banner bannerHook = (key, convoId, dm, title, sender, line, pic) ->
-            ui.post(() -> showBanner(key, convoId, dm, title, sender, line, pic));
+    private final PushService.Banner bannerHook = (key, convoId, dm, title, sender, line, pic, msgId) ->
+            ui.post(() -> showBanner(key, convoId, dm, title, sender, line, pic, msgId));
 
     private InAppBanner banner;
 
     /** A new message in another chat, over this screen (the watch would only flash a small icon). */
     private void showBanner(String key, String convoId, boolean dm, String title, String sender, String line,
-                            android.graphics.Bitmap pic) {
+                            android.graphics.Bitmap pic, String msgId) {
         if (key.equals(PushService.visibleKey)) return; // that chat is open: it's right there
         if (banner == null) banner = new InAppBanner(this, root);
         banner.show(title, sender, line, dm, pic, () -> {
@@ -2117,6 +2139,7 @@ public class HomeActivity extends Activity {
             for (Feed.Convo c : convos) if (c.isDm == dm && c.id.equals(convoId)) hit = c;
             if (hit == null) hit = new Feed.Convo(convoId, title, "", dm, 0, "");
             if (level > 1) go(1, false);
+            openAtMsg = msgId == null ? "" : msgId;
             openChat(hit);
         });
     }
