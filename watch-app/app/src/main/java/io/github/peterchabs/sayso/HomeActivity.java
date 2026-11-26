@@ -734,6 +734,23 @@ public class HomeActivity extends Activity {
             img.setImageDrawable(null);
             if (photosOn()) Images.load(img, Feed.sized(url, "avatar"), size, true);
         }
+
+        /** Like set(), but an animated GIF picture plays (used where you look at one person). */
+        void setLive(String name, String url, boolean person) {
+            if (url == null || !url.toLowerCase(java.util.Locale.US).contains(".gif") || !photosOn()) {
+                set(name, url, person);
+                return;
+            }
+            initials.setText(initialsOf(name));
+            ((GradientDrawable) initials.getBackground()).setColor(person ? 0xFF5B6CFF : BLUE);
+            img.setImageDrawable(null);
+            img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            img.setOutlineProvider(new android.view.ViewOutlineProvider() { // round, while it plays
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+            });
+            img.setClipToOutline(true);
+            Images.load(img, url, size * 2, false, true); // the original: the small version may be a still
+        }
     }
 
     private static String initialsOf(String name) {
@@ -1027,7 +1044,7 @@ public class HomeActivity extends Activity {
         // the mic: speak, and it goes to this conversation
         ImageView mic = new ImageView(this);
         mic.setImageDrawable(new Icons(Icons.MIC, Color.WHITE, 0));
-        mic.setBackground(Press.button(this, true));
+        mic.setBackground(domed());
         mic.getBackground().mutate().setAlpha(218); // a touch see-through: the newest messages show faintly behind
         // raised above the chat: a soft round shadow under it
         mic.setOutlineProvider(new android.view.ViewOutlineProvider() {
@@ -1615,7 +1632,7 @@ public class HomeActivity extends Activity {
             o.setColor(Palette.AVATAR);
             av.setBackground(o);
             String pic = mine && m.avatarUrl.isEmpty() ? Store.avatar(HomeActivity.this) : m.avatarUrl;
-            if (photosOn()) Images.load(av, Feed.sized(pic, "avatar"), as, true);
+            if (photosOn()) loadFace(av, pic, as); // an animated GIF picture plays here
             String myName = Store.name(HomeActivity.this);
             TextView name = label(mine ? (myName.isEmpty() ? "You" : myName) : m.sender, sp(watch ? 10 : 11.5f), mine ? BLUE : GREY, true);
             name.setPadding(mine ? px(5) : px(5), 0, mine ? px(5) : 0, 0);
@@ -3392,7 +3409,7 @@ public class HomeActivity extends Activity {
         col.setPadding(side, watch ? (int) (H * 0.1f) : px(40), side, watch ? (int) (H * 0.16f) : px(32));
 
         Avatar big = new Avatar(watch ? 70 : 110);
-        big.set(m.name, m.avatarUrl, true);
+        big.setLive(m.name, m.avatarUrl, true);
         if (!m.avatarUrl.isEmpty()) {
             big.view.setOnClickListener(v -> openPicture(m.name, m.avatarUrl));
             Press.attach(big.view);
@@ -3792,10 +3809,51 @@ public class HomeActivity extends Activity {
         return box;
     }
 
+    /**
+     * The mic's face: round and domed, brightest just above the middle and curving darker to the
+     * edge, like a rounded button that rises in the center. Pressed, the dome dims.
+     */
+    private android.graphics.drawable.Drawable domed() {
+        StateListDrawable s = new StateListDrawable();
+        s.setEnterFadeDuration(70);
+        s.setExitFadeDuration(160);
+        s.addState(new int[]{android.R.attr.state_pressed}, dome(0xFF33C2F4, 0xFF0096D6, 0xFF006FA3));
+        s.addState(new int[]{}, dome(0xFF6BDBFF, 0xFF00AFF0, 0xFF0080BA));
+        return s;
+    }
+
+    private GradientDrawable dome(int top, int mid, int edge) {
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        g.setColors(new int[]{top, mid, edge});
+        g.setGradientCenter(0.5f, 0.36f);
+        g.setGradientRadius(px(watch ? 46 : 60) * 0.62f);
+        return g;
+    }
+
+    /**
+     * A person's small picture in a chat: round, and playing if it's an animated GIF. (The chat
+     * list keeps chat pictures still.)
+     */
+    private void loadFace(ImageView v, String url, int size) {
+        if (url != null && url.toLowerCase(java.util.Locale.US).contains(".gif")) {
+            v.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            v.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override public void getOutline(View x, android.graphics.Outline o) { o.setOval(0, 0, x.getWidth(), x.getHeight()); }
+            });
+            v.setClipToOutline(true);
+            Images.load(v, url, size * 2, false, true);
+        } else {
+            Images.load(v, Feed.sized(url, "avatar"), size, true);
+        }
+    }
+
     /** Someone's profile picture full screen (zoomable), with their name over the bottom. */
     private void openPicture(String name, String url) {
         if (url == null || url.isEmpty()) return;
-        Feed.Media x = new Feed.Media(Feed.Media.IMAGE, url, url);
+        boolean gif = url.toLowerCase(java.util.Locale.US).contains(".gif"); // an animated picture plays
+        Feed.Media x = new Feed.Media(gif ? Feed.Media.GIF : Feed.Media.IMAGE, url, url);
         x.from = name == null ? "" : name;
         x.fromAvatar = url;
         openMedia(x);
