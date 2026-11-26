@@ -18,9 +18,9 @@ The message goes out from **your own GroupMe account**, to **your own groups**,
 with **whatever words you say each time**. You don't need to know how to code.
 
 <p align="center">
-  <a href="https://peterchabs.github.io/groupme-voice-android/video.html"><img src="docs/images/watch-preview.gif" alt="Say So on a watch: signing in, talking into a chat, zooming a photo, members by rank, and a message notification" width="640"></a>
+  <a href="https://peterchabs.github.io/groupme-voice-android/video.html"><img src="docs/images/watch-preview.gif" alt="Say So on a watch: emoji reactions, replying to a message by voice, zooming a photo, and tagging someone while talking" width="640"></a>
 </p>
-<p align="center"><b><a href="https://peterchabs.github.io/groupme-voice-android/video.html">Watch the full 2-minute setup and features video</a></b></p>
+<p align="center"><b><a href="https://peterchabs.github.io/groupme-voice-android/video.html">Watch the full 3-minute setup and features video</a></b></p>
 
 ## Pick one
 
@@ -232,7 +232,7 @@ double-press the side button and start talking.
 
 ### Everything else the watch app does
 
-**[Watch the 2-minute video](https://peterchabs.github.io/groupme-voice-android/video.html)**
+**[Watch the 3-minute video](https://peterchabs.github.io/groupme-voice-android/video.html)**
 of setup and every feature, recorded on a real watch screen with captions.
 
 - **Chats:** tap **Chats** to see every group and direct message, newest first.
@@ -249,13 +249,16 @@ of setup and every feature, recorded on a real watch screen with captions.
 - **Tag people:** on the members page, hold someone, tap more people, then tap
   **Tag and speak**. Their pictures line up under the chat name while you talk, and
   GroupMe notifies everyone you tagged.
-- **Photos and videos:** swipe left again for the group's gallery. Tap a photo to
-  see it full screen, then double-tap or pinch to zoom and drag to look around.
+- **Photos and videos:** swipe left again for the group's gallery. Each one shows
+  who posted it. Tap a photo to see it full screen, then double-tap or pinch to zoom
+  and drag to look around.
   Videos play right on the watch.
-- **Events:** swipe left once more for the group's upcoming events. Tap an event in
-  the chat to see when, where, and who's going.
+- **Events:** swipe left once more for the group's upcoming events, with each one's
+  photo and who made it. Tap an event in the chat to see when, where, and who's going.
 - **Notifications:** new messages pop up on your watch with who sent them. Reply
   right there, or say **"Hey Google, respond to that message"** to answer with Gemini.
+  Either way it goes out as a reply to that message. You can turn the notification
+  sound off and keep just the buzz.
 - **Settings:** pull down from the top of any page. Pick a **default group** (then
   "Hey Google, open Say So" opens that chat, already listening), turn photos and
   notifications on or off, switch between **light and dark**, and see how to set a
