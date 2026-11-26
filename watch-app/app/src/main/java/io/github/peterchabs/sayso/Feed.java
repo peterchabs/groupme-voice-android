@@ -43,6 +43,9 @@ final class Feed {
         /** What GroupMe itself says you've read (in its own apps): -1 / "" when it doesn't say. */
         int unread = -1;
         String lastReadId = "";
+        /** DM only: the other person has read up to this message, at this time (seconds), or "" / 0. */
+        String peerReadId = "";
+        long peerReadAt;
     }
 
     /** True if message id {@code a} is newer than {@code b} (GroupMe ids grow over time). */
@@ -149,6 +152,11 @@ final class Feed {
                     .optJSONObject("response");
             a = r == null ? null : r.optJSONArray("direct_messages");
             if (r != null && r.has("count")) c.count = r.optInt("count", c.count);
+            JSONObject rr = r == null ? null : r.optJSONObject("read_receipt"); // how far they've read, and when
+            if (rr != null && !str(rr, "message_id").isEmpty()) {
+                c.peerReadId = str(rr, "message_id");
+                c.peerReadAt = rr.optLong("read_at", 0);
+            }
         } else {
             JSONObject r = Api.call("GET", "/groups/" + enc(c.id) + "/messages?limit=" + limit, token, null)
                     .optJSONObject("response");
@@ -507,7 +515,7 @@ final class Feed {
     static int countAfter(String token, Convo c, String afterId, int cap) throws IOException {
         JSONArray a;
         if (c.isDm) {
-            JSONObject r = Api.call("GET", "/direct_messages?other_user_id=" + enc(c.id) + "&since_id=" + enc(afterId), token, null)
+            JSONObject r = Api.call("GET", "/direct_messages?other_user_id=" + enc(c.id) + "&limit=" + cap + "&since_id=" + enc(afterId), token, null)
                     .optJSONObject("response");
             a = r == null ? null : r.optJSONArray("direct_messages");
         } else {

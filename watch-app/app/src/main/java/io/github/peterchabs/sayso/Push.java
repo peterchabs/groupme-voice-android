@@ -46,13 +46,78 @@ final class Push {
         }
     }
 
+    /**
+     * Something live in a chat that isn't a message: someone typing ("typing"), or the other
+     * person in a DM reading up to a message ("read", with when).
+     */
+    static final class Signal {
+        final String type, userId, messageId, chatId;
+        final long readAt; // seconds since 1970
+
+        Signal(String type, String userId, String messageId, String chatId, long readAt) {
+            this.type = type;
+            this.userId = userId;
+            this.messageId = messageId;
+            this.chatId = chatId;
+            this.readAt = readAt;
+        }
+    }
+
     private final String token, userId;
+    /** One chat's own channel ("/group/ID" or "/direct_message/A_B"), for typing, or null. */
+    private final String chatChannel;
     private String clientId;
     private int seq;
+    /** The signals that came with the last poll. */
+    final List<Signal> signals = new ArrayList<>();
 
     Push(String token, String userId) {
+        this(token, userId, null);
+    }
+
+    Push(String token, String userId, String chatChannel) {
         this.token = token;
         this.userId = userId;
+        this.chatChannel = chatChannel;
+    }
+
+    /** The channel GroupMe uses for typing in a chat: groups by id, DMs by "lowerId_higherId". */
+    static String chatChannel(boolean dm, String conversationId) {
+        return dm ? "/direct_message/" + conversationId.replace('+', '_') : "/group/" + conversationId;
+    }
+
+    /** Tells the chat you're writing, the way GroupMe's apps do ("Peter is typing"). */
+    void publishTyping() throws IOException {
+        if (clientId == null || chatChannel == null) return;
+        try {
+            post(new JSONArray().put(new JSONObject()
+                    .put("channel", chatChannel).put("clientId", clientId).put("id", next())
+                    .put("data", new JSONObject().put("type", "typing").put("user_id", userId)
+                            .put("started", System.currentTimeMillis()))
+                    .put("ext", new JSONObject().put("access_token", token)
+                            .put("timestamp", System.currentTimeMillis() / 1000))), 20000);
+        } catch (JSONException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /** A typing or read-receipt signal from one pushed item, or null. Never your own. */
+    static Signal signal(JSONObject o, String myId) {
+        JSONObject data = o.optJSONObject("data");
+        if (data == null) return null;
+        String type = data.optString("type"), ch = o.optString("channel");
+        if ("typing".equals(type) && (ch.startsWith("/group/") || ch.startsWith("/direct_message/"))) {
+            String who = data.optString("user_id", "");
+            return who.isEmpty() || who.equals(myId) ? null : new Signal("typing", who, "", ch, 0);
+        }
+        if ("read_receipt.create".equals(type)) {
+            JSONObject s = data.optJSONObject("subject");
+            if (s == null) s = data;
+            String who = s.optString("user_id", "");
+            if (who.isEmpty() || who.equals(myId)) return null;
+            return new Signal("read", who, s.optString("message_id", ""), s.optString("chat_id", ""), s.optLong("read_at", 0));
+        }
+        return null;
     }
 
     /** Handshake and subscribe to your channel. Throws if GroupMe refuses (bad token). */
@@ -72,6 +137,13 @@ final class Push {
                             .put("timestamp", System.currentTimeMillis() / 1000))), 30000);
             JSONObject sub = s.optJSONObject(0);
             if (sub == null || !sub.optBoolean("successful")) throw new Api.AuthException();
+            if (chatChannel != null) { // the open chat's own channel: who's typing
+                post(new JSONArray().put(new JSONObject()
+                        .put("channel", "/meta/subscribe").put("clientId", clientId)
+                        .put("subscription", chatChannel).put("id", next())
+                        .put("ext", new JSONObject().put("access_token", token)
+                                .put("timestamp", System.currentTimeMillis() / 1000))), 30000);
+            }
         } catch (JSONException e) {
             throw new IOException(e);
         }
@@ -81,6 +153,7 @@ final class Push {
     List<Event> poll() throws IOException {
         if (clientId == null) throw new IOException("not open");
         List<Event> out = new ArrayList<>();
+        signals.clear();
         try {
             // ask for an answer within 30 s: GroupMe's gateway cuts any request off at 60 s
             JSONArray r = post(new JSONArray().put(new JSONObject()
@@ -96,6 +169,8 @@ final class Push {
                 }
                 Event e = parse(o, userId);
                 if (e != null) out.add(e);
+                Signal sg = signal(o, userId);
+                if (sg != null) signals.add(sg);
             }
         } catch (JSONException e) {
             throw new IOException(e);

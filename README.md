@@ -244,6 +244,9 @@ of setup and every feature, recorded on a real watch screen with captions.
 - **Talk in a chat:** tap the mic in any chat and talk. Your words type into a blue
   bubble at the bottom of the chat as you speak, and the messages above slide up to
   make room. Then it sends.
+- **Live chat:** see when someone is typing ("Sam is typing..."), and they see you
+  writing while you talk. In a direct message, "Read 5:34 PM" shows when they've read
+  what you sent.
 - **Reply to a message:** hold any message. It glows and Say So listens; what you
   say goes out as a GroupMe reply to that message, with a small quote of it.
 - **React:** double-tap any message for a row of emoji. Tap one to react, or tap

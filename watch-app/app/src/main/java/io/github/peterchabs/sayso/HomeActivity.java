@@ -217,6 +217,7 @@ public class HomeActivity extends Activity {
         super.onResume();
         PushService.visibleKey = level >= 1 && current != null ? current.key() : null;
         if (PushService.visibleKey != null) PushService.clear(this, PushService.visibleKey);
+        if (level >= 1 && current != null && !liveOn) startLive(); // back in a chat: live again
         ui.post(ticker);
         ui.removeCallbacks(stampFlip);
         ui.postDelayed(stampFlip, 4000);
@@ -232,6 +233,7 @@ public class HomeActivity extends Activity {
     @Override
     protected void onPause() {
         saveChatPosition();
+        stopLive();
         PushService.visibleKey = null;
         ui.removeCallbacks(ticker);
         ui.removeCallbacks(stampFlip);
@@ -412,9 +414,12 @@ public class HomeActivity extends Activity {
      * How many messages in a chat you haven't seen: since where you left off in Say So, or
      * GroupMe's own count (from its apps) if that's lower. 0 when neither knows.
      */
+    /** Unread, but how many isn't known: shown as a red dot without a number. */
+    private static final int UNKNOWN = -2;
+
     private int unreadOf(Feed.Convo c) {
         if (current != null && level >= 1 && current.key().equals(c.key())) return 0; // reading it now
-        return Math.max(0, c.unread);
+        return c.unread == UNKNOWN ? UNKNOWN : Math.max(0, c.unread);
     }
 
     /** Where you've read to in each chat (GroupMe's own record, shared with its apps), by chat key. */
@@ -453,13 +458,13 @@ public class HomeActivity extends Activity {
                 c.unread = Integer.parseInt(done.substring(stamp.length() + 1));
                 continue;
             }
-            if (asked >= 15) { c.unread = 1; continue; } // more later; at least show it has news
+            if (asked >= 15) { c.unread = UNKNOWN; continue; } // counted next time; for now a dot says there's news
             asked++;
             try {
                 c.unread = Math.max(1, Feed.countAfter(token, c, at, 100));
                 countedAt.put(c.key(), stamp + "=" + c.unread);
             } catch (IOException e) {
-                c.unread = 1;
+                c.unread = UNKNOWN; // there's news, number unknown: a dot
             }
         }
     }
@@ -529,10 +534,15 @@ public class HomeActivity extends Activity {
             r.time.setText(Feed.ago(c.lastAt, System.currentTimeMillis()));
             r.avatar.set(c.name, c.avatarUrl, c.isDm);
             int n = unreadOf(c);
-            r.badge.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
-            r.badge.setText(n > 99 ? "99+" : String.valueOf(n));
-            r.badge.setContentDescription(n + " unread");
-            r.preview.setTextColor(n > 0 ? INK : GREY); // unread: the preview reads darker
+            boolean dot = n == UNKNOWN; // new messages, number not known: a plain red dot
+            r.badge.setVisibility(n > 0 || dot ? View.VISIBLE : View.GONE);
+            r.badge.setText(dot ? "" : n > 99 ? "99+" : String.valueOf(n));
+            r.badge.setMinWidth(dot ? px(watch ? 12 : 13) : px(watch ? 18 : 20));
+            ViewGroup.LayoutParams blp = r.badge.getLayoutParams();
+            blp.height = dot ? px(watch ? 12 : 13) : px(watch ? 18 : 20);
+            r.badge.setLayoutParams(blp);
+            r.badge.setContentDescription(dot ? "New messages" : n + " unread");
+            r.preview.setTextColor(n > 0 || dot ? INK : GREY); // unread: the preview reads darker
             if (movedUp.remove(c.key())) glideIn(v, 0);
             return v;
         }
@@ -995,8 +1005,17 @@ public class HomeActivity extends Activity {
         // The draft is the chat's last row, never laid over it: as it grows, every message above
         // slides up with it, and nothing is ever covered.
         // (wrapped: a hidden footer row still takes up its full height in a ListView)
-        FrameLayout draftRow = new FrameLayout(this);
-        draftRow.addView(draft, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout draftRow = new LinearLayout(this);
+        draftRow.setOrientation(LinearLayout.VERTICAL);
+        // "Sam is typing…": who's writing right now, just above where your own words go
+        typingLabel = label("", sp(watch ? 10.5f : 12), GREY, false);
+        typingLabel.setTypeface(Typeface.create(REGULAR, Typeface.ITALIC));
+        typingLabel.setPadding(px(watch ? 6 : 8), px(4), px(6), px(2));
+        typingLabel.setSingleLine(true);
+        typingLabel.setEllipsize(TextUtils.TruncateAt.END);
+        typingLabel.setVisibility(View.GONE);
+        draftRow.addView(typingLabel, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        draftRow.addView(draft, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         chatList.addFooterView(draftRow, null, false);
         draftRow.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             if (b - t != ob - ot) followDraft();
@@ -1264,6 +1283,7 @@ public class HomeActivity extends Activity {
         closeReactions();
         replying = null;
         hideVoice();
+        if (!same || !liveOn) startLive();
         loadMessages(true);
         ui.removeCallbacks(chatPoll);
         ui.postDelayed(chatPoll, 8000);
@@ -1346,7 +1366,8 @@ public class HomeActivity extends Activity {
                             msgAdapter.notifyDataSetChanged();
                             chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
                         }
-                    } else if (!reactionsOf(msgs).equals(reactionsOf(fresh))) {
+                    } else if (!reactionsOf(msgs).equals(reactionsOf(fresh)) || !c.peerReadId.equals(shownReadId)) {
+                        shownReadId = c.peerReadId;
                         msgs.clear();          // only reactions changed: redraw in place, no scrolling
                         msgs.addAll(fresh);
                         msgAdapter.notifyDataSetChanged();
@@ -1366,6 +1387,9 @@ public class HomeActivity extends Activity {
     }
 
     /** Every message's reactions as one string, to notice when only those changed. */
+    /** The DM read receipt the chat last drew, to notice when it moves. */
+    private String shownReadId = "";
+
     private static String reactionsOf(List<Feed.Msg> list) {
         StringBuilder b = new StringBuilder();
         for (Feed.Msg m : list) {
@@ -1513,6 +1537,13 @@ public class HomeActivity extends Activity {
             String link = m.media.isEmpty() && photosOn() ? LinkPreview.firstUrl(m.text) : null;
             if (link != null) row.addView(linkCard(link, maxW));
             if (!m.reactions.isEmpty()) row.addView(reactionChips(m, mine));
+            if (mine && m.id.equals(readMarkId())) { // DM: they've read up to here
+                TextView read = label("Read " + Feed.stamp(current.peerReadAt, System.currentTimeMillis()),
+                        sp(watch ? 9.5f : 11), GREY, false);
+                read.setPadding(0, px(m.reactions.isEmpty() ? 2 : 4), px(4), 0);
+                read.setGravity(Gravity.END);
+                row.addView(read, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            }
             if (appearing.remove(m.id)) glideIn(row, 0);
             if (m.id.equals(flashId)) {
                 flashId = null;
@@ -1524,6 +1555,157 @@ public class HomeActivity extends Activity {
             }
             return row;
         }
+    }
+
+    // ---------------- live chat: who's typing, and DM read times ----------------
+
+    private TextView typingLabel;
+    /** People typing in the open chat, and when we last heard (ms). */
+    private final java.util.Map<String, Long> typers = new java.util.LinkedHashMap<>();
+    private volatile boolean liveOn;
+    private volatile Push livePush;
+    private Thread liveThread;
+    private long typingSentAt;
+
+    /**
+     * While a chat is open: a live connection to it, the way GroupMe's apps keep one, for
+     * "is typing", read receipts in a DM, and new messages the moment they're sent.
+     */
+    private void startLive() {
+        stopLive();
+        final Feed.Convo c = current;
+        if (c == null) return;
+        final String token = Store.token(this), me = Store.myId(this);
+        final String channel = Push.chatChannel(c.isDm, conversationIdOf(c));
+        liveOn = true;
+        liveThread = new Thread(() -> {
+            while (liveOn && current == c) {
+                try {
+                    Push p = new Push(token, me, channel);
+                    p.open();
+                    livePush = p;
+                    long until = android.os.SystemClock.elapsedRealtime() + 10 * 60_000L;
+                    while (liveOn && current == c && android.os.SystemClock.elapsedRealtime() < until) {
+                        List<Push.Event> events = p.poll();
+                        boolean here = false;
+                        for (Push.Event e : events) if (e.dm == c.isDm && e.convoId.equals(c.id)) here = true;
+                        for (Push.Signal sg : p.signals) {
+                            if ("typing".equals(sg.type) && sg.chatId.equals(channel)) {
+                                ui.post(() -> { if (current == c) heardTyping(sg.userId); });
+                            } else if ("read".equals(sg.type) && c.isDm && sg.userId.equals(c.id)) {
+                                ui.post(() -> { if (current == c) loadMessages(false); }); // "Read" moves down
+                            }
+                        }
+                        if (here) ui.post(() -> { if (current == c && !history) loadMessages(false); });
+                    }
+                } catch (Api.AuthException e) {
+                    return;
+                } catch (IOException | RuntimeException e) {
+                    try {
+                        Thread.sleep(3000);
+                    } catch (InterruptedException ie) {
+                        return;
+                    }
+                }
+            }
+        }, "sayso-live");
+        liveThread.setDaemon(true);
+        liveThread.start();
+    }
+
+    private void stopLive() {
+        liveOn = false;
+        livePush = null;
+        if (liveThread != null) liveThread.interrupt();
+        liveThread = null;
+        typers.clear();
+        showTypers();
+    }
+
+    private EditText typingBox;
+    private final Runnable typingWhileFocused = new Runnable() {
+        @Override public void run() {
+            if (typingBox == null || !typingBox.hasFocus() || voicePanel.getVisibility() != View.VISIBLE) return;
+            sendTyping();
+            ui.postDelayed(this, 5000);
+        }
+    };
+
+    /** Lets the chat know you're writing (by voice or typing), at most every 5 seconds. */
+    private void sendTyping() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        final Push p = livePush;
+        if (p == null || now - typingSentAt < 5000) return; // GroupMe's apps: at most every 5 s
+        typingSentAt = now;
+        bg.execute(() -> {
+            try {
+                p.publishTyping();
+            } catch (IOException ignored) {
+                // just no "typing" this time
+            }
+        });
+    }
+
+    private void heardTyping(String userId) {
+        typers.put(userId, android.os.SystemClock.elapsedRealtime());
+        showTypers();
+        ui.removeCallbacks(typingExpire);
+        ui.postDelayed(typingExpire, 5600); // shown 5 s after the last one, like GroupMe's apps
+    }
+
+    private final Runnable typingExpire = () -> {
+        long now = android.os.SystemClock.elapsedRealtime();
+        typers.values().removeIf(t -> now - t > 5500);
+        showTypers();
+        if (!typers.isEmpty()) ui.postDelayed(this.typingExpire, 1000);
+    };
+
+    private int typingDots;
+    private final Runnable typingTick = new Runnable() {
+        @Override public void run() {
+            if (typers.isEmpty()) return;
+            typingDots = (typingDots + 1) % 4;
+            showTypers();
+            ui.postDelayed(this, 450);
+        }
+    };
+
+    /** "Sam is typing…", "Sam and Ann are typing…", or nothing. */
+    private void showTypers() {
+        if (typingLabel == null) return;
+        if (typers.isEmpty()) {
+            if (typingLabel.getVisibility() != View.GONE) typingLabel.setVisibility(View.GONE);
+            ui.removeCallbacks(typingTick);
+            return;
+        }
+        List<String> names = new ArrayList<>();
+        for (String id : typers.keySet()) names.add(nameOf(id));
+        String who = names.size() == 1 ? names.get(0) : names.size() == 2 ? names.get(0) + " and " + names.get(1)
+                : names.get(0) + " and " + (names.size() - 1) + " others";
+        typingLabel.setText(who + (names.size() == 1 ? " is typing" : " are typing") + "...".substring(0, typingDots));
+        if (typingLabel.getVisibility() != View.VISIBLE) {
+            typingLabel.setVisibility(View.VISIBLE);
+            ui.removeCallbacks(typingTick);
+            ui.postDelayed(typingTick, 450);
+        }
+    }
+
+    /** Someone's name in the open chat, from its members or its messages. */
+    private String nameOf(String userId) {
+        for (Feed.Member m : members) if (m.userId.equals(userId)) return m.name;
+        for (int i = msgs.size() - 1; i >= 0; i--) if (msgs.get(i).senderId.equals(userId)) return msgs.get(i).sender;
+        if (current != null && current.isDm) return current.name;
+        return "Someone";
+    }
+
+    /** DM: the newest of your messages the other person has read, where "Read 5:34 PM" goes. */
+    private String readMarkId() {
+        if (current == null || !current.isDm || current.peerReadId.isEmpty()) return "";
+        String me = Store.myId(this), mark = "";
+        for (Feed.Msg m : msgs) {
+            if (m.senderId.equals(me) && !Feed.newer(m.id, current.peerReadId)) mark = m.id;
+        }
+        return mark;
     }
 
     // ---------------- message looks, replies and reactions ----------------
@@ -3470,6 +3652,7 @@ public class HomeActivity extends Activity {
     private void arrive(int to) {
         if (to == 0) PushService.visibleKey = null;
         if (to == 0) {
+            stopLive();
             ui.removeCallbacks(chatPoll);
             newSince = ""; // the "New messages" line is worked out again next time
             tagging.clear();
@@ -4066,6 +4249,7 @@ public class HomeActivity extends Activity {
         @Override public void onPartialResults(Bundle b) {
             String t = top(b);
             if (listening && t != null) {
+                sendTyping(); // the chat sees you're writing
                 typeTo(Tidy.live(t)); // capitals and commas as you go, so nothing jumps at the end
                 if (!t.equals(heardSoFar)) {
                     heardSoFar = t;
@@ -4210,6 +4394,18 @@ public class HomeActivity extends Activity {
         EditText e = new EditText(this);
         Press.field(e);
         e.setHint(replying != null ? "Your reply" : "Message " + current.name);
+        // A watch keyboard hands over the words only when you tap done, so while it's open on
+        // this box, the chat is told you're typing (every 5 s, like GroupMe's apps).
+        e.setOnFocusChangeListener((v, has) -> {
+            ui.removeCallbacks(typingWhileFocused);
+            if (has) ui.post(typingWhileFocused);
+        });
+        typingBox = e;
+        e.addTextChangedListener(new android.text.TextWatcher() { // typing: the chat sees you're writing
+            @Override public void beforeTextChanged(CharSequence a, int b, int c, int d) { }
+            @Override public void onTextChanged(CharSequence a, int b, int c, int d) { if (a.length() > 0) sendTyping(); }
+            @Override public void afterTextChanged(android.text.Editable a) { }
+        });
         e.setSingleLine(true);
         if (replying != null) why = (why != null && why.startsWith("The microphone is off") ? "Mic off. " : "")
                 + "Replying to " + quoteText(replying);

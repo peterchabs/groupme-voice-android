@@ -59,4 +59,20 @@ public class PushTest {
         assertEquals("https://v.groupme.com/x.jpg", v.imageUrl);
         assertTrue(v.video);
     }
+
+    @Test
+    public void typingAndReadSignalsAreRecognized() throws Exception {
+        Push.Signal t = Push.signal(new JSONObject("{\"channel\":\"/group/4\",\"data\":{\"type\":\"typing\",\"user_id\":\"2\",\"started\":1}}"), "1");
+        assertEquals("typing", t.type);
+        assertEquals("2", t.userId);
+        assertEquals("/group/4", t.chatId);
+        assertNull(Push.signal(new JSONObject("{\"channel\":\"/group/4\",\"data\":{\"type\":\"typing\",\"user_id\":\"1\"}}"), "1")); // mine
+        Push.Signal r = Push.signal(new JSONObject("{\"channel\":\"/direct_message/1_2\",\"data\":{\"type\":\"read_receipt.create\","
+                + "\"subject\":{\"user_id\":\"2\",\"message_id\":\"77\",\"read_at\":1700000000,\"chat_id\":\"1+2\"}}}"), "1");
+        assertEquals("read", r.type);
+        assertEquals("77", r.messageId);
+        assertEquals(1700000000L, r.readAt);
+        assertEquals("/direct_message/1_2", Push.chatChannel(true, "1+2"));
+        assertEquals("/group/9", Push.chatChannel(false, "9"));
+    }
 }
