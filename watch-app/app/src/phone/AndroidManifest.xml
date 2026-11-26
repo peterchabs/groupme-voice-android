@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Phone build: only signs watches in (GroupMe's own web login, then the watch's code). Everything
-     else in src/main (chats, the voice screen, Gemini, notifications, the mic) is watch-only, so it's
-     taken out of the phone app here. -->
+<!-- Phone build: signs watches in (GroupMe's own web login, then the watch's code) and lets Gemini
+     send GroupMe messages through Say So (AppFunctions). Gemini on a watch acts through the paired
+     phone, so the phone app carries the functions too. Everything else in src/main (chats, the voice
+     screen, notifications, the mic) is watch-only, so it's taken out of the phone app here. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
@@ -18,7 +19,6 @@
         <service android:name=".PushService" tools:node="remove" />
         <receiver android:name=".ReplyReceiver" tools:node="remove" />
         <receiver android:name=".BootReceiver" tools:node="remove" />
-        <service android:name=".SaySoAppFunctionService" tools:node="remove" />
 
         <!-- the app's one screen: sign in, then sign watches in -->
         <activity android:name=".SetupActivity">
