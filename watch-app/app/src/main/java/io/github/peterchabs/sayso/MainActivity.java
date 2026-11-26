@@ -210,7 +210,7 @@ public class MainActivity extends Activity {
         @Override public void onPartialResults(Bundle b) {
             if (!listening) return;
             String t = first(b);
-            stage.live(t); // your words, as you say them
+            stage.live(t == null ? null : Tidy.live(t)); // your words, as you say them, tidied as they go
             if (t != null && !t.equals(heardSoFar)) {
                 heardSoFar = t;
                 View d = getWindow().getDecorView();

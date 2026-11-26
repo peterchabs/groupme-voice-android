@@ -37,4 +37,16 @@ public class TidyTest {
         assertEquals("Yes, sir.", Tidy.spoken("yes, sir"));
         assertEquals("Yesterday was fun.", Tidy.spoken("yesterday was fun"));
     }
+
+    @Test public void liveTextIsTidiedButNotFinished() {
+        assertEquals("Yes, see you at", Tidy.live("yes see you at"));
+        assertEquals("I think so", Tidy.live("i think so"));
+    }
+
+    @Test public void onlyCapitalsAndPunctuationChangingKeepsTheWords() {
+        String t = "Yes, see you at 9:00.";
+        assertEquals(t.length(), HomeActivity.sameWords("yes see you at 9:00", t));
+        assertEquals("Yes, see you".length(), HomeActivity.sameWords("yes see you", t));
+        assertEquals("Yes, see you at ".length(), HomeActivity.sameWords("yes see you at 10", t));
+    }
 }

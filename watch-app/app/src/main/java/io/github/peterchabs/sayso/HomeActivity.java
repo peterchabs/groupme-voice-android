@@ -1042,15 +1042,40 @@ public class HomeActivity extends Activity {
         fitListRoom(); // the buttons sit where the mic was: the chat rises above them
     }
 
-    /** Types toward {@code t} a few letters at a time, the way a message gets written. */
+    /**
+     * Types toward {@code t} a few letters at a time, the way a message gets written. Words
+     * already on screen stay put: when the new text only changes their capitals or punctuation
+     * ("yes see" to "Yes, see"), they change in place instead of being typed again.
+     */
     private void typeTo(String t) {
         String shown = typeTarget.substring(0, Math.min(typeShown, typeTarget.length()));
-        int same = 0;
-        while (same < shown.length() && same < t.length() && shown.charAt(same) == t.charAt(same)) same++;
+        int keep = sameWords(shown, t);
         typeTarget = t;
-        typeShown = same;
+        typeShown = keep;
+        if (keep > 0) draftText.setText(boldNames(t.substring(0, keep), draftNames, Color.WHITE));
         ui.removeCallbacks(typer);
         ui.post(typer);
+    }
+
+    /**
+     * How much of {@code t} says the same as {@code shown}, ignoring capitals and punctuation:
+     * the length of {@code t} that covers the letters and digits the two have in common.
+     */
+    static int sameWords(String shown, String t) {
+        int i = 0, j = 0, keep = 0;
+        while (i < shown.length() && j < t.length()) {
+            char a = shown.charAt(i), b = t.charAt(j);
+            boolean wa = Character.isLetterOrDigit(a), wb = Character.isLetterOrDigit(b);
+            if (!wa && !Character.isWhitespace(a)) { i++; continue; } // punctuation: skip it
+            if (!wb && !Character.isWhitespace(b)) { j++; continue; }
+            if (Character.toLowerCase(a) != Character.toLowerCase(b)) break;
+            i++;
+            j++;
+            keep = j;
+        }
+        if (i < shown.length()) return keep; // they part ways here
+        while (keep < t.length() && !Character.isLetterOrDigit(t.charAt(keep)) && !Character.isWhitespace(t.charAt(keep))) keep++;
+        return keep;                          // and the new punctuation right after comes too
     }
 
     private final Runnable typer = new Runnable() {
@@ -3616,7 +3641,7 @@ public class HomeActivity extends Activity {
         @Override public void onPartialResults(Bundle b) {
             String t = top(b);
             if (listening && t != null) {
-                typeTo(t);
+                typeTo(Tidy.live(t)); // capitals and commas as you go, so nothing jumps at the end
                 if (!t.equals(heardSoFar)) {
                     heardSoFar = t;
                     ui.removeCallbacks(quietDone);       // still talking

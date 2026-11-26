@@ -24,6 +24,20 @@ final class Tidy {
             + "(?!\\s+(a lot|so much|for|again|you|there|guys|all|everyone|man|dude|buddy|bud)\\b)"
             + "(?=\\s+\\p{L})", Pattern.CASE_INSENSITIVE);
 
+    /**
+     * The same clean-up for words still being spoken (capital, "I", the comma after "Yes"), but no
+     * ending mark yet, so the finished message only adds its last period, never retypes.
+     */
+    static String live(String text) {
+        if (text == null) return "";
+        String t = text.trim().replaceAll("\\s+", " ");
+        if (t.isEmpty()) return t;
+        java.util.regex.Matcher op = OPENER.matcher(t);
+        if (op.find()) t = t.substring(0, op.end()) + "," + t.substring(op.end());
+        t = LONE_I.matcher(t).replaceAll("I");
+        return t.substring(0, 1).toUpperCase(java.util.Locale.US) + t.substring(1);
+    }
+
     static String spoken(String text) {
         if (text == null) return "";
         String t = text.trim().replaceAll("\\s+", " ");
