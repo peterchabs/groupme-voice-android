@@ -42,6 +42,15 @@ final class Store {
         e.apply();
     }
 
+    /** Where you were reading a chat: the message at the top of the screen, and how far down it sat (px). */
+    static String viewId(Context c, String key) { return p(c).getString("view_id_" + key, ""); }
+
+    static int viewOffset(Context c, String key) { return p(c).getInt("view_y_" + key, 0); }
+
+    static void setView(Context c, String key, String id, int offset) {
+        p(c).edit().putString("view_id_" + key, id).putInt("view_y_" + key, offset).apply();
+    }
+
     /** New-message notifications (PushService). Off until you turn them on. */
     static boolean pushOn(Context c) { return p(c).getBoolean("push", false); }
 

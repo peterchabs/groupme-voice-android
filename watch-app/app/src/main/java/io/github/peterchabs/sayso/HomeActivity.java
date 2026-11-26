@@ -191,7 +191,9 @@ public class HomeActivity extends Activity {
                 String pic = "";
                 for (Feed.Convo c : convos) if (c.isDm == dm && c.id.equals(id)) pic = c.avatarUrl;
                 instant = level == 0;
+                fromNotification = true;
                 openChat(new Feed.Convo(id, name == null ? "" : name, pic, dm, 0, ""));
+                fromNotification = false;
             }
             return;
         }
@@ -229,6 +231,7 @@ public class HomeActivity extends Activity {
 
     @Override
     protected void onPause() {
+        saveChatPosition();
         PushService.visibleKey = null;
         ui.removeCallbacks(ticker);
         ui.removeCallbacks(stampFlip);
@@ -423,10 +426,37 @@ public class HomeActivity extends Activity {
         return c.unread >= 0 ? Math.min(mine, c.unread) : mine;
     }
 
+    /** The chat being opened came from tapping a notification: open at the newest, not where you were. */
+    private boolean fromNotification;
+
     /** In the open chat: the "New messages" line goes above the first message newer than this. */
     private String newSince = "";
     /** Open the chat at that line (the first new message), not at the newest. Once per opening. */
     private boolean jumpToNew;
+    /** Open the chat where you were last reading it. Once per opening (not from a notification). */
+    private boolean restoreView;
+
+    private final Runnable savePosition = this::saveChatPosition;
+
+    /**
+     * Remembers where you are in the open chat: the message at the top of the screen (to come
+     * back to it) and the last one you've had on screen (everything up to it counts as seen).
+     */
+    private void saveChatPosition() {
+        Feed.Convo c = current;
+        if (c == null || level < 1 || history || msgs.isEmpty() || chatList.getChildCount() == 0) return;
+        int first = chatList.getFirstVisiblePosition();
+        if (first < msgs.size()) {
+            Store.setView(this, c.key(), msgs.get(first).id, chatList.getChildAt(0).getTop());
+        }
+        int last = Math.min(chatList.getLastVisiblePosition(), msgs.size() - 1);
+        if (last < 0) return;
+        String lastId = msgs.get(last).id;
+        if (Feed.newer(lastId, Store.seenId(this, c.key())) || Store.seenId(this, c.key()).isEmpty()) {
+            int count = c.count >= 0 ? c.count - (msgs.size() - 1 - last) : -1; // the ones still below aren't seen
+            Store.setSeen(this, c.key(), count, lastId);
+        }
+    }
 
     /** Chats with something new since the last refresh: they glide into their new place. */
     private final java.util.HashSet<String> movedUp = new java.util.HashSet<>();
@@ -743,6 +773,13 @@ public class HomeActivity extends Activity {
         chatList.setClipToPadding(false);
         msgAdapter = new MsgAdapter();
         chatList.setAdapter(msgAdapter);
+        // where you are in the chat is remembered each time scrolling stops
+        chatList.setOnScrollListener(new android.widget.AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(android.widget.AbsListView v, int state) {
+                if (state == SCROLL_STATE_IDLE) saveChatPosition();
+            }
+            @Override public void onScroll(android.widget.AbsListView v, int first, int count, int total) { }
+        });
         if (watch) curve(chatList);
         chatLayer.addView(chatList, match());
 
@@ -1163,6 +1200,7 @@ public class HomeActivity extends Activity {
             newSince = Feed.newer(c.lastReadId, seenId) ? c.lastReadId : seenId;
             if (!Feed.newer(c.lastMsgId, newSince)) newSince = ""; // nothing new
             jumpToNew = !newSince.isEmpty();
+            restoreView = !fromNotification;
         }
         current = c;
         PushService.visibleKey = c.key();
@@ -1204,9 +1242,8 @@ public class HomeActivity extends Activity {
                 List<Feed.Msg> fresh = Feed.messages(token, c, watch ? 25 : 40);
                 ui.post(() -> {
                     if (current == null || !current.key().equals(c.key())) return;
-                    if (!fresh.isEmpty() && level >= 1 && !history) { // opened it: these count as seen
-                        Store.setSeen(HomeActivity.this, c.key(), c.count, fresh.get(fresh.size() - 1).id);
-                    }
+                    ui.removeCallbacks(savePosition);
+                    ui.postDelayed(savePosition, 400); // once laid out: what's on screen counts as seen
                     String oldLast = msgs.isEmpty() ? "" : msgs.get(msgs.size() - 1).id;
                     String newLast = fresh.isEmpty() ? "" : fresh.get(fresh.size() - 1).id;
                     status(c.isDm ? "Direct message" : "Group");
@@ -1232,14 +1269,25 @@ public class HomeActivity extends Activity {
                                 || chatList.getLastVisiblePosition() >= chatList.getCount() - 2;
                         msgs.clear();
                         msgs.addAll(fresh);
-                        int jump = jumpToNew ? firstNewIndex() : -1;
+                        // Opening the chat: back where you were reading; failing that, the first new
+                        // message; failing that, the newest.
+                        int jump = -1, jumpY = chatList.getPaddingTop();
+                        if (restoreView) {
+                            restoreView = false;
+                            int at = indexOf(Store.viewId(HomeActivity.this, c.key()));
+                            if (at >= 0) {
+                                jump = at;
+                                jumpY = Store.viewOffset(HomeActivity.this, c.key());
+                            }
+                        }
+                        if (jump < 0 && jumpToNew) jump = firstNewIndex();
+                        jumpToNew = false;
                         if (jump >= 0) {
-                            jumpToNew = false;
+                            final int to = jump, y = jumpY;
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
                             msgAdapter.notifyDataSetChanged();
-                            // the first new message just under the header; scroll down for the rest
                             chatList.post(() -> {
-                                chatList.setSelectionFromTop(jump, chatList.getPaddingTop());
+                                chatList.setSelectionFromTop(to, y);
                                 chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
                             });
                         } else if (atEnd || mineArrived || first) {
@@ -3366,6 +3414,7 @@ public class HomeActivity extends Activity {
 
     /** What leaving a page means: the mic stops, a video stops, picking ends. */
     private void leave(int from, int to) {
+        if (from == 1) saveChatPosition(); // still on the chat: remember where you were
         if (from == 1 && to == 0) cancelVoice();
         if (from == 4) stopVideo();
         if (from == 2 && picking) endPicking();
