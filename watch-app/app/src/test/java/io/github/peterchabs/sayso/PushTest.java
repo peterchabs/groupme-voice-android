@@ -45,4 +45,17 @@ public class PushTest {
         assertNull(Push.parse(new JSONObject("{\"data\":{\"type\":\"ping\"}}"), "1"));
         assertNull(Push.parse(new JSONObject("{\"channel\":\"/meta/connect\",\"successful\":true}"), "1"));
     }
+
+    @Test
+    public void aPhotoMessageCarriesItsPictureForTheNotification() throws Exception {
+        Push.Event e = Push.parse(new JSONObject("{\"data\":{\"type\":\"line.create\",\"subject\":{\"group_id\":\"4\","
+                + "\"id\":\"9\",\"sender_id\":\"2\",\"name\":\"Sam\",\"text\":\"look\","
+                + "\"attachments\":[{\"type\":\"image\",\"url\":\"https://i.groupme.com/800x600.jpeg.abc\"}]}}}"), "1");
+        assertTrue(e.photo);
+        assertEquals("https://i.groupme.com/800x600.jpeg.abc", e.imageUrl);
+        Push.Event v = Push.parse(new JSONObject("{\"data\":{\"type\":\"line.create\",\"subject\":{\"group_id\":\"4\","
+                + "\"id\":\"10\",\"sender_id\":\"2\",\"name\":\"Sam\",\"text\":\"\","
+                + "\"attachments\":[{\"type\":\"video\",\"url\":\"https://v.groupme.com/x.mp4\",\"preview_url\":\"https://v.groupme.com/x.jpg\"}]}}}"), "1");
+        assertEquals("https://v.groupme.com/x.jpg", v.imageUrl);
+    }
 }

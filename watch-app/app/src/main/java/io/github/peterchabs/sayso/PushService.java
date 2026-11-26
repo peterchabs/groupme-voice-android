@@ -29,6 +29,8 @@ public class PushService extends Service {
             EXTRA_REPLY_TO = "reply_to";
     static final String REPLY = "reply";
     private static final int RUNNING_ID = 1;
+    /** Notification groups: one per chat for messages, and one for the "staying connected" notice. */
+    private static final String GROUP_RUNNING = "sayso.running", GROUP_CHAT = "sayso.chat.";
 
     /** The chat on screen right now ("g:123" / "dm:456"): no notification for what you're reading. */
     static volatile String visibleKey;
@@ -39,6 +41,7 @@ public class PushService extends Service {
         final long at;
         final android.graphics.Bitmap avatar; // may be null
         String msgId = "";                    // GroupMe's id for an incoming message ("" for yours)
+        android.graphics.Bitmap picture;      // the photo it carried, shown in the notification (may be null)
 
         Line(String sender, String text, long at, android.graphics.Bitmap avatar) {
             this.sender = sender;
@@ -78,12 +81,22 @@ public class PushService extends Service {
         super.onCreate();
         channels(this);
         // No title: the app name already heads the card, and a watch tints titles in its own accent.
-        Notification on = new Notification.Builder(this, CH_RUNNING)
+        // Its own group, sorted last: a watch stacks an app's notifications, and without this the
+        // stack could lead with this notice instead of the new message ("Getting your GroupMe
+        // messages" in place of what was said). Kept on this device, quiet, never the headline.
+        Notification.Builder rb = new Notification.Builder(this, CH_RUNNING)
                 .setSmallIcon(R.drawable.ic_stat_sayso)
                 .setContentText("Getting your GroupMe messages")
                 .setOngoing(true)
-                .setContentIntent(openChats(this, null, null, null, false))
-                .build();
+                .setGroup(GROUP_RUNNING)
+                .setSortKey("z")
+                .setLocalOnly(true)
+                .setShowWhen(false)
+                .setOnlyAlertOnce(true)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .setContentIntent(openChats(this, null, null, null, false));
+        if (Build.VERSION.SDK_INT >= 31) rb.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_DEFERRED);
+        Notification on = rb.build();
         if (Build.VERSION.SDK_INT >= 34) startForeground(RUNNING_ID, on, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
         else startForeground(RUNNING_ID, on);
     }
@@ -151,11 +164,15 @@ public class PushService extends Service {
         String line = e.text.isEmpty() ? (e.photo ? "📷 Photo" : "Sent something") : (e.photo ? "📷 " + e.text : e.text);
         // their GroupMe picture, round, beside their name (fetched here, on the listener thread)
         android.graphics.Bitmap pic = Images.roundNow(this, Feed.sized(e.avatar, "avatar"), 128);
+        // the photo itself, so it shows right in the notification (not just "Photo")
+        android.graphics.Bitmap photoBitmap = Store.photosOn(this) && !e.imageUrl.isEmpty()
+                ? Images.pictureNow(this, Feed.sized(e.imageUrl, "preview"), Stage.isWatchBuild() ? 400 : 720) : null;
         List<Line> lines;
         synchronized (HISTORY) {
             lines = HISTORY.computeIfAbsent(key, k -> new ArrayList<>());
             Line l = new Line(e.sender, line, System.currentTimeMillis(), pic);
             l.msgId = e.msgId == null ? "" : e.msgId;
+            if (photoBitmap != null) l.picture = photoBitmap;
             lines.add(l);
             while (lines.size() > 6) lines.remove(0);
             lines = new ArrayList<>(lines);
@@ -225,6 +242,11 @@ public class PushService extends Service {
             shown = new Notification.BigTextStyle().bigText(sb).setBigContentTitle(title);
             summary = dm || last.sender.equals("You") ? last.text : last.sender + ": " + last.text;
         }
+        // The newest message is a photo: show the picture itself, with who sent it and any words.
+        if (last.picture != null) {
+            shown = new Notification.BigPictureStyle().bigPicture(last.picture).setBigContentTitle(title)
+                    .setSummaryText(summary);
+        }
         // Sound is a channel setting on Android, so silent messages get their own channel.
         Notification.Builder nb = new Notification.Builder(c, Store.pushSound(c) ? CH_MESSAGES : CH_QUIET);
         nb.addExtras(invisibleMarkAsRead(markRead)); // hidden: no extra button on screen
@@ -235,6 +257,8 @@ public class PushService extends Service {
                 .setContentText(summary)
                 .setLargeIcon(last.avatar) // who sent it, on the watch too
                 .setCategory(Notification.CATEGORY_MESSAGE)
+                .setGroup(GROUP_CHAT + key) // its own stack, never folded under the connection notice
+                .setSortKey("a")
                 .setAutoCancel(true)
                 .setColor(Palette.BLUE)
                 .addAction(act)

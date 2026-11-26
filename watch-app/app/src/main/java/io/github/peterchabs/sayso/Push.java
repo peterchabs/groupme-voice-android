@@ -29,6 +29,8 @@ final class Push {
         final String convoId;    // group id, or the other person's user id for a DM
         final String msgId, senderId, sender, avatar, text;
         final boolean photo;
+        /** The picture to show in the notification (a photo, or a video's preview), or "". */
+        String imageUrl = "";
 
         Event(boolean dm, String convoId, String msgId, String senderId, String sender, String avatar, String text, boolean photo) {
             this.dm = dm;
@@ -113,17 +115,22 @@ final class Push {
         String convo = dm ? sender : m.optString("group_id", "");
         if (convo.isEmpty()) return null;
         boolean photo = false;
+        String picture = "";
         JSONArray atts = m.optJSONArray("attachments");
         if (atts != null) {
             for (int i = 0; i < atts.length(); i++) {
                 JSONObject a = atts.optJSONObject(i);
                 String t = a == null ? "" : a.optString("type");
                 if (t.equals("image") || t.equals("video") || t.equals("linked_image")) photo = true;
+                if (picture.isEmpty() && (t.equals("image") || t.equals("linked_image"))) picture = a.optString("url", "");
+                if (picture.isEmpty() && t.equals("video")) picture = a.optString("preview_url", "");
             }
         }
         String text = m.isNull("text") ? "" : m.optString("text", "");
-        return new Event(dm, convo, m.optString("id"), sender, m.optString("name"),
+        Event ev = new Event(dm, convo, m.optString("id"), sender, m.optString("name"),
                 m.isNull("avatar_url") ? "" : m.optString("avatar_url", ""), text, photo);
+        ev.imageUrl = picture == null ? "" : picture;
+        return ev;
     }
 
     private String next() { return String.valueOf(++seq); }

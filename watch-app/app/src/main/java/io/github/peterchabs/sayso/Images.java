@@ -206,6 +206,21 @@ final class Images {
         }
     }
 
+    /** A whole picture (not cropped round) for a notification, fetched now, on a background thread. */
+    static Bitmap pictureNow(Context c, String url, int px) {
+        if (url == null || url.isEmpty()) return null;
+        String key = url + "|" + px + "|false";
+        Bitmap hit = MEM.get(key);
+        if (hit != null) return hit;
+        try {
+            Bitmap b = decode(cached(c.getApplicationContext(), url), px);
+            if (b != null) MEM.put(key, b);
+            return b;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     private static void fadeIn(ImageView v) {
         v.animate().alpha(1f).setDuration(180).start();
     }
