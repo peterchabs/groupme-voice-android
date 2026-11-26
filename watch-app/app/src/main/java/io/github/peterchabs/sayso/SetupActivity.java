@@ -511,6 +511,16 @@ public class SetupActivity extends Activity {
             try {
                 String[] me = Api.me(token);
                 String name = me[1];
+                if (isWatch() && oldSignIn(token)) { // sent by a Say So phone app from before 1.16
+                    ui.post(() -> {
+                        stage.showOrb();
+                        stage.show(OrbView.Mode.ERROR, "Update the phone app",
+                                "That sign-in came from an older Say So phone app. Install the newest one on"
+                                        + " your phone, sign in there, then send it to the watch again.",
+                                "Get a new code", (Runnable) this::startLink);
+                    });
+                    return;
+                }
                 List<Phrase.Group> groups = Api.listGroups(token);
                 Store.setToken(this, token);
                 Store.setSignInUpgrade(this, false);
@@ -567,6 +577,18 @@ public class SetupActivity extends Activity {
                 });
             }
         });
+    }
+
+    /**
+     * A sign-in from GroupMe's developer site, which older phone apps still send. It would be signed
+     * out again right away (SignInCheck), so the watch says why instead of quietly showing a new code.
+     */
+    private static boolean oldSignIn(String token) {
+        try {
+            return SignInCheck.OLD_KIND.equals(Api.tokenApp(token));
+        } catch (IOException e) {
+            return false; // can't tell right now: SignInCheck looks again once it's saved
+        }
     }
 
     private void goMain(boolean resend) {
