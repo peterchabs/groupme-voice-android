@@ -35,6 +35,16 @@ public class PushService extends Service {
     /** The chat on screen right now ("g:123" / "dm:456"): no notification for what you're reading. */
     static volatile String visibleKey;
 
+    /**
+     * Say So's own screen, while it's open. A watch shows only a small icon for a notification that
+     * arrives while an app is on screen, so the open screen shows its own drawer instead, and no
+     * notification is posted for it. Called on the listener thread.
+     */
+    interface Banner {
+        void show(String key, String convoId, boolean dm, String title, String sender, String line, android.graphics.Bitmap pic);
+    }
+    static volatile Banner banner;
+
     /** One line in a chat's notification: who, their picture, what, when. */
     static final class Line {
         final String sender, text;
@@ -206,7 +216,9 @@ public class PushService extends Service {
             while (lines.size() > 6) lines.remove(0);
             lines = new ArrayList<>(lines);
         }
-        notify(this, key, e.convoId, title, e.dm, lines);
+        Banner b = banner;
+        if (b != null) b.show(key, e.convoId, e.dm, title, e.sender, line, pic); // Say So is open: its own drawer only
+        else notify(this, key, e.convoId, title, e.dm, lines);
     }
 
     /**
@@ -364,9 +376,15 @@ public class PushService extends Service {
         notify(c, key, id, title, dm, lines);
     }
 
-    private static PendingIntent openChats(Context c, String key, String id, String name, boolean dm) {
+    /** The Chats screen, opened on one chat when key isn't null. */
+    static Intent chatIntent(Context c, String key, String id, String name, boolean dm) {
         Intent i = new Intent(c, HomeActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         if (key != null) i.putExtra(EXTRA_KEY, key).putExtra(EXTRA_ID, id).putExtra(EXTRA_NAME, name).putExtra(EXTRA_DM, dm);
+        return i;
+    }
+
+    private static PendingIntent openChats(Context c, String key, String id, String name, boolean dm) {
+        Intent i = chatIntent(c, key, id, name, dm);
         return PendingIntent.getActivity(c, key == null ? 0 : key.hashCode(), i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }

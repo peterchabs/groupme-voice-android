@@ -221,6 +221,7 @@ public class HomeActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (settingsOpen) fillSettings(); // back from the watch's own settings: show what changed
+        PushService.banner = bannerHook; // new messages while Say So is on screen: its own banner
         PushService.visibleKey = level >= 1 && current != null ? current.key() : null;
         if (PushService.visibleKey != null) PushService.clear(this, PushService.visibleKey);
         if (level >= 1 && current != null && (liveConvo != current || !liveOn)) startLive(); // back in a chat: live again
@@ -239,6 +240,7 @@ public class HomeActivity extends Activity {
 
     @Override
     protected void onPause() {
+        if (PushService.banner == bannerHook) PushService.banner = null;
         saveChatPosition();
         stopLive();
         PushService.visibleKey = null;
@@ -2097,6 +2099,26 @@ public class HomeActivity extends Activity {
     /** A watch pop-up's backdrop over the whole screen: the page color, mostly opaque. */
     private static int scrim() {
         return (Palette.BG & 0x00FFFFFF) | (Palette.dark ? 0xE0000000 : 0xE8000000);
+    }
+
+    /** New messages while Say So is open, from the notification service (its listener thread). */
+    private final PushService.Banner bannerHook = (key, convoId, dm, title, sender, line, pic) ->
+            ui.post(() -> showBanner(key, convoId, dm, title, sender, line, pic));
+
+    private InAppBanner banner;
+
+    /** A new message in another chat, over this screen (the watch would only flash a small icon). */
+    private void showBanner(String key, String convoId, boolean dm, String title, String sender, String line,
+                            android.graphics.Bitmap pic) {
+        if (key.equals(PushService.visibleKey)) return; // that chat is open: it's right there
+        if (banner == null) banner = new InAppBanner(this, root);
+        banner.show(title, sender, line, dm, pic, () -> {
+            Feed.Convo hit = null;
+            for (Feed.Convo c : convos) if (c.isDm == dm && c.id.equals(convoId)) hit = c;
+            if (hit == null) hit = new Feed.Convo(convoId, title, "", dm, 0, "");
+            if (level > 1) go(1, false);
+            openChat(hit);
+        });
     }
 
     /** A quick note over the screen that fades away by itself (nothing to tap). */

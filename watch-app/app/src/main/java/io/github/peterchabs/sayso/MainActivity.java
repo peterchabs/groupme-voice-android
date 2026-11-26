@@ -91,6 +91,28 @@ public class MainActivity extends Activity {
         if (!Store.token(this).isEmpty() && !resend(intent) && !talkInChat()) begin();
     }
 
+    /** New messages while this screen is up: the watch would only flash a small icon, so show them here. */
+    private InAppBanner banner;
+    private final PushService.Banner bannerHook = (key, convoId, dm, title, sender, line, pic) -> ui.post(() -> {
+        if (banner == null) banner = new InAppBanner(this, (android.view.ViewGroup) getWindow().getDecorView());
+        banner.show(title, sender, line, dm, pic, () -> {
+            cancelPending();
+            startActivity(PushService.chatIntent(this, key, convoId, title, dm));
+        });
+    });
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        PushService.banner = bannerHook;
+    }
+
+    @Override
+    protected void onPause() {
+        if (PushService.banner == bannerHook) PushService.banner = null;
+        super.onPause();
+    }
+
     @Override
     protected void onStop() {
         if (listening && rec != null) {
