@@ -406,31 +406,6 @@ final class Feed {
         return b.append(text).toString();
     }
 
-    /**
-     * The text as people should read it: each tagged "@Name" loses its "@". Returns the new
-     * text, and fills {@code names} with where each name now sits ({start, length}). Tags whose
-     * position doesn't land on an "@" (edited text, odd counting) are left exactly as they were.
-     */
-    static String withoutAts(String text, List<int[]> mentions, List<int[]> names) {
-        List<int[]> ok = new ArrayList<>();
-        for (int[] m : mentions) {
-            if (m[0] >= 0 && m[1] > 1 && m[0] + m[1] <= text.length() && text.charAt(m[0]) == '@') ok.add(m);
-        }
-        ok.sort((x, y) -> Integer.compare(x[0], y[0]));
-        StringBuilder b = new StringBuilder();
-        int at = 0, removed = 0;
-        for (int[] m : ok) {
-            if (m[0] < at) continue; // overlapping tags: keep the first
-            b.append(text, at, m[0]);
-            names.add(new int[]{m[0] - removed, m[1] - 1});
-            b.append(text, m[0] + 1, m[0] + m[1]);
-            at = m[0] + m[1];
-            removed++;
-        }
-        b.append(text.substring(at));
-        return b.toString();
-    }
-
     /** Sends to a group with people tagged (see withMentions). */
     static void sendTagged(String token, Convo c, List<Member> tags, String text) throws IOException {
         sendTagged(token, c, tags, text, "");
@@ -720,10 +695,6 @@ final class Feed {
                     }
                 }
             }
-        }
-        if (!out.mentions.isEmpty()) { // photo captions read like the chat: names without "@"
-            String plain = withoutAts(text, out.mentions, new ArrayList<>());
-            for (Media x : media) x.caption = plain;
         }
         return out;
     }

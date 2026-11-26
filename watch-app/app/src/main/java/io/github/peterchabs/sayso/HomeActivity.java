@@ -2424,14 +2424,17 @@ public class HomeActivity extends Activity {
         }
     }
 
-    /** Tagged names in the draft being typed ({start, length}, no "@"). */
+    /** Tagged "@Name"s in the draft being typed ({start, length}). */
     private final List<int[]> draftNames = new ArrayList<>();
 
-    /** A message's text with each tagged person shown as their name in bold color, no "@". */
+    /** A message's text with each tagged "@Name" in bold color, as other GroupMe apps show it. */
     private CharSequence namesBold(String text, List<int[]> mentions, int color) {
         if (mentions.isEmpty()) return text;
         List<int[]> names = new ArrayList<>();
-        return boldNames(Feed.withoutAts(text, mentions, names), names, color);
+        for (int[] m : mentions) {
+            if (m[0] >= 0 && m[1] > 0 && m[0] + m[1] <= text.length()) names.add(m);
+        }
+        return boldNames(text, names, color);
     }
 
     private CharSequence boldNames(String text, List<int[]> names, int color) {
@@ -2541,7 +2544,7 @@ public class HomeActivity extends Activity {
         name.setEllipsize(TextUtils.TruncateAt.END);
         name.setMaxWidth(textRoom);
         col.addView(name);
-        String said = Feed.withoutAts(orig.text, orig.mentions, new ArrayList<>());
+        String said = orig.text;
         if (said.isEmpty() && !orig.media.isEmpty()) {
             said = orig.media.get(0).kind == Feed.Media.VIDEO ? "Video" : "Photo";
         }
@@ -2559,7 +2562,7 @@ public class HomeActivity extends Activity {
 
     private String quoteText(Feed.Msg m) {
         String who = m.senderId.equals(Store.myId(this)) ? "You" : m.sender;
-        String said = Feed.withoutAts(m.text, m.mentions, new ArrayList<>());
+        String said = m.text;
         String what = !said.isEmpty() ? said : m.media.isEmpty() ? "a message"
                 : m.media.get(0).kind == Feed.Media.VIDEO ? "a video" : "a photo";
         return who + ": " + what;
@@ -5507,10 +5510,8 @@ public class HomeActivity extends Activity {
         }
         hidePanel();
         if (draft.getVisibility() != View.VISIBLE) showDraft("");
-        List<int[]> loci = new ArrayList<>();
-        String full = Feed.withMentions(tags, text, loci);
         draftNames.clear();
-        typeTo(Feed.withoutAts(full, loci, draftNames));
+        typeTo(Feed.withMentions(tags, text, draftNames));
         draftNote.setText("To " + to.name + " \u00B7 sending");
         draftBar.setVisibility(View.VISIBLE);
         draftBar.setScaleX(1f);

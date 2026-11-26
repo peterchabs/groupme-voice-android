@@ -218,22 +218,6 @@ public class FeedTest {
     }
 
     @Test
-    public void taggedNamesLoseTheirAt() {
-        java.util.List<int[]> names = new java.util.ArrayList<>();
-        java.util.List<int[]> loci = new java.util.ArrayList<>();
-        loci.add(new int[]{0, 4});   // "@Sam"
-        loci.add(new int[]{5, 4});   // "@Ann"
-        loci.add(new int[]{40, 3});  // past the end: ignored
-        String out = Feed.withoutAts("@Sam @Ann see you at 9", loci, names);
-        assertEquals("Sam Ann see you at 9", out);
-        assertEquals(2, names.size());
-        assertEquals(0, names.get(0)[0]);
-        assertEquals(3, names.get(0)[1]);
-        assertEquals(4, names.get(1)[0]);
-        assertEquals("plain @text", Feed.withoutAts("plain @text", new java.util.ArrayList<>(), names));
-    }
-
-    @Test
     public void stampsSayTheActualTime() {
         java.util.Calendar c = java.util.Calendar.getInstance();
         c.set(2026, java.util.Calendar.NOVEMBER, 25, 17, 34, 0);
