@@ -354,6 +354,31 @@ public class HomeActivity extends Activity {
      * Round watch screens: each row shrinks a little as it nears the top or bottom edge, so its
      * ends (the time, a bubble's edge) stay inside the circle. Scale only, nothing re-lays out.
      */
+    /**
+     * The same round-screen fisheye for a scrolling page of buttons (Settings): each one
+     * shrinks a little near the top or bottom edge so its ends stay inside the circle.
+     */
+    private void curveScroll(ScrollView sv) {
+        sv.getViewTreeObserver().addOnPreDrawListener(() -> {
+            if (sv.getChildCount() == 0 || !(sv.getChildAt(0) instanceof ViewGroup)) return true;
+            ViewGroup col = (ViewGroup) sv.getChildAt(0);
+            float r = W / 2f, edge = px(6);
+            for (int i = 0; i < col.getChildCount(); i++) {
+                View c = col.getChildAt(i);
+                if (c.getWidth() == 0) continue;
+                float top = col.getTop() + c.getTop() - sv.getScrollY(), bot = top + c.getHeight();
+                float worst = Math.min(Math.abs((top + bot) / 2f - r) + (bot - top) * 0.25f, r * 0.92f);
+                float chord = 2f * (float) Math.sqrt(r * r - worst * worst) - 2 * edge;
+                float s = Math.max(0.8f, Math.min(1f, chord / c.getWidth()));
+                if (Math.abs(c.getScaleX() - s) > 0.004f) {
+                    c.setScaleX(s);
+                    c.setScaleY(s);
+                }
+            }
+            return true;
+        });
+    }
+
     private void curve(android.widget.AbsListView lv) {
         lv.getViewTreeObserver().addOnPreDrawListener(() -> {
             float r = W / 2f, edge = px(6);
@@ -730,6 +755,7 @@ public class HomeActivity extends Activity {
         settings.setBackgroundColor(Palette.SURFACE);
         settings.setVerticalScrollBarEnabled(false);
         settings.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        if (watch) curveScroll(settings); // buttons ease smaller near the round edge, like the chats
         fillSettings();
     }
 
@@ -772,12 +798,12 @@ public class HomeActivity extends Activity {
             PushService.sync(this);
             fillSettings();
         });
-        if (Store.pushOn(this)) { // with or without sound (a buzz either way)
-            addSettingButton(col, "Notification sound: " + (Store.pushSound(this) ? "on" : "off"), false, () -> {
-                Store.setPushSound(this, !Store.pushSound(this));
-                fillSettings();
-            });
-        }
+        // One switch for every sound: notifications (they still buzz without it) and the chat tones
+        addSettingButton(col, "Sounds: " + (Store.pushSound(this) ? "on" : "off"), false, () -> {
+            Store.setPushSound(this, !Store.pushSound(this));
+            fillSettings();
+            if (Store.pushSound(this)) chime(true); // a sample of how it sounds
+        });
         addSettingButton(col, "Theme: " + Palette.label(Store.theme(this)), false, () -> {
             Store.setTheme(this, Palette.next(Store.theme(this)));
             recreate(); // every color rebuilt in the new theme
@@ -786,7 +812,7 @@ public class HomeActivity extends Activity {
             closeSettings();
             refreshList();
         });
-        final Button[] out = new Button[1];
+        final TextView[] out = new TextView[1];
         final boolean[] armed = new boolean[1];
         out[0] = addSettingButton(col, "Sign out", false, () -> {
             if (!armed[0]) { // a stray tap on a small screen shouldn't sign you out
@@ -813,26 +839,40 @@ public class HomeActivity extends Activity {
         settings.addView(col);
     }
 
-    private Button addSettingButton(LinearLayout col, String text, boolean primary, Runnable tap) {
-        Button b = new Button(this);
-        b.setGravity(Gravity.CENTER);
-        b.setAllCaps(false);
-        b.setText(text);
-        b.setSingleLine(true);
-        b.setEllipsize(TextUtils.TruncateAt.END);
-        b.setTextSize(sp(watch ? 13 : 15));
-        b.setTypeface(BOLD);
-        b.setTextColor(primary ? Color.WHITE : BLUE);
-        b.setBackground(Press.button(this, primary));
-
-        b.setPadding(px(8), 0, px(8), px(4)); // text centered on the face, above the 4dp lip
-        b.setStateListAnimator(null);
-        b.setOnClickListener(v -> tap.run());
-        Press.attach(b);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(watch ? 40 : 48));
+    /**
+     * A settings row, as a card like the chat list: the setting on the left and, for "Name: value"
+     * settings, its current value in blue on the right. (Raised blue buttons are for actions.)
+     * Returns the left label, so a row can change its own words ("Tap again").
+     */
+    private TextView addSettingButton(LinearLayout col, String text, boolean primary, Runnable tap) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setBackground(pressable());
+        liftRow(row);
+        row.setPadding(px(watch ? 14 : 16), 0, px(watch ? 14 : 16), 0);
+        int split = text.indexOf(": ");
+        String name = split > 0 ? text.substring(0, split) : text, value = split > 0 ? text.substring(split + 2) : "";
+        TextView left = label(name, sp(watch ? 13 : 15), text.equals("Sign out") ? 0xFFFF3B30 : INK, true);
+        left.setSingleLine(true);
+        left.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if (!value.isEmpty()) {
+            TextView right = label(value.substring(0, 1).toUpperCase(java.util.Locale.US) + value.substring(1),
+                    sp(watch ? 12.5f : 14.5f), BLUE, true);
+            right.setSingleLine(true);
+            right.setEllipsize(TextUtils.TruncateAt.END);
+            right.setMaxWidth((int) (W * (watch ? 0.3f : 0.4f)));
+            right.setPadding(px(8), 0, 0, 0);
+            row.addView(right);
+        }
+        row.setContentDescription(text);
+        row.setOnClickListener(v -> tap.run());
+        Press.attach(row);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(watch ? 42 : 50));
         lp.topMargin = px(5);
-        col.addView(b, lp);
-        return b;
+        col.addView(row, lp);
+        return left;
     }
 
     private void openSetup(String screen) {
@@ -1389,10 +1429,16 @@ public class HomeActivity extends Activity {
                         for (Feed.Msg x : msgs) had.add(x.id);
                         String me = Store.myId(HomeActivity.this);
                         boolean mineArrived = false;
+                        boolean theirs = false;
                         for (Feed.Msg x : fresh) {
                             if (had.contains(x.id) || first) continue;
                             if (handoff > 0 && x.senderId.equals(me)) mineArrived = true; // takes the draft's place, no slide
                             else appearing.add(x.id);
+                            if (!x.senderId.equals(me) && !x.system) theirs = true;
+                        }
+                        if (theirs && level == 1) { // someone wrote in the chat you're looking at
+                            chime(false);
+                            buzz(25);
                         }
                         if (mineArrived) {
                             handoff = 0;
@@ -1625,6 +1671,35 @@ public class HomeActivity extends Activity {
             }
             return row;
         }
+    }
+
+    // ---------------- chat sounds ----------------
+
+    private android.media.SoundPool sounds;
+    private int soundSent, soundGot;
+
+    /**
+     * A short soft tone: rising when your message goes out, falling when one arrives in the chat
+     * you have open. Quiet when the watch is on silent or vibrate, or Sounds is off.
+     */
+    private void chime(boolean sent) {
+        if (!Store.pushSound(this)) return; // the Sounds switch covers these too
+        android.media.AudioManager am = getSystemService(android.media.AudioManager.class);
+        if (am != null && am.getRingerMode() != android.media.AudioManager.RINGER_MODE_NORMAL) return;
+        if (sounds == null) {
+            sounds = new android.media.SoundPool.Builder().setMaxStreams(2).setAudioAttributes(
+                    new android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build();
+            soundSent = sounds.load(this, R.raw.sent, 1);
+            soundGot = sounds.load(this, R.raw.received, 1);
+            final boolean s = sent;
+            sounds.setOnLoadCompleteListener((pool, id, status) -> {
+                if (status == 0 && id == (s ? soundSent : soundGot)) pool.play(id, 0.6f, 0.6f, 1, 0, 1f);
+            });
+            return;
+        }
+        sounds.play(sent ? soundSent : soundGot, 0.6f, 0.6f, 1, 0, 1f);
     }
 
     // ---------------- live chat: who's typing, and DM read times ----------------
@@ -4545,6 +4620,7 @@ public class HomeActivity extends Activity {
                     refreshTagRow();
                     status(to.isDm ? "Direct message" : "Group");
                     vibrate();
+                    chime(true); // sent
                     draftNote.setText("Sent");
                     handoff = 4;            // the draft becomes the real message when it arrives
                     loadMessages(false);

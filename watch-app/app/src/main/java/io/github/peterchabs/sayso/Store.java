@@ -41,7 +41,7 @@ final class Store {
 
     static void setPushOn(Context c, boolean on) { p(c).edit().putBoolean("push", on).apply(); }
 
-    /** Whether new-message notifications make a sound (on) or arrive silently (off). Buzzes either way. */
+    /** Sounds on or off: notification sounds (they buzz either way) and Say So's own send/receive tones. */
     static boolean pushSound(Context c) { return p(c).getBoolean("push_sound", true); }
 
     static void setPushSound(Context c, boolean on) { p(c).edit().putBoolean("push_sound", on).apply(); }
