@@ -185,6 +185,19 @@ final class Stage {
     }
 
     /** Your words, as the recognizer hears them. */
+    /** Changes the heading and the line under it in place (a quick fade), e.g. "To Weekend Crew". */
+    void retitle(String t, String s) {
+        if (t != null && !t.contentEquals(title.getText())) {
+            title.setAlpha(0.3f);
+            title.setText(t);
+            title.animate().alpha(1f).setDuration(220).start();
+        }
+        if (s != null && !s.contentEquals(sub.getText())) {
+            sub.setText(s);
+            sub.setVisibility(View.VISIBLE);
+        }
+    }
+
     void live(String text) {
         if (text == null || text.isEmpty()) return;
         live.setText("“" + text + "”");

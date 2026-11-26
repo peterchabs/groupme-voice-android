@@ -22,7 +22,7 @@ public final class Phrase {
     private static final Pattern LEAD = Pattern.compile(
             "^\\s*(?:hey google[,\\s]*|ok google[,\\s]*)?"
             + "(?:please\\s+)?(?:groupme\\s+)?"
-            + "(?:(?:send|text|post|message)\\s+(?:a\\s+)?(?:groupme\\s+)?(?:message\\s+)?(?:(?:to|in)\\s+)?)?"
+            + "(?:(?:send|text|post|message|tell)\\s+(?:a\\s+)?(?:groupme\\s+)?(?:message\\s+)?(?:(?:to|in)\\s+)?)?"
             + "(?:the\\s+)?(?:groupme\\s+)?(?:group\\s+)?", CI);
     private static final Pattern SPLIT = Pattern.compile(
             "\\s+(?:that says|saying|which says|and say|message)\\s*[:,]?\\s+", CI);
@@ -88,6 +88,44 @@ public final class Phrase {
         return new Phrase(group, text);
     }
 
+    private static final Pattern TELL = Pattern.compile("^\\s*(?:hey google[,\\s]*|ok google[,\\s]*)?(?:please\\s+)?tell\\b", CI);
+    private static final Pattern REST_LEAD = Pattern.compile("^\\s*[:,.-]?\\s*(?:that says|saying|says|which says)?\\s*[:,]?\\s*", CI);
+
+    /**
+     * Finds a group named at the start of what you said, without "that says": "Weekend Crew I'm
+     * running late", "tell Weekend Crew I'm running late". Takes the longest of your group names
+     * that fits, and everything after it is the message ("" if you only said the name). Null when
+     * what you said doesn't start with one of your groups.
+     */
+    public static Phrase parseNamed(String heard, List<Group> groups) {
+        if (heard == null || groups == null || groups.isEmpty()) return null;
+        boolean tell = TELL.matcher(heard).find();
+        String s = LEAD.matcher(PREFIX.matcher(heard).replaceFirst("")).replaceFirst("");
+        String[] words = s.trim().split("\\s+");
+        if (words.length == 0 || words[0].isEmpty()) return null;
+        Map<String, Group> byName = new LinkedHashMap<>();
+        for (Group g : groups) {
+            String n = norm(g.name);
+            if (n.isEmpty()) continue;
+            byName.putIfAbsent(n, g);
+            byName.putIfAbsent(n.replace(" ", ""), g); // "Yolk.CHICAGO" is said "yolk chicago"
+        }
+        for (int k = Math.min(words.length, 10); k >= 1; k--) {
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < k; i++) b.append(i == 0 ? "" : " ").append(words[i]);
+            String cand = norm(GROUP_WORD.matcher(b.toString()).replaceFirst(""));
+            Group g = byName.get(cand);
+            if (g == null) g = byName.get(cand.replace(" ", ""));
+            if (g == null) continue;
+            StringBuilder rest = new StringBuilder();
+            for (int i = k; i < words.length; i++) rest.append(i == k ? "" : " ").append(words[i]);
+            String text = REST_LEAD.matcher(rest.toString()).replaceFirst("");
+            if (tell) text = text.replaceFirst("(?i)^that\\s+", ""); // "tell Crew that I'm late"
+            return new Phrase(g.name, text.trim());
+        }
+        return null;
+    }
+
     private static String strip(String s, String chars) {
         int a = 0, b = s.length();
         while (a < b && chars.indexOf(s.charAt(a)) >= 0) a++;
@@ -119,6 +157,8 @@ public final class Phrase {
     }
 
     static String norm(String s) {
+        // fancy letters (bold, italic, script) count as plain ones: "Yolk.CHICAGO" written in 𝘾𝙃𝙄𝘾𝘼𝙂𝙊
+        s = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC);
         return s.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9 ]", "").replaceAll("\\s+", " ").trim();
     }
 

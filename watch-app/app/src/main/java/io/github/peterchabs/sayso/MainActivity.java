@@ -141,6 +141,7 @@ public class MainActivity extends Activity {
         autoRetried = false; // each tap of Try again gets its own quiet retry
         spokenSoFar = "";
         userDone = quickRetried = false;
+        awaiting = null; // a fresh start; "Try again" for a named group sets it back right after
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             stage.show(OrbView.Mode.IDLE, "Allow the microphone", "So I can hear your message.");
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
@@ -237,6 +238,15 @@ public class MainActivity extends Activity {
             // your words as you say them (earlier sentences kept), tidied as they go
             String all = joinSpoken(spokenSoFar, t);
             stage.live(all.isEmpty() ? null : Tidy.live(all));
+            // the moment a group is recognized, the screen says where it's going, before you finish
+            if (awaiting == null && pendingSend == null && !all.isEmpty()) {
+                Phrase named = Phrase.parse(all);
+                if (named == null) named = Phrase.parseNamed(all, Store.groups(MainActivity.this));
+                if (named != null) {
+                    Phrase.Match m = Phrase.match(Store.groups(MainActivity.this), named.group);
+                    if (m.group != null) stage.retitle("To " + m.group.name, named.text.isEmpty() ? "What's the message?" : "Your message");
+                }
+            }
         }
 
         @Override public void onEndOfSpeech() {
@@ -254,13 +264,16 @@ public class MainActivity extends Activity {
             } else if (userDone || heard == null) { // tapped to finish, or stopped talking: that's it
                 spokenSoFar = "";
                 spoken = true;
+                userDone = false;
                 handle(full);
+                if (awaiting != null) keepListening(); // named a group only: listen for the message
             } else { // a pause: count down as usual, but keep listening under it
                 spokenSoFar = full;
                 heardSoFar = "";
                 spoken = true;
                 handle(full);
-                if (pendingSend != null) keepListening(); // talk again before it sends to add more
+                if (awaiting != null) spokenSoFar = ""; // the next words are the message itself
+                if (pendingSend != null || awaiting != null) keepListening(); // more words keep coming
             }
         }
 
@@ -270,6 +283,18 @@ public class MainActivity extends Activity {
             listening = false;
             if (pendingSend != null) { // counting down: no more words came, so it simply sends
                 resetRecognizer();
+                return;
+            }
+            if (awaiting != null && heardSoFar.isEmpty() && spokenSoFar.isEmpty()) {
+                final Phrase.Group g = awaiting;
+                resetRecognizer();
+                stage.show(OrbView.Mode.ERROR, "What's the message for " + g.name + "?", "Nothing was sent.",
+                        "Try again", (Runnable) () -> {
+                            begin();
+                            awaiting = g;
+                            stage.retitle("To " + g.name, "What's the message?");
+                        },
+                        "Chats", (Runnable) MainActivity.this::openChats);
                 return;
             }
             if (!ready && !autoRetried && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
@@ -408,8 +433,8 @@ public class MainActivity extends Activity {
     /** What to say, shown while listening. */
     private String hint() {
         Phrase.Group d = Store.defaultGroup(this);
-        return d == null ? "Say: [group] that says [message]"
-                : "Say your message for " + d.name + ", or [group] that says [message]";
+        return d == null ? "Say a group, then your message"
+                : "Say your message for " + d.name + ", or a group first";
     }
 
     /** What happens when the countdown ends: send, reply, DM or like. Runs off the UI thread. */
@@ -458,7 +483,17 @@ public class MainActivity extends Activity {
 
     private String out(String text) { return spoken ? Tidy.spoken(text) : text; }
 
+    /** You named only a group: it's waiting for the message (the mic stays on). */
+    private Phrase.Group awaiting;
+
     private void handle(String heard) {
+        if (awaiting != null) { // the message for the group you just named
+            Phrase.Group g = awaiting;
+            awaiting = null;
+            String text = heard == null ? "" : heard.trim();
+            if (!text.isEmpty() && !tooLong(text)) confirmGroup(g, text);
+            return;
+        }
         if (Phrase.parseLike(heard)) {           // "like that", "heart that message"
             withLatest(null);
             return;
@@ -474,6 +509,22 @@ public class MainActivity extends Activity {
             return;
         }
         Phrase p = Phrase.parse(heard);          // "Weekend Crew that says hi"
+        if (p == null) {                         // "Weekend Crew I'm late", "tell Weekend Crew I'm late"
+            Phrase named = Phrase.parseNamed(heard, Store.groups(this));
+            if (named != null) {
+                if (named.text.isEmpty()) { // just the name: ask for the message, still listening
+                    Phrase.Match m = Phrase.match(Store.groups(this), named.group);
+                    if (m.group != null) {
+                        awaiting = m.group;
+                        spokenSoFar = "";
+                        stage.show(OrbView.Mode.LISTEN, "To " + m.group.name, "What's the message?", "Chats", (Runnable) this::openChats);
+                        return;
+                    }
+                } else {
+                    p = named;
+                }
+            }
+        }
         if (p == null) {
             // No group named. With a default group set, everything you said is the message.
             Phrase.Group d = Store.defaultGroup(this);

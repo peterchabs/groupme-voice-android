@@ -87,4 +87,41 @@ public class PhraseTest {
         assertNull(Phrase.parseDm("Weekend Crew that says DM me"));
         assertNull(Phrase.parseDm("DM Sam"));
     }
+
+    private static java.util.List<Phrase.Group> crews() {
+        java.util.List<Phrase.Group> g = new java.util.ArrayList<>();
+        g.add(new Phrase.Group("1", "Weekend Crew"));
+        g.add(new Phrase.Group("2", "Yolk"));
+        g.add(new Phrase.Group("3", "Yolk West Loop"));
+        g.add(new Phrase.Group("4", "Yolk.\uD835\uDE3E\uD835\uDE43\uD835\uDE44\uD835\uDE3E\uD835\uDE3C\uD835\uDE42\uD835\uDE4A")); // Yolk.CHICAGO in math letters
+        return g;
+    }
+
+    @Test public void aGroupNamedFirstNeedsNoThatSays() {
+        Phrase p = Phrase.parseNamed("Weekend Crew I'm running late", crews());
+        assertEquals("Weekend Crew", p.group);
+        assertEquals("I'm running late", p.text);
+        p = Phrase.parseNamed("tell weekend crew that I'm running late", crews());
+        assertEquals("Weekend Crew", p.group);
+        assertEquals("I'm running late", p.text);
+        p = Phrase.parseNamed("text Weekend Crew saying on my way", crews());
+        assertEquals("on my way", p.text);
+    }
+
+    @Test public void theLongestGroupNameWins() {
+        assertEquals("Yolk West Loop", Phrase.parseNamed("Yolk West Loop we need more eggs", crews()).group);
+        assertEquals("Yolk", Phrase.parseNamed("Yolk we need more eggs", crews()).group);
+    }
+
+    @Test public void fancyLetterNamesMatchPlainSpeech() {
+        Phrase p = Phrase.parseNamed("yolk chicago doors open at seven", crews());
+        assertEquals("doors open at seven", p.text);
+    }
+
+    @Test public void justTheNameMeansAskForTheMessage() {
+        Phrase p = Phrase.parseNamed("Weekend Crew", crews());
+        assertEquals("Weekend Crew", p.group);
+        assertEquals("", p.text);
+        assertNull(Phrase.parseNamed("hello there everyone", crews()));
+    }
 }

@@ -206,6 +206,10 @@ public class HomeActivity extends Activity {
         for (Feed.Convo c : convos) if (!c.isDm && c.id.equals(dg.id)) pic = c.avatarUrl;
         voiceEntry = true;
         instant = level == 0;
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            ui.postDelayed(() -> toast("Listening \u00B7 just talk"), 700); // no tap needed: say it so
+        }
         tagging.clear();
         refreshTagRow();
         openChat(new Feed.Convo(dg.id, dg.name, pic, false, 0, ""));
@@ -1982,6 +1986,26 @@ public class HomeActivity extends Activity {
     /** A watch pop-up's backdrop over the whole screen: the page color, mostly opaque. */
     private static int scrim() {
         return (Palette.BG & 0x00FFFFFF) | (Palette.dark ? 0xE0000000 : 0xE8000000);
+    }
+
+    /** A quick note over the screen that fades away by itself (nothing to tap). */
+    private void toast(String text) {
+        TextView t = label(text, sp(watch ? 12 : 14), Color.WHITE, true);
+        t.setGravity(Gravity.CENTER);
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(0xE6000000 | (BLUE & 0x00FFFFFF));
+        g.setCornerRadius(px(20));
+        t.setBackground(g);
+        t.setPadding(px(14), px(8), px(14), px(9));
+        t.setElevation(px(10));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
+        lp.topMargin = watch ? (int) (H * 0.22f) : px(80);
+        root.addView(t, lp);
+        t.setAlpha(0f);
+        t.setTranslationY(-px(8));
+        t.animate().alpha(1f).translationY(0).setDuration(220).withEndAction(() ->
+                t.animate().alpha(0f).setStartDelay(1800).setDuration(300).withEndAction(() -> root.removeView(t)).start()).start();
     }
 
     // ---------------- a menu of choices (long-presses) ----------------
