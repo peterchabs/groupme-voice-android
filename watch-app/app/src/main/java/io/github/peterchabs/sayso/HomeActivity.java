@@ -4524,6 +4524,7 @@ public class HomeActivity extends Activity {
             }
         }
         if (current != null && !current.isDm) profileExtras(col, m);
+        else if (!me) profileAbout(col, m); // a DM's profile: the same GroupMe profile fields
         sv.addView(col);
         profileLayer.addView(sv, match());
     }
@@ -4641,6 +4642,32 @@ public class HomeActivity extends Activity {
         });
     }
 
+    /** Just their GroupMe profile (a direct message's profile page has no group to look through). */
+    private void profileAbout(LinearLayout col, Feed.Member m) {
+        final String key = "dm:" + m.userId;
+        profileShowing = key;
+        LinearLayout aboutBox = new LinearLayout(this);
+        aboutBox.setOrientation(LinearLayout.VERTICAL);
+        aboutBox.setVisibility(View.GONE);
+        col.addView(aboutBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout groupBox = new LinearLayout(this);
+        groupBox.setOrientation(LinearLayout.VERTICAL);
+        groupBox.setVisibility(View.GONE);
+        col.addView(groupBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        final String token = Store.token(this);
+        bg.execute(() -> {
+            try {
+                Api.Profile pr = Api.profile(token, m.userId);
+                Map<Integer, String> names = pr.interests.isEmpty() ? new java.util.HashMap<>() : Api.interestNames();
+                ui.post(() -> { if (profileShowing.equals(key)) showProfile(aboutBox, groupBox, pr, names, m); });
+            } catch (Api.AuthException e) {
+                ui.post(this::signedOut);
+            } catch (IOException ignored) {
+                // offline: the profile simply shows less
+            }
+        });
+    }
+
     private void showLastPosted(TextView last, long atSec) {
         long now = System.currentTimeMillis();
         String ago = Feed.ago(atSec, now);                 // "now", "13m", "5h", "Mon", "Nov 4"
@@ -4722,6 +4749,15 @@ public class HomeActivity extends Activity {
         return t;
     }
 
+    private TextView profileValue(String text, int color) {
+        TextView t = label(text, sp(watch ? 12 : 14), color, false);
+        t.setGravity(Gravity.CENTER);
+        return t;
+    }
+
+    /** An empty profile field, said plainly rather than hidden. */
+    private TextView notSet() { return profileValue("Not set", GREY); }
+
     private static void fadeIn(View v) {
         v.setVisibility(View.VISIBLE);
         v.setAlpha(0f);
@@ -4735,25 +4771,22 @@ public class HomeActivity extends Activity {
      */
     private void showProfile(LinearLayout about, LinearLayout groups, Api.Profile p, Map<Integer, String> names, Feed.Member m) {
         about.removeAllViews();
-        if (!p.bio.isEmpty()) {
-            TextView bio = label(p.bio, sp(watch ? 12 : 14), INK, false);
-            bio.setGravity(Gravity.CENTER);
-            bio.setPadding(0, px(12), 0, 0);
-            about.addView(bio);
-        }
+        // every field GroupMe's profile has, each under its heading; "Not set" when they left it empty
+        about.addView(profileHeading("Bio"));
+        about.addView(p.bio.isEmpty() ? notSet() : profileValue(p.bio, INK));
+
         List<String> tags = new ArrayList<>();
         for (int id : p.interests) {
             String n = names.get(id);
             if (n != null && !n.isEmpty()) tags.add(n);
         }
-        if (!tags.isEmpty()) {
-            about.addView(profileHeading("Interests"));
-            TextView t = label(android.text.TextUtils.join("  \u00B7  ", tags), sp(watch ? 11.5f : 13.5f), INK, false);
-            t.setGravity(Gravity.CENTER);
-            about.addView(t);
-        }
-        if (!p.songUrl.isEmpty()) {
-            about.addView(profileHeading("Profile song"));
+        about.addView(profileHeading("Interests"));
+        about.addView(tags.isEmpty() ? notSet() : profileValue(android.text.TextUtils.join("  \u00B7  ", tags), INK));
+
+        about.addView(profileHeading("Profile song"));
+        if (p.songUrl.isEmpty()) {
+            about.addView(notSet());
+        } else {
             TextView song = label("Spotify", sp(watch ? 12 : 14), BLUE, true);
             song.setGravity(Gravity.CENTER);
             song.setSingleLine(false);
@@ -4772,8 +4805,11 @@ public class HomeActivity extends Activity {
             });
             Press.attach(song);
         }
-        if (!p.photos.isEmpty()) {
-            about.addView(profileHeading("Profile photos  \u00B7  " + p.photos.size()));
+
+        about.addView(profileHeading(p.photos.isEmpty() ? "Profile photos" : "Profile photos  \u00B7  " + p.photos.size()));
+        if (p.photos.isEmpty()) {
+            about.addView(notSet());
+        } else {
             android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
             hs.setHorizontalScrollBarEnabled(false);
             LinearLayout row = new LinearLayout(this);
@@ -4798,19 +4834,14 @@ public class HomeActivity extends Activity {
             about.addView(hs, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             ((LinearLayout.LayoutParams) hs.getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
         }
-        List<String> facts = new ArrayList<>();
-        if (p.createdAtSec > 0) {
-            facts.add("On GroupMe since " + new java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.US)
-                    .format(new java.util.Date(p.createdAtSec * 1000)));
-        }
-        if (!p.dmCapable) facts.add("Doesn't take direct messages");
-        if (!p.appInstalled) facts.add("Doesn't use a GroupMe app");
-        if (!facts.isEmpty()) {
-            TextView f = label(android.text.TextUtils.join("\n", facts), sp(watch ? 10.5f : 12.5f), GREY, false);
-            f.setGravity(Gravity.CENTER);
-            f.setPadding(0, px(12), 0, 0);
-            about.addView(f);
-        }
+
+        about.addView(profileHeading("On GroupMe since"));
+        about.addView(p.createdAtSec > 0 ? profileValue(new java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.US)
+                .format(new java.util.Date(p.createdAtSec * 1000)), INK) : notSet());
+        about.addView(profileHeading("Direct messages"));
+        about.addView(profileValue(p.dmCapable ? "Can receive them" : "Can't receive them", INK));
+        about.addView(profileHeading("GroupMe app"));
+        about.addView(profileValue(p.appInstalled ? "Installed" : "Not installed", INK));
         if (about.getChildCount() > 0) fadeIn(about);
 
         groups.removeAllViews();
@@ -4818,7 +4849,7 @@ public class HomeActivity extends Activity {
         for (String[] g : p.sharedGroups) if (current == null || !g[0].equals(current.id)) others.add(g);
         groups.addView(profileHeading("Groups you share  \u00B7  " + others.size()));
         if (others.isEmpty()) {
-            TextView none = label("Just this one", sp(watch ? 11.5f : 13), GREY, false);
+            TextView none = label(current != null && !current.isDm ? "Just this one" : "None", sp(watch ? 11.5f : 13), GREY, false);
             none.setGravity(Gravity.CENTER);
             groups.addView(none);
         }
