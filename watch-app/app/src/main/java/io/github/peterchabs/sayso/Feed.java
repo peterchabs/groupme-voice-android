@@ -634,6 +634,23 @@ final class Feed {
     }
 
     /** "now", "3m", "2h", "Mon", "Nov 3": how long since a message, short enough for a watch. */
+    /** The actual time a message was sent: "5:34 PM" today, "Yesterday 5:34 PM", "Nov 24, 5:34 PM", or "Nov 24, 2025". */
+    static String stamp(long atSec, long nowMs) {
+        if (atSec <= 0) return "";
+        java.util.Calendar at = java.util.Calendar.getInstance(), now = java.util.Calendar.getInstance();
+        at.setTimeInMillis(atSec * 1000);
+        now.setTimeInMillis(nowMs);
+        String time = new java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(at.getTime());
+        boolean sameYear = at.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR);
+        if (sameYear && at.get(java.util.Calendar.DAY_OF_YEAR) == now.get(java.util.Calendar.DAY_OF_YEAR)) return time;
+        java.util.Calendar y = (java.util.Calendar) now.clone();
+        y.add(java.util.Calendar.DAY_OF_YEAR, -1);
+        if (at.get(java.util.Calendar.YEAR) == y.get(java.util.Calendar.YEAR)
+                && at.get(java.util.Calendar.DAY_OF_YEAR) == y.get(java.util.Calendar.DAY_OF_YEAR)) return "Yesterday " + time;
+        if (sameYear) return new java.text.SimpleDateFormat("MMM d", java.util.Locale.US).format(at.getTime()) + ", " + time;
+        return new java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US).format(at.getTime());
+    }
+
     static String ago(long atSec, long nowMs) {
         if (atSec <= 0) return "";
         long s = Math.max(0, nowMs / 1000 - atSec);

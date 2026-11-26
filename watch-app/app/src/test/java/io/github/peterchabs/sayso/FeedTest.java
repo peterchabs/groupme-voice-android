@@ -232,4 +232,18 @@ public class FeedTest {
         assertEquals(4, names.get(1)[0]);
         assertEquals("plain @text", Feed.withoutAts("plain @text", new java.util.ArrayList<>(), names));
     }
+
+    @Test
+    public void stampsSayTheActualTime() {
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        c.set(2026, java.util.Calendar.NOVEMBER, 25, 17, 34, 0);
+        long now = c.getTimeInMillis();
+        assertEquals("5:34 PM", Feed.stamp(now / 1000, now));
+        c.add(java.util.Calendar.DAY_OF_YEAR, -1);
+        assertEquals("Yesterday 5:34 PM", Feed.stamp(c.getTimeInMillis() / 1000, now));
+        c.add(java.util.Calendar.DAY_OF_YEAR, -3);
+        assertEquals("Nov 21, 5:34 PM", Feed.stamp(c.getTimeInMillis() / 1000, now));
+        c.set(2025, java.util.Calendar.MARCH, 3);
+        assertEquals("Mar 3, 2025", Feed.stamp(c.getTimeInMillis() / 1000, now));
+    }
 }

@@ -25,7 +25,8 @@ import java.util.Map;
  */
 public class PushService extends Service {
     static final String CH_MESSAGES = "messages", CH_QUIET = "messages_quiet", CH_RUNNING = "running";
-    static final String EXTRA_KEY = "convo_key", EXTRA_ID = "convo_id", EXTRA_NAME = "convo_name", EXTRA_DM = "convo_dm";
+    static final String EXTRA_KEY = "convo_key", EXTRA_ID = "convo_id", EXTRA_NAME = "convo_name", EXTRA_DM = "convo_dm",
+            EXTRA_REPLY_TO = "reply_to";
     static final String REPLY = "reply";
     private static final int RUNNING_ID = 1;
 
@@ -37,6 +38,7 @@ public class PushService extends Service {
         final String sender, text;
         final long at;
         final android.graphics.Bitmap avatar; // may be null
+        String msgId = "";                    // GroupMe's id for an incoming message ("" for yours)
 
         Line(String sender, String text, long at, android.graphics.Bitmap avatar) {
             this.sender = sender;
@@ -152,7 +154,9 @@ public class PushService extends Service {
         List<Line> lines;
         synchronized (HISTORY) {
             lines = HISTORY.computeIfAbsent(key, k -> new ArrayList<>());
-            lines.add(new Line(e.sender, line, System.currentTimeMillis(), pic));
+            Line l = new Line(e.sender, line, System.currentTimeMillis(), pic);
+            l.msgId = e.msgId == null ? "" : e.msgId;
+            lines.add(l);
             while (lines.size() > 6) lines.remove(0);
             lines = new ArrayList<>(lines);
         }
@@ -185,8 +189,13 @@ public class PushService extends Service {
         if (!dm) style.setConversationTitle(title);
         Line last = lines.get(lines.size() - 1);
         RemoteInput input = new RemoteInput.Builder(REPLY).setLabel("Reply to " + title).build();
+        // A reply (typed, spoken, or Gemini's "respond to that message") answers the newest
+        // message from someone else, as a real GroupMe reply that quotes it.
+        String replyTo = "";
+        for (Line l : lines) if (!l.msgId.isEmpty()) replyTo = l.msgId;
         Intent ri = new Intent(c, ReplyReceiver.class)
-                .putExtra(EXTRA_KEY, key).putExtra(EXTRA_ID, id).putExtra(EXTRA_NAME, title).putExtra(EXTRA_DM, dm);
+                .putExtra(EXTRA_KEY, key).putExtra(EXTRA_ID, id).putExtra(EXTRA_NAME, title).putExtra(EXTRA_DM, dm)
+                .putExtra(EXTRA_REPLY_TO, replyTo);
         PendingIntent reply = PendingIntent.getBroadcast(c, key.hashCode(), ri,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0));
         Notification.Action.Builder ab = new Notification.Action.Builder(

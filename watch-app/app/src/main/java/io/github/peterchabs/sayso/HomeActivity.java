@@ -216,6 +216,8 @@ public class HomeActivity extends Activity {
         PushService.visibleKey = level >= 1 && current != null ? current.key() : null;
         if (PushService.visibleKey != null) PushService.clear(this, PushService.visibleKey);
         ui.post(ticker);
+        ui.removeCallbacks(stampFlip);
+        ui.postDelayed(stampFlip, 4000);
         if (settingsOpen) fillSettings(); // back from the default-group picker
         fillButtonNote();
         if (current != null && level >= 1) {
@@ -229,6 +231,7 @@ public class HomeActivity extends Activity {
     protected void onPause() {
         PushService.visibleKey = null;
         ui.removeCallbacks(ticker);
+        ui.removeCallbacks(stampFlip);
         ui.removeCallbacks(chatPoll);
         cancelVoice();
         if (playing != null) playing.pause(); // leaving the app: the video stops too
@@ -250,6 +253,36 @@ public class HomeActivity extends Activity {
             if (convoAdapter != null) convoAdapter.notifyDataSetChanged();
             if (++ticks % 2 == 0 && level == 0) refreshList();
             ui.postDelayed(this, 30000);
+        }
+    };
+
+    /** Every message time on screen, and when its message was sent (seconds). */
+    private final java.util.WeakHashMap<TextView, Long> times = new java.util.WeakHashMap<>();
+    /** Showing the actual time ("5:34 PM") instead of how long ago ("13m"). */
+    private boolean showStamp;
+
+    private String whenText(long atSec) {
+        long now = System.currentTimeMillis();
+        return showStamp ? Feed.stamp(atSec, now) : Feed.ago(atSec, now);
+    }
+
+    /** Every few seconds message times cross-fade between "13m" and the actual time. */
+    private final Runnable stampFlip = new Runnable() {
+        @Override
+        public void run() {
+            ui.postDelayed(this, 4000);
+            if (level != 1 || settingsOpen || dragging || pulling) return;
+            showStamp = !showStamp;
+            for (java.util.Map.Entry<TextView, Long> e : new ArrayList<>(times.entrySet())) {
+                TextView t = e.getKey();
+                if (t == null || !t.isAttachedToWindow()) continue;
+                long at = e.getValue();
+                t.animate().cancel();
+                t.animate().alpha(0f).setDuration(160).withEndAction(() -> {
+                    t.setText(whenText(at));
+                    t.animate().alpha(0.85f).setDuration(220).start();
+                }).start();
+            }
         }
     };
 
@@ -1174,17 +1207,25 @@ public class HomeActivity extends Activity {
             av.setBackground(o);
             String pic = mine && m.avatarUrl.isEmpty() ? Store.avatar(HomeActivity.this) : m.avatarUrl;
             if (photosOn()) Images.load(av, Feed.sized(pic, "avatar"), as, true);
-            TextView name = label((mine ? "You" : m.sender) + "  " + Feed.ago(m.at, System.currentTimeMillis()),
-                    sp(watch ? 10 : 11.5f), mine ? BLUE : GREY, true);
-            name.setPadding(mine ? 0 : px(5), 0, mine ? px(5) : 0, 0);
+            TextView name = label(mine ? "You" : m.sender, sp(watch ? 10 : 11.5f), mine ? BLUE : GREY, true);
+            name.setPadding(mine ? 0 : px(5), 0, 0, 0);
+            name.setMaxWidth((int) (W * (watch ? 0.36f : 0.45f))); // long names shorten; the time stays
             name.setSingleLine(true);
             name.setEllipsize(TextUtils.TruncateAt.END);
+            // the time: "13m" and the actual time ("5:34 PM") take turns (see stampFlip)
+            TextView when = label(whenText(m.at), sp(watch ? 10 : 11.5f), mine ? BLUE : GREY, true);
+            when.setPadding(px(5), 0, mine ? px(5) : 0, 0);
+            when.setSingleLine(true);
+            when.setAlpha(0.85f);
+            times.put(when, m.at);
             if (mine) {
-                who.addView(name);
+                who.addView(name, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                who.addView(when);
                 who.addView(av, new LinearLayout.LayoutParams(as, as));
             } else {
                 who.addView(av, new LinearLayout.LayoutParams(as, as));
-                who.addView(name);
+                who.addView(name, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                who.addView(when);
             }
             // tap someone's picture or name: their profile
             final Feed.Msg msg = m;

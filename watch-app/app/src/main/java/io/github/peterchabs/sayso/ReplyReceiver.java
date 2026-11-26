@@ -28,13 +28,16 @@ public class ReplyReceiver extends BroadcastReceiver {
         final String id = intent.getStringExtra(PushService.EXTRA_ID);
         final String name = intent.getStringExtra(PushService.EXTRA_NAME);
         final boolean dm = intent.getBooleanExtra(PushService.EXTRA_DM, false);
+        final String replyTo = intent.getStringExtra(PushService.EXTRA_REPLY_TO);
         final String token = Store.token(c);
         if (key == null || id == null || token.isEmpty()) return;
         final PendingResult done = goAsync(); // the network call outlives onReceive
         final Context app = c.getApplicationContext();
         new Thread(() -> {
             try {
-                Feed.send(token, new Feed.Convo(id, name == null ? "" : name, "", dm, 0, ""), text);
+                // a real GroupMe reply to the message it answers, quoting it
+                Feed.sendTagged(token, new Feed.Convo(id, name == null ? "" : name, "", dm, 0, ""),
+                        new java.util.ArrayList<>(), text, replyTo == null ? "" : replyTo);
                 PushService.addMine(app, key, id, name, dm, text);
             } catch (IOException e) {
                 PushService.addMine(app, key, id, name, dm, "Not sent (no connection): " + text);
