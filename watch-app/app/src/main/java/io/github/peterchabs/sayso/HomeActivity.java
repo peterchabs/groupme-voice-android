@@ -221,7 +221,7 @@ public class HomeActivity extends Activity {
         super.onResume();
         PushService.visibleKey = level >= 1 && current != null ? current.key() : null;
         if (PushService.visibleKey != null) PushService.clear(this, PushService.visibleKey);
-        if (level >= 1 && current != null && !liveOn) startLive(); // back in a chat: live again
+        if (level >= 1 && current != null && (liveConvo != current || !liveOn)) startLive(); // back in a chat: live again
         if (level == 0 && !liveOn) startListLive(); // the chat list: pins and new messages as they happen
         ui.post(ticker);
         ui.removeCallbacks(stampFlip);
@@ -1773,7 +1773,7 @@ public class HomeActivity extends Activity {
         replying = null;
         hideVoice();
         if (c.request) ui.postDelayed(() -> { if (current == c && c.request) showRequestBar(c); }, 500);
-        if (!same || !liveOn) startLive();
+        if (liveConvo != c || !liveOn) startLive(); // the live connection must be this chat's own
         loadMessages(true);
         ui.removeCallbacks(chatPoll);
         ui.postDelayed(chatPoll, 8000);
@@ -1857,7 +1857,7 @@ public class HomeActivity extends Activity {
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
                             msgAdapter.notifyDataSetChanged();
                             chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
-                            if (!first) scrollChatToEnd(); // all the way, above the mic, not just to the screen's edge
+                            scrollChatToEnd(); // all the way, above the mic, not just to the screen's edge
                         } else {
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
                             msgAdapter.notifyDataSetChanged();
@@ -2188,10 +2188,14 @@ public class HomeActivity extends Activity {
      * While a chat is open: a live connection to it, the way GroupMe's apps keep one, for
      * "is typing", read receipts in a DM, and new messages the moment they're sent.
      */
+    /** The chat the live connection is for (null while it's the chat list's, or off). */
+    private Feed.Convo liveConvo;
+
     private void startLive() {
         stopLive();
         final Feed.Convo c = current;
         if (c == null) return;
+        liveConvo = c;
         final String token = Store.token(this), me = Store.myId(this);
         final String channel = Push.chatChannel(c.isDm, conversationIdOf(c));
         liveOn = true;
@@ -2319,6 +2323,7 @@ public class HomeActivity extends Activity {
 
     private void stopLive() {
         liveOn = false;
+        liveConvo = null;
         livePush = null;
         if (liveThread != null) liveThread.interrupt();
         liveThread = null;
