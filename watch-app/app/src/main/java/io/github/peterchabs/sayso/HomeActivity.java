@@ -1764,6 +1764,7 @@ public class HomeActivity extends Activity {
         PushService.clear(this, c.key());
         chatTitle.setText(c.name);
         checkPins(c);
+        checkCanPin(c);
         status(c.isDm ? "Direct message" : "Group");
         chatAvatar.setImageDrawable(null);
         if (watch) chatAvatar.setVisibility(c.avatarUrl.isEmpty() || !photosOn() ? View.GONE : View.VISIBLE);
@@ -2674,11 +2675,65 @@ public class HomeActivity extends Activity {
         runs.add(() -> startReply(m));
         labels.add("React");
         runs.add(() -> showReactions(m, anchor));
+        final Feed.Convo c = current;
+        if (c != null && !m.system && (c.isDm || Boolean.TRUE.equals(canPinIn.get(c.id)))) {
+            final boolean pin = m.pinnedAt == 0;
+            labels.add(pin ? "Pin message" : "Unpin message");
+            runs.add(() -> showChoices(pin ? "Pin this message for everyone?" : "Unpin this message for everyone?",
+                    new String[]{pin ? "Pin" : "Unpin", "Cancel"},
+                    new Runnable[]{() -> setPinned(m, pin), () -> { }}));
+        }
         if (mine) {
             labels.add("Unsend");
             runs.add(() -> unsend(m));
         }
         showChoices(what, labels.toArray(new String[0]), runs.toArray(new Runnable[0]));
+    }
+
+    /** Groups where you can pin (you're the owner or an admin), as last checked. DMs: either person can. */
+    private final java.util.Map<String, Boolean> canPinIn = new java.util.HashMap<>();
+
+    /** Finds out, in the background, whether you can pin in group {@code c}. */
+    private void checkCanPin(Feed.Convo c) {
+        if (c == null || c.isDm || canPinIn.containsKey(c.id)) return;
+        final String token = Store.token(this), me = Store.myId(this);
+        bg.execute(() -> {
+            try {
+                boolean can = Feed.canPin(Feed.members(token, c.id), me);
+                ui.post(() -> canPinIn.put(c.id, can));
+            } catch (IOException ignored) {
+                // asked again next time the chat opens
+            }
+        });
+    }
+
+    /** Pins a message for everyone (or unpins it); every GroupMe app shows the change. */
+    private void setPinned(Feed.Msg m, boolean pin) {
+        final Feed.Convo c = current;
+        if (c == null) return;
+        final String token = Store.token(this), conv = conversationIdOf(c);
+        bg.execute(() -> {
+            try {
+                Feed.setPinned(token, conv, m.id, pin);
+                ui.post(() -> {
+                    m.pinnedAt = pin ? System.currentTimeMillis() / 1000 : 0;
+                    toast(pin ? "Pinned for everyone" : "Unpinned");
+                    if (current == c) {
+                        if (pin) {
+                            hasPins.put(c.key(), true);
+                            chatPinIcon.setVisibility(View.VISIBLE);
+                        } else {
+                            checkPins(c);
+                        }
+                        loadMessages(false); // GroupMe's "pinned a message" line
+                    }
+                });
+            } catch (Api.AuthException e) {
+                ui.post(this::signedOut);
+            } catch (IOException e) {
+                ui.post(() -> toast(pin ? "Couldn't pin that one" : "Couldn't unpin that one"));
+            }
+        });
     }
 
     /** Takes one of your messages back, for everyone (GroupMe allows it for a while after sending). */

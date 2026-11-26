@@ -280,4 +280,16 @@ public class FeedTest {
         assertTrue(Feed.newer("100", ""));
         assertFalse(Feed.newer("", "100"));
     }
+
+    @Test
+    public void onlyTheOwnerAndAdminsCanPinInAGroup() {
+        java.util.List<Feed.Member> ms = java.util.Arrays.asList(
+                new Feed.Member("1", "Pat", "", "Owner"),
+                new Feed.Member("2", "Sam", "", "Admin"),
+                new Feed.Member("3", "Ann", "", ""));
+        org.junit.Assert.assertTrue(Feed.canPin(ms, "1"));
+        org.junit.Assert.assertTrue(Feed.canPin(ms, "2"));
+        org.junit.Assert.assertFalse(Feed.canPin(ms, "3"));
+        org.junit.Assert.assertFalse(Feed.canPin(ms, "9")); // not in the group
+    }
 }

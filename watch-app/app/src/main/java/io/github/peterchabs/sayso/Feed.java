@@ -96,6 +96,8 @@ final class Feed {
         String replyId = "";
         /** Emoji reactions, most used first. */
         List<Reaction> reactions = new ArrayList<>();
+        /** When it was pinned (seconds since 1970), or 0 if it isn't. */
+        long pinnedAt;
 
         Msg(String id, String senderId, String sender, String avatarUrl, String text, long at, int likes,
             boolean system, List<Media> media) {
@@ -557,6 +559,21 @@ final class Feed {
     }
 
     /** Unsends one of your messages, for everyone. Throws if GroupMe says it's too late. */
+    /**
+     * Pins a message to the top of its chat for everyone, or unpins it, the way GroupMe's web app does.
+     * {@code conversationId} is the group id, or a DM's "lowerId+higherId".
+     */
+    static void setPinned(String token, String conversationId, String messageId, boolean pin) throws IOException {
+        Api.call("POST", "/conversations/" + enc(conversationId) + "/messages/" + enc(messageId) + (pin ? "/pin" : "/unpin"),
+                token, null);
+    }
+
+    /** Whether someone can pin in this group: GroupMe lets its owner and admins pin. */
+    static boolean canPin(List<Member> members, String userId) {
+        for (Member m : members) if (m.userId.equals(userId)) return !m.role.isEmpty();
+        return false;
+    }
+
     static void unsend(String token, String conversationId, String messageId) throws IOException {
         Api.call("DELETE", "/conversations/" + enc(conversationId) + "/messages/" + enc(messageId), token, null);
     }
@@ -682,6 +699,7 @@ final class Feed {
         Msg out = new Msg(str(m, "id"), sender, str(m, "name"), str(m, "avatar_url"), text,
                 m.optLong("created_at", 0), fav == null ? 0 : fav.length(), system, media);
         out.eventId = eventIdOf(m);
+        out.pinnedAt = m.optLong("pinned_at", 0);
         out.reactions = parseReactions(m.optJSONArray("reactions"), fav);
         if (atts != null) {
             for (int i = 0; i < atts.length(); i++) {
