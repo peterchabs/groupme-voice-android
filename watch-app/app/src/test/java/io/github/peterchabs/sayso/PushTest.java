@@ -57,5 +57,6 @@ public class PushTest {
                 + "\"id\":\"10\",\"sender_id\":\"2\",\"name\":\"Sam\",\"text\":\"\","
                 + "\"attachments\":[{\"type\":\"video\",\"url\":\"https://v.groupme.com/x.mp4\",\"preview_url\":\"https://v.groupme.com/x.jpg\"}]}}}"), "1");
         assertEquals("https://v.groupme.com/x.jpg", v.imageUrl);
+        assertTrue(v.video);
     }
 }

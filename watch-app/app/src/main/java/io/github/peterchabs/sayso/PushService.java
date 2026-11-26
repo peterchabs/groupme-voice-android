@@ -161,12 +161,15 @@ public class PushService extends Service {
         String key = (e.dm ? "dm:" : "g:") + e.convoId;
         if (key.equals(visibleKey)) return;
         String title = e.dm ? e.sender : groupName(e.convoId);
-        String line = e.text.isEmpty() ? (e.photo ? "📷 Photo" : "Sent something") : (e.photo ? "📷 " + e.text : e.text);
+        String mark = e.video ? "🎥 " : "📷 ";
+        String line = e.text.isEmpty() ? (e.photo ? mark + (e.video ? "Video" : "Photo") : "Sent something")
+                : (e.photo ? mark + e.text : e.text);
         // their GroupMe picture, round, beside their name (fetched here, on the listener thread)
         android.graphics.Bitmap pic = Images.roundNow(this, Feed.sized(e.avatar, "avatar"), 128);
         // the photo itself, so it shows right in the notification (not just "Photo")
         android.graphics.Bitmap photoBitmap = Store.photosOn(this) && !e.imageUrl.isEmpty()
-                ? Images.pictureNow(this, Feed.sized(e.imageUrl, "preview"), Stage.isWatchBuild() ? 400 : 720) : null;
+                ? Images.pictureNow(this, e.video ? e.imageUrl : Feed.sized(e.imageUrl, "preview"), Stage.isWatchBuild() ? 400 : 720) : null;
+        if (photoBitmap != null && e.video) photoBitmap = withPlayButton(photoBitmap); // a video: its frame, with a play button
         List<Line> lines;
         synchronized (HISTORY) {
             lines = HISTORY.computeIfAbsent(key, k -> new ArrayList<>());
@@ -178,6 +181,27 @@ public class PushService extends Service {
             lines = new ArrayList<>(lines);
         }
         notify(this, key, e.convoId, title, e.dm, lines);
+    }
+
+    /**
+     * A video's preview frame with a round play button in the middle, so a video notification
+     * reads as a video. (Notifications can't play it; tap to open the chat, where it plays.)
+     */
+    static android.graphics.Bitmap withPlayButton(android.graphics.Bitmap frame) {
+        android.graphics.Bitmap b = frame.copy(android.graphics.Bitmap.Config.ARGB_8888, true);
+        android.graphics.Canvas c = new android.graphics.Canvas(b);
+        float r = Math.min(b.getWidth(), b.getHeight()) * 0.16f, cx = b.getWidth() / 2f, cy = b.getHeight() / 2f;
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(0x99000000);
+        c.drawCircle(cx, cy, r, p);
+        p.setColor(0xFFFFFFFF);
+        android.graphics.Path tri = new android.graphics.Path();
+        tri.moveTo(cx - r * 0.32f, cy - r * 0.48f);
+        tri.lineTo(cx + r * 0.52f, cy);
+        tri.lineTo(cx - r * 0.32f, cy + r * 0.48f);
+        tri.close();
+        c.drawPath(tri, p);
+        return b;
     }
 
     /** A person in the conversation: name plus picture (Android 9+ shows the picture). */

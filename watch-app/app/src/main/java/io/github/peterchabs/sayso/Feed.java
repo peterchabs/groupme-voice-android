@@ -35,6 +35,20 @@ final class Feed {
         }
 
         String key() { return (isDm ? "dm:" : "g:") + id; }
+
+        /** How many messages the chat has in all, and its newest message's id (-1 / "" if unknown). */
+        int count = -1;
+        String lastMsgId = "";
+        /** What GroupMe itself says you've read (in its own apps): -1 / "" when it doesn't say. */
+        int unread = -1;
+        String lastReadId = "";
+    }
+
+    /** True if message id {@code a} is newer than {@code b} (GroupMe ids grow over time). */
+    static boolean newer(String a, String b) {
+        if (a == null || a.isEmpty()) return false;
+        if (b == null || b.isEmpty()) return true;
+        return a.length() != b.length() ? a.length() > b.length() : a.compareTo(b) > 0;
     }
 
     /** Something attached to a message. */
@@ -133,10 +147,12 @@ final class Feed {
             JSONObject r = Api.call("GET", "/direct_messages?other_user_id=" + enc(c.id), token, null)
                     .optJSONObject("response");
             a = r == null ? null : r.optJSONArray("direct_messages");
+            if (r != null && r.has("count")) c.count = r.optInt("count", c.count);
         } else {
             JSONObject r = Api.call("GET", "/groups/" + enc(c.id) + "/messages?limit=" + limit, token, null)
                     .optJSONObject("response");
             a = r == null ? null : r.optJSONArray("messages");
+            if (r != null && r.has("count")) c.count = r.optInt("count", c.count); // the total, for unread counts
         }
         List<Msg> out = new ArrayList<>();
         if (a == null) return out; // GroupMe answers 304 (empty) for a group with no messages
@@ -484,7 +500,19 @@ final class Feed {
             String body = describe(str(prev, "text"), prev.optJSONArray("attachments"));
             preview = who.isEmpty() ? body : who + ": " + body;
         }
-        return new Convo(str(g, "id"), str(g, "name"), str(g, "image_url"), false, at, preview);
+        Convo c = new Convo(str(g, "id"), str(g, "name"), str(g, "image_url"), false, at, preview);
+        if (msgs != null) {
+            c.count = msgs.optInt("count", -1);
+            c.lastMsgId = str(msgs, "last_message_id");
+        }
+        readState(c, g);
+        return c;
+    }
+
+    /** GroupMe's own read position for a group or DM, when it gives one. */
+    private static void readState(Convo c, JSONObject o) {
+        c.unread = o.isNull("unread_count") ? -1 : o.optInt("unread_count", -1);
+        c.lastReadId = str(o, "last_read_message_id");
     }
 
     static Convo parseChat(JSONObject ch) {
@@ -494,7 +522,11 @@ final class Feed {
         JSONObject last = ch.optJSONObject("last_message");
         long at = last == null ? ch.optLong("updated_at", 0) : last.optLong("created_at", 0);
         String preview = last == null ? "" : describe(str(last, "text"), last.optJSONArray("attachments"));
-        return new Convo(str(other, "id"), str(other, "name"), str(other, "avatar_url"), true, at, preview);
+        Convo c = new Convo(str(other, "id"), str(other, "name"), str(other, "avatar_url"), true, at, preview);
+        c.count = ch.optInt("messages_count", -1);
+        c.lastMsgId = last == null ? "" : str(last, "id");
+        readState(c, ch);
+        return c;
     }
 
     static Msg parseMessage(JSONObject m) {

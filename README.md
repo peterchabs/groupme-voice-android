@@ -235,8 +235,10 @@ double-press the side button and start talking.
 **[Watch the 3-minute video](https://peterchabs.github.io/groupme-voice-android/video.html)**
 of setup and every feature, recorded on a real watch screen with captions.
 
-- **Chats:** tap **Chats** to see every group and direct message, newest first.
-  Open one to read it. Photos, videos, links and events show right in the chat.
+- **Chats:** tap **Chats** to see every group and direct message, newest first. A
+  count on a chat's picture says how many new messages it has. Open one and it starts
+  at the first new message, under a "New messages" line. Photos, videos, links and
+  events show right in the chat.
 - **Talk in a chat:** tap the mic in any chat and talk. Your words type into a blue
   bubble at the bottom of the chat as you speak, and the messages above slide up to
   make room. Then it sends.

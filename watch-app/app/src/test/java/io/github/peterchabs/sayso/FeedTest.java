@@ -275,4 +275,25 @@ public class FeedTest {
                 + "\"attachments\":[{\"type\":\"image\",\"url\":\"https://i.groupme.com/100x100.jpeg.abc\"}]}");
         assertEquals("77", Feed.parseMessage(msg).media.get(0).fromId);
     }
+
+    @Test
+    public void groupsAndChatsCarryTheirCountsAndReadPlace() throws Exception {
+        Feed.Convo g = Feed.parseGroup(new JSONObject("{\"id\":\"1\",\"name\":\"Crew\",\"unread_count\":3,"
+                + "\"last_read_message_id\":\"170\",\"messages\":{\"count\":42,\"last_message_id\":\"173\"}}"));
+        assertEquals(42, g.count);
+        assertEquals("173", g.lastMsgId);
+        assertEquals(3, g.unread);
+        assertEquals("170", g.lastReadId);
+        Feed.Convo quiet = Feed.parseGroup(new JSONObject("{\"id\":\"2\",\"name\":\"X\",\"unread_count\":null,\"messages\":{\"count\":5}}"));
+        assertEquals(-1, quiet.unread);
+        assertEquals("", quiet.lastReadId);
+    }
+
+    @Test
+    public void newerComparesGroupMeIdsByValue() {
+        assertTrue(Feed.newer("179566118384028616", "179564226018470287"));
+        assertFalse(Feed.newer("99", "100"));
+        assertTrue(Feed.newer("100", ""));
+        assertFalse(Feed.newer("", "100"));
+    }
 }

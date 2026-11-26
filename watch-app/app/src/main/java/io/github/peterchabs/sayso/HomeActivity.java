@@ -392,6 +392,11 @@ public class HomeActivity extends Activity {
                     }
                     convos.clear();
                     convos.addAll(fresh);
+                    // A chat Say So has never seen starts at "all read" (no badge for years of
+                    // old messages); only what arrives from now on counts as new.
+                    for (Feed.Convo x : fresh) {
+                        if (Store.seenCount(this, x.key()) < 0 && x.unread < 0) Store.setSeen(this, x.key(), x.count, x.lastMsgId);
+                    }
                     convoAdapter.notifyDataSetChanged();
                     listStatus.setText(fresh.isEmpty() ? "No chats yet" : "Pull down for settings");
                 });
@@ -403,6 +408,25 @@ public class HomeActivity extends Activity {
             }
         });
     }
+
+    /**
+     * How many messages in a chat you haven't seen: since where you left off in Say So, or
+     * GroupMe's own count (from its apps) if that's lower. 0 when neither knows.
+     */
+    private int unreadOf(Feed.Convo c) {
+        if (current != null && level >= 1 && current.key().equals(c.key())) return 0; // reading it now
+        int seen = Store.seenCount(this, c.key());
+        String seenId = Store.seenId(this, c.key());
+        if (!c.lastMsgId.isEmpty() && !seenId.isEmpty() && !Feed.newer(c.lastMsgId, seenId)) return 0;
+        int mine = seen >= 0 && c.count >= 0 ? Math.max(0, c.count - seen) : -1;
+        if (mine < 0) return Math.max(0, c.unread);
+        return c.unread >= 0 ? Math.min(mine, c.unread) : mine;
+    }
+
+    /** In the open chat: the "New messages" line goes above the first message newer than this. */
+    private String newSince = "";
+    /** Open the chat at that line (the first new message), not at the newest. Once per opening. */
+    private boolean jumpToNew;
 
     /** Chats with something new since the last refresh: they glide into their new place. */
     private final java.util.HashSet<String> movedUp = new java.util.HashSet<>();
@@ -428,13 +452,18 @@ public class HomeActivity extends Activity {
             r.preview.setText(c.preview.isEmpty() ? (c.isDm ? "Direct message" : " ") : c.preview);
             r.time.setText(Feed.ago(c.lastAt, System.currentTimeMillis()));
             r.avatar.set(c.name, c.avatarUrl, c.isDm);
+            int n = unreadOf(c);
+            r.badge.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
+            r.badge.setText(n > 99 ? "99+" : String.valueOf(n));
+            r.badge.setContentDescription(n + " unread");
+            r.preview.setTextColor(n > 0 ? INK : GREY); // unread: the preview reads darker
             if (movedUp.remove(c.key())) glideIn(v, 0);
             return v;
         }
     }
 
     private final class Row {
-        TextView name, preview, time;
+        TextView name, preview, time, badge;
         Avatar avatar;
 
         View build() {
@@ -445,7 +474,27 @@ public class HomeActivity extends Activity {
             row.setBackground(pressable());
             liftRow(row);
             avatar = new Avatar(watch ? 38 : 48);
-            row.addView(avatar.view);
+            // the picture, with the unread count over its top-left corner
+            FrameLayout pic = new FrameLayout(HomeActivity.this);
+            pic.setClipChildren(false);
+            FrameLayout.LayoutParams avl = new FrameLayout.LayoutParams(avatar.size, avatar.size);
+            avl.leftMargin = avl.topMargin = px(5);
+            pic.addView(avatar.view, avl);
+            badge = label("", sp(watch ? 10 : 11.5f), Color.WHITE, true);
+            badge.setGravity(Gravity.CENTER);
+            GradientDrawable bb = new GradientDrawable();
+            bb.setColor(BLUE);
+            bb.setCornerRadius(px(11));
+            bb.setStroke(px(2), Palette.ROW); // a ring in the card's color, so it stands off the picture
+            badge.setBackground(bb);
+            badge.setMinWidth(px(watch ? 20 : 22));
+            badge.setPadding(px(5), 0, px(5), px(1));
+            badge.setVisibility(View.GONE);
+            badge.setElevation(px(4));
+            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(watch ? 20 : 22));
+            bl.gravity = Gravity.TOP | Gravity.START;
+            pic.addView(badge, bl);
+            row.addView(pic, new LinearLayout.LayoutParams(avatar.size + px(5), avatar.size + px(5)));
             LinearLayout text = new LinearLayout(HomeActivity.this);
             text.setOrientation(LinearLayout.VERTICAL);
             text.setPadding(px(watch ? 8 : 12), 0, px(4), 0);
@@ -455,11 +504,17 @@ public class HomeActivity extends Activity {
             preview = label("", sp(watch ? 11.5f : 13.5f), GREY, false);
             preview.setSingleLine(true);
             preview.setEllipsize(TextUtils.TruncateAt.END);
-            text.addView(name);
+            // top line: the name, and the time at the top right; the preview gets the full width below
+            LinearLayout top = new LinearLayout(HomeActivity.this);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            top.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            time = label("", sp(watch ? 10.5f : 12), BLUE, true);
+            time.setPadding(px(6), 0, 0, 0);
+            top.addView(time, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            text.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             text.addView(preview);
             row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            time = label("", sp(watch ? 11 : 12.5f), BLUE, true);
-            row.addView(time);
             row.setTag(this);
             Press.attach(row);
             return row;
@@ -1103,6 +1158,12 @@ public class HomeActivity extends Activity {
             msgs.clear();
         }
         boolean same = current != null && current.key().equals(c.key());
+        if (!same || newSince.isEmpty()) { // where you left off: Say So's place or GroupMe's, whichever is further along
+            String seenId = Store.seenId(this, c.key());
+            newSince = Feed.newer(c.lastReadId, seenId) ? c.lastReadId : seenId;
+            if (!Feed.newer(c.lastMsgId, newSince)) newSince = ""; // nothing new
+            jumpToNew = !newSince.isEmpty();
+        }
         current = c;
         PushService.visibleKey = c.key();
         PushService.clear(this, c.key());
@@ -1143,6 +1204,9 @@ public class HomeActivity extends Activity {
                 List<Feed.Msg> fresh = Feed.messages(token, c, watch ? 25 : 40);
                 ui.post(() -> {
                     if (current == null || !current.key().equals(c.key())) return;
+                    if (!fresh.isEmpty() && level >= 1 && !history) { // opened it: these count as seen
+                        Store.setSeen(HomeActivity.this, c.key(), c.count, fresh.get(fresh.size() - 1).id);
+                    }
                     String oldLast = msgs.isEmpty() ? "" : msgs.get(msgs.size() - 1).id;
                     String newLast = fresh.isEmpty() ? "" : fresh.get(fresh.size() - 1).id;
                     status(c.isDm ? "Direct message" : "Group");
@@ -1162,11 +1226,31 @@ public class HomeActivity extends Activity {
                             dropDraftNow();
                         }
                         if (first && !fresh.isEmpty()) fadeList(chatList);
+                        // At the bottom already (or sending): follow new messages down. Reading
+                        // further up: stay put, they're waiting below.
+                        boolean atEnd = chatList.getChildCount() == 0
+                                || chatList.getLastVisiblePosition() >= chatList.getCount() - 2;
                         msgs.clear();
                         msgs.addAll(fresh);
-                        chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
-                        msgAdapter.notifyDataSetChanged();
-                        chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
+                        int jump = jumpToNew ? firstNewIndex() : -1;
+                        if (jump >= 0) {
+                            jumpToNew = false;
+                            chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
+                            msgAdapter.notifyDataSetChanged();
+                            // the first new message just under the header; scroll down for the rest
+                            chatList.post(() -> {
+                                chatList.setSelectionFromTop(jump, chatList.getPaddingTop());
+                                chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
+                            });
+                        } else if (atEnd || mineArrived || first) {
+                            chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
+                            msgAdapter.notifyDataSetChanged();
+                            chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
+                        } else {
+                            chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
+                            msgAdapter.notifyDataSetChanged();
+                            chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
+                        }
                     } else if (!reactionsOf(msgs).equals(reactionsOf(fresh))) {
                         msgs.clear();          // only reactions changed: redraw in place, no scrolling
                         msgs.addAll(fresh);
@@ -1196,6 +1280,38 @@ public class HomeActivity extends Activity {
         return b.toString();
     }
 
+    /** The first message from someone else that's newer than where you left off, or -1. */
+    private int firstNewIndex() {
+        if (newSince.isEmpty() || history) return -1;
+        String me = Store.myId(this);
+        for (int i = 0; i < msgs.size(); i++) {
+            Feed.Msg m = msgs.get(i);
+            if (!m.system && !m.senderId.equals(me) && Feed.newer(m.id, newSince)) return i;
+        }
+        return -1;
+    }
+
+    /** "New messages", a thin blue line either side, across the whole row. */
+    private View newLine() {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(0, px(4), 0, px(8));
+        for (int k = 0; k < 3; k++) {
+            if (k == 1) {
+                TextView t = label("New messages", sp(watch ? 10 : 11.5f), BLUE, true);
+                t.setPadding(px(8), 0, px(8), 0);
+                line.addView(t);
+            } else {
+                View v = new View(this);
+                v.setBackgroundColor(0x6600AFF0);
+                line.addView(v, new LinearLayout.LayoutParams(0, Math.max(1, px(1)), 1f));
+            }
+        }
+        line.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return line;
+    }
+
     private final class MsgAdapter extends BaseAdapter {
         @Override public int getCount() { return msgs.size(); }
 
@@ -1220,6 +1336,7 @@ public class HomeActivity extends Activity {
                 return row;
             }
             row.setGravity(mine ? Gravity.END : Gravity.START);
+            if (i == firstNewIndex()) row.addView(newLine()); // where you left off
 
             LinearLayout who = new LinearLayout(HomeActivity.this);
             who.setOrientation(LinearLayout.HORIZONTAL);
@@ -3258,6 +3375,7 @@ public class HomeActivity extends Activity {
         if (to == 0) PushService.visibleKey = null;
         if (to == 0) {
             ui.removeCallbacks(chatPoll);
+            newSince = ""; // the "New messages" line is worked out again next time
             tagging.clear();
             refreshTagRow();
             refreshList();
@@ -3662,6 +3780,7 @@ public class HomeActivity extends Activity {
     private void startVoice() {
         if (current == null) return;
         toLatest(); // talking happens at the newest messages
+        if (!history) scrollChatToEnd();
         Feed.Msg keep = replying; // a retry or a fresh listen still answers the same message
         cancelVoice();
         replying = keep;

@@ -27,6 +27,21 @@ final class Store {
 
     static void setName(Context c, String n) { p(c).edit().putString("name", n == null ? "" : n).apply(); }
 
+    /**
+     * Where you left off in a chat, as Say So saw it: how many messages it had and its newest
+     * message id. GroupMe has no way for an app to mark a chat read, so Say So keeps its own.
+     */
+    static int seenCount(Context c, String key) { return p(c).getInt("seen_n_" + key, -1); }
+
+    static String seenId(Context c, String key) { return p(c).getString("seen_id_" + key, ""); }
+
+    static void setSeen(Context c, String key, int count, String lastId) {
+        SharedPreferences.Editor e = p(c).edit();
+        if (count >= 0) e.putInt("seen_n_" + key, count);
+        if (lastId != null && !lastId.isEmpty()) e.putString("seen_id_" + key, lastId);
+        e.apply();
+    }
+
     /** New-message notifications (PushService). Off until you turn them on. */
     static boolean pushOn(Context c) { return p(c).getBoolean("push", false); }
 

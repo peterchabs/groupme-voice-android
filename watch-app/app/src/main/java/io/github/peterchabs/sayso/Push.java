@@ -31,6 +31,8 @@ final class Push {
         final boolean photo;
         /** The picture to show in the notification (a photo, or a video's preview), or "". */
         String imageUrl = "";
+        /** True when what it carried is a video (the picture is its preview frame). */
+        boolean video;
 
         Event(boolean dm, String convoId, String msgId, String senderId, String sender, String avatar, String text, boolean photo) {
             this.dm = dm;
@@ -130,6 +132,12 @@ final class Push {
         Event ev = new Event(dm, convo, m.optString("id"), sender, m.optString("name"),
                 m.isNull("avatar_url") ? "" : m.optString("avatar_url", ""), text, photo);
         ev.imageUrl = picture == null ? "" : picture;
+        if (atts != null) {
+            for (int i = 0; i < atts.length(); i++) {
+                JSONObject a = atts.optJSONObject(i);
+                if (a != null && "video".equals(a.optString("type"))) ev.video = true;
+            }
+        }
         return ev;
     }
 
