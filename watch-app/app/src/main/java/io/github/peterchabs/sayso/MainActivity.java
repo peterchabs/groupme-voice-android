@@ -13,6 +13,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.text.InputType;
+import android.view.View;
 import android.widget.EditText;
 
 import java.io.IOException;
@@ -179,8 +180,18 @@ public class MainActivity extends Activity {
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
         listening = true;
+        heardSoFar = "";
+        getWindow().getDecorView().removeCallbacks(quietDone);
         rec.startListening(i);
     }
+
+    /** The words heard so far in this listen, kept in case the speech service ends in an error. */
+    private String heardSoFar = "";
+
+    /** The words stopped changing a while ago: you've finished, so end the listen and use them. */
+    private final Runnable quietDone = () -> {
+        if (listening && rec != null && !heardSoFar.isEmpty()) rec.stopListening();
+    };
 
     /** Set once the speech service has the mic open; a refusal before that gets one quiet retry. */
     private boolean ready, autoRetried, quietRetry;
@@ -196,7 +207,15 @@ public class MainActivity extends Activity {
         }
 
         @Override public void onPartialResults(Bundle b) {
-            if (listening) stage.live(first(b)); // your words, as you say them
+            if (!listening) return;
+            String t = first(b);
+            stage.live(t); // your words, as you say them
+            if (t != null && !t.equals(heardSoFar)) {
+                heardSoFar = t;
+                View d = getWindow().getDecorView();
+                d.removeCallbacks(quietDone);       // still talking
+                d.postDelayed(quietDone, 2500);     // 2.5 s with no new words: done
+            }
         }
 
         @Override public void onEndOfSpeech() {
@@ -206,7 +225,9 @@ public class MainActivity extends Activity {
         @Override public void onResults(Bundle b) {
             if (!listening) return;
             listening = false;
+            getWindow().getDecorView().removeCallbacks(quietDone);
             String heard = first(b);
+            if (heard == null && !heardSoFar.isEmpty()) heard = heardSoFar;
             if (heard == null) didntCatch();
             else {
                 spoken = true;
@@ -225,6 +246,17 @@ public class MainActivity extends Activity {
                 resetRecognizer();
                 quietRetry = true;
                 getWindow().getDecorView().postDelayed(MainActivity.this::listen, 350);
+                return;
+            }
+            getWindow().getDecorView().removeCallbacks(quietDone);
+            if (!heardSoFar.isEmpty() && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT
+                    && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                // the words were on screen when the speech service gave up: use them
+                String heard = heardSoFar;
+                heardSoFar = "";
+                resetRecognizer();
+                spoken = true;
+                handle(heard);
                 return;
             }
             switch (code) {

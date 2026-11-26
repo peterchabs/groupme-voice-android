@@ -3457,7 +3457,17 @@ public class HomeActivity extends Activity {
      * A fresh recognizer each time: after a miss, Google's recognizer often refuses to start
      * again (it errors at once, before the mic even opens), which made Retry need two taps.
      */
+    /** The words heard so far in this listen (partial results), kept in case it ends in an error. */
+    private String heardSoFar = "";
+
+    /** The words stopped changing a while ago: you've finished, so end the listen and use them. */
+    private final Runnable quietDone = () -> {
+        if (listening && rec != null && !heardSoFar.isEmpty()) rec.stopListening();
+    };
+
     private void beginListening() {
+        heardSoFar = "";
+        ui.removeCallbacks(quietDone);
         if (rec != null) rec.destroy();
         rec = SpeechRecognizer.createSpeechRecognizer(this);
         rec.setRecognitionListener(new Heard());
@@ -3605,13 +3615,22 @@ public class HomeActivity extends Activity {
 
         @Override public void onPartialResults(Bundle b) {
             String t = top(b);
-            if (listening && t != null) typeTo(t);
+            if (listening && t != null) {
+                typeTo(t);
+                if (!t.equals(heardSoFar)) {
+                    heardSoFar = t;
+                    ui.removeCallbacks(quietDone);       // still talking
+                    ui.postDelayed(quietDone, 2500);     // 2.5 s with no new words: done
+                }
+            }
         }
 
         @Override public void onResults(Bundle b) {
             if (!listening) return;
             listening = false;
+            ui.removeCallbacks(quietDone);
             String t = top(b);
+            if (t == null && !heardSoFar.isEmpty()) t = heardSoFar;
             if (t == null) {
                 hideDraft();
                 didntCatch();
@@ -3635,6 +3654,26 @@ public class HomeActivity extends Activity {
                     rec = null;
                 }
                 ui.postDelayed(() -> { if (listening) beginListening(); }, 350);
+                return;
+            }
+            ui.removeCallbacks(quietDone);
+            if (!heardSoFar.isEmpty() && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT
+                    && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                // The words were on screen when the speech service gave up: use them, never
+                // throw away what you said. (It still counts down, so you can cancel.)
+                String t = heardSoFar;
+                heardSoFar = "";
+                listening = false;
+                if (rec != null) {
+                    rec.destroy();
+                    rec = null;
+                }
+                if (voiceEntry && redirect(t)) {
+                    // going to the chat named instead
+                } else {
+                    countdown(Tidy.spoken(t));
+                }
+                voiceEntry = false;
                 return;
             }
             listening = false;
