@@ -1857,7 +1857,6 @@ public class HomeActivity extends Activity {
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
                             msgAdapter.notifyDataSetChanged();
                             chatList.post(() -> chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL));
-                            scrollChatToEnd(); // all the way, above the mic, not just to the screen's edge
                         } else {
                             chatList.setTranscriptMode(ListView.TRANSCRIPT_MODE_DISABLED);
                             msgAdapter.notifyDataSetChanged();
