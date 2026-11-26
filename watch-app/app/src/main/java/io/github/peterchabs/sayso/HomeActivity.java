@@ -1309,7 +1309,10 @@ public class HomeActivity extends Activity {
         mic.setPadding(px(10), px(10), px(10), px(10));
         mic.setContentDescription("Speak a message");
         mic.setOnClickListener(v -> {
-            if (listening && rec != null) rec.stopListening(); // tap again to finish early
+            if (listening && rec != null) { // tap again: that's everything, send it
+                userDone = true;
+                rec.stopListening();
+            }
             else startVoice();
         });
         Press.attach(mic);
@@ -4787,6 +4790,8 @@ public class HomeActivity extends Activity {
         showDraftButtons(null);
         showDraft(watch ? "Listening" : "Listening \u00B7 tap the mic when done");
         autoRetried = false;
+        spokenSoFar = "";
+        userDone = quickRetried = false;
         listening = true;
         micAside(true);
         beginListening();
@@ -4802,14 +4807,37 @@ public class HomeActivity extends Activity {
     /** The words heard so far in this listen (partial results), kept in case it ends in an error. */
     private String heardSoFar = "";
 
-    /** The words stopped changing a while ago: you've finished, so end the listen and use them. */
-    private final Runnable quietDone = () -> {
-        if (listening && rec != null && !heardSoFar.isEmpty()) rec.stopListening();
-    };
+
+    /** Sentences already finished in this message (you can pause between them), and how it ends. */
+    private String spokenSoFar = "";
+    private boolean userDone, quickRetried;
+    private long listenAt;
+
+    private static String joinSpoken(String a, String b) {
+        if (a == null || a.isEmpty()) return b == null ? "" : b;
+        if (b == null || b.isEmpty()) return a;
+        return a + " " + b;
+    }
+
+    /** The message is complete: count down and send it (or go to the chat it names). */
+    private void finishSpoken(String text) {
+        listening = false;
+        spokenSoFar = "";
+        if (rec != null) {
+            rec.destroy();
+            rec = null;
+        }
+        if (voiceEntry && redirect(text)) {
+            // "Weekend Crew that says ..." or "DM Sam ...": going to that chat instead
+        } else {
+            countdown(Tidy.spoken(text));
+        }
+        voiceEntry = false;
+    }
 
     private void beginListening() {
         heardSoFar = "";
-        ui.removeCallbacks(quietDone);
+        listenAt = android.os.SystemClock.elapsedRealtime();
         if (rec != null) rec.destroy();
         rec = SpeechRecognizer.createSpeechRecognizer(this);
         rec.setRecognitionListener(new Heard());
@@ -4962,30 +4990,33 @@ public class HomeActivity extends Activity {
             String t = top(b);
             if (listening && t != null) {
                 sendTyping(); // the chat sees you're writing
-                typeTo(Tidy.live(t)); // capitals and commas as you go, so nothing jumps at the end
-                if (!t.equals(heardSoFar)) {
-                    heardSoFar = t;
-                    ui.removeCallbacks(quietDone);       // still talking
-                    ui.postDelayed(quietDone, 2500);     // 2.5 s with no new words: done
-                }
+                heardSoFar = t;
+                // earlier sentences stay; capitals and commas as you go, so nothing jumps at the end
+                typeTo(Tidy.live(joinSpoken(spokenSoFar, t)));
             }
         }
 
         @Override public void onResults(Bundle b) {
             if (!listening) return;
-            listening = false;
-            ui.removeCallbacks(quietDone);
             String t = top(b);
             if (t == null && !heardSoFar.isEmpty()) t = heardSoFar;
-            if (t == null) {
+            String full = joinSpoken(spokenSoFar, t);
+            if (full.isEmpty()) {
+                listening = false;
                 hideDraft();
                 didntCatch();
-            } else if (voiceEntry && redirect(t)) {
-                // "Weekend Crew that says ..." or "DM Sam ...": going to that chat instead
-            } else {
-                countdown(Tidy.spoken(t));
+                return;
             }
-            voiceEntry = false;
+            if (userDone || t == null) { // you tapped the mic, or stopped talking: send it
+                finishSpoken(full);
+                return;
+            }
+            // A pause ended a sentence, not the message: keep the words and keep listening, so
+            // you can go on speaking naturally. Tap the mic (or stay quiet) when you're done.
+            spokenSoFar = full;
+            heardSoFar = "";
+            draftNote.setText(watch ? "Keep talking, or tap the mic" : "Keep talking \u00B7 tap the mic to send");
+            ui.postDelayed(() -> { if (listening) beginListening(); }, 120);
         }
 
         @Override public void onError(int code) {
@@ -5003,24 +5034,25 @@ public class HomeActivity extends Activity {
                 ui.postDelayed(() -> { if (listening) beginListening(); }, 350);
                 return;
             }
-            ui.removeCallbacks(quietDone);
-            if (!heardSoFar.isEmpty() && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT
-                    && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
-                // The words were on screen when the speech service gave up: use them, never
-                // throw away what you said. (It still counts down, so you can cancel.)
-                String t = heardSoFar;
-                heardSoFar = "";
-                listening = false;
+            boolean nothing = heardSoFar.isEmpty() && spokenSoFar.isEmpty();
+            boolean quick = android.os.SystemClock.elapsedRealtime() - listenAt < 2500;
+            if (nothing && quick && !quickRetried && (code == SpeechRecognizer.ERROR_NO_MATCH
+                    || code == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || code == SpeechRecognizer.ERROR_CLIENT)) {
+                // gave up before you could have said anything (the speech service wasn't ready):
+                // start once more, quietly, the way tapping Retry would
+                quickRetried = true;
                 if (rec != null) {
                     rec.destroy();
                     rec = null;
                 }
-                if (voiceEntry && redirect(t)) {
-                    // going to the chat named instead
-                } else {
-                    countdown(Tidy.spoken(t));
-                }
-                voiceEntry = false;
+                ui.postDelayed(() -> { if (listening) beginListening(); }, 300);
+                return;
+            }
+            if (!nothing && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT
+                    && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                // You've stopped talking (or the speech service gave up after hearing you): send
+                // what you said. Never throw it away. (It still counts down, so you can cancel.)
+                finishSpoken(joinSpoken(spokenSoFar, heardSoFar));
                 return;
             }
             listening = false;

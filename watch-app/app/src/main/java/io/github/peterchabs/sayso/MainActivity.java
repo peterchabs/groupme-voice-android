@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
         Shortcuts.publish(this); // phone: offer the "Send a GroupMe" shortcut to Google Assistant
         stage.orb.setCountdownMs(SEND_DELAY_MS);
         stage.orb.setOnClickListener(v -> {
-            if (listening) rec.stopListening();               // tap to finish early
+            if (listening) { userDone = true; rec.stopListening(); } // tap: that's everything
             else if (stage.orb.mode() != OrbView.Mode.BUSY
                     && stage.orb.mode() != OrbView.Mode.COUNTDOWN) begin();
         });
@@ -121,7 +121,7 @@ public class MainActivity extends Activity {
     public boolean onKeyDown(int code, android.view.KeyEvent e) {
         if ((code == android.view.KeyEvent.KEYCODE_STEM_1 || code == android.view.KeyEvent.KEYCODE_STEM_2
                 || code == android.view.KeyEvent.KEYCODE_STEM_3) && e.getRepeatCount() == 0) {
-            if (listening && rec != null) rec.stopListening();
+            if (listening && rec != null) { userDone = true; rec.stopListening(); }
             else begin();
             return true;
         }
@@ -139,6 +139,8 @@ public class MainActivity extends Activity {
     private void begin() {
         cancelPending();
         autoRetried = false; // each tap of Try again gets its own quiet retry
+        spokenSoFar = "";
+        userDone = quickRetried = false;
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             stage.show(OrbView.Mode.IDLE, "Allow the microphone", "So I can hear your message.");
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
@@ -185,17 +187,30 @@ public class MainActivity extends Activity {
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
         listening = true;
         heardSoFar = "";
-        getWindow().getDecorView().removeCallbacks(quietDone);
+        listenAt = android.os.SystemClock.elapsedRealtime();
         rec.startListening(i);
+    }
+
+    /** Sentences already finished (you can pause between them), and whether you tapped to finish. */
+    private String spokenSoFar = "";
+    private boolean userDone, quickRetried;
+    private long listenAt;
+
+    private static String joinSpoken(String a, String b) {
+        if (a == null || a.isEmpty()) return b == null ? "" : b;
+        if (b == null || b.isEmpty()) return a;
+        return a + " " + b;
+    }
+
+    /** Listen again after a pause, keeping what's been said, with the screen as it is. */
+    private void keepListening() {
+        quietRetry = true;
+        getWindow().getDecorView().postDelayed(this::listen, 120);
     }
 
     /** The words heard so far in this listen, kept in case the speech service ends in an error. */
     private String heardSoFar = "";
 
-    /** The words stopped changing a while ago: you've finished, so end the listen and use them. */
-    private final Runnable quietDone = () -> {
-        if (listening && rec != null && !heardSoFar.isEmpty()) rec.stopListening();
-    };
 
     /** Set once the speech service has the mic open; a refusal before that gets one quiet retry. */
     private boolean ready, autoRetried, quietRetry;
@@ -213,29 +228,32 @@ public class MainActivity extends Activity {
         @Override public void onPartialResults(Bundle b) {
             if (!listening) return;
             String t = first(b);
-            stage.live(t == null ? null : Tidy.live(t)); // your words, as you say them, tidied as they go
-            if (t != null && !t.equals(heardSoFar)) {
-                heardSoFar = t;
-                View d = getWindow().getDecorView();
-                d.removeCallbacks(quietDone);       // still talking
-                d.postDelayed(quietDone, 2500);     // 2.5 s with no new words: done
-            }
+            if (t != null) heardSoFar = t;
+            // your words as you say them (earlier sentences kept), tidied as they go
+            String all = joinSpoken(spokenSoFar, t);
+            stage.live(all.isEmpty() ? null : Tidy.live(all));
         }
 
         @Override public void onEndOfSpeech() {
-            if (listening) stage.orb.setMode(OrbView.Mode.BUSY);
+            if (listening && userDone) stage.orb.setMode(OrbView.Mode.BUSY); // a pause isn't the end
         }
 
         @Override public void onResults(Bundle b) {
             if (!listening) return;
             listening = false;
-            getWindow().getDecorView().removeCallbacks(quietDone);
             String heard = first(b);
             if (heard == null && !heardSoFar.isEmpty()) heard = heardSoFar;
-            if (heard == null) didntCatch();
-            else {
+            String full = joinSpoken(spokenSoFar, heard);
+            if (full.isEmpty()) {
+                didntCatch();
+            } else if (userDone || heard == null) { // tapped to finish, or stopped talking: that's it
+                spokenSoFar = "";
                 spoken = true;
-                handle(heard);
+                handle(full);
+            } else { // a pause ended a sentence, not the message: keep listening
+                spokenSoFar = full;
+                heardSoFar = "";
+                keepListening();
             }
         }
 
@@ -253,12 +271,23 @@ public class MainActivity extends Activity {
                 getWindow().getDecorView().postDelayed(MainActivity.this::listen, 350);
                 return;
             }
-            getWindow().getDecorView().removeCallbacks(quietDone);
-            if (!heardSoFar.isEmpty() && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT
+            boolean nothing = heardSoFar.isEmpty() && spokenSoFar.isEmpty();
+            if (nothing && !quickRetried && android.os.SystemClock.elapsedRealtime() - listenAt < 2500
+                    && (code == SpeechRecognizer.ERROR_NO_MATCH || code == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    || code == SpeechRecognizer.ERROR_CLIENT)) {
+                // gave up before you could have said anything: once more, quietly, like Try again
+                quickRetried = true;
+                resetRecognizer();
+                quietRetry = true;
+                getWindow().getDecorView().postDelayed(MainActivity.this::listen, 300);
+                return;
+            }
+            if (!nothing && code != SpeechRecognizer.ERROR_NETWORK && code != SpeechRecognizer.ERROR_NETWORK_TIMEOUT
                     && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
-                // the words were on screen when the speech service gave up: use them
-                String heard = heardSoFar;
+                // you've stopped talking (or the speech service gave up after hearing you): use it all
+                String heard = joinSpoken(spokenSoFar, heardSoFar);
                 heardSoFar = "";
+                spokenSoFar = "";
                 resetRecognizer();
                 spoken = true;
                 handle(heard);
