@@ -117,7 +117,7 @@ public class PushService extends Service {
         // stack could lead with this notice instead of the new message ("Getting your GroupMe
         // messages" in place of what was said). Kept on this device, quiet, never the headline.
         Notification on = Ongoing.running(this, CH_RUNNING, RUNNING_ID, R.drawable.ic_stat_connected,
-                "Getting your GroupMe messages", openChats(this, null, null, null, false), GROUP_RUNNING);
+                "Connected to GroupMe. The mic is off.", openChats(this, null, null, null, false), GROUP_RUNNING);
         if (Build.VERSION.SDK_INT >= 34) startForeground(RUNNING_ID, on, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
         else startForeground(RUNNING_ID, on);
     }
