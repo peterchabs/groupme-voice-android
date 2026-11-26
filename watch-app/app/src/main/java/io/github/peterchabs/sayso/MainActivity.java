@@ -141,6 +141,7 @@ public class MainActivity extends Activity {
         autoRetried = false; // each tap of Try again gets its own quiet retry
         spokenSoFar = "";
         userDone = quickRetried = false;
+        listenUnder = false;
         showingTo = false;
         awaiting = null; // a fresh start; "Try again" for a named group sets it back right after
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -189,6 +190,7 @@ public class MainActivity extends Activity {
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
         listening = true;
         heardSoFar = "";
+        pauses.reset();
         listenAt = android.os.SystemClock.elapsedRealtime();
         rec.startListening(i);
     }
@@ -201,17 +203,36 @@ public class MainActivity extends Activity {
     private static String joinSpoken(String a, String b) {
         if (a == null || a.isEmpty()) return b == null ? "" : b;
         if (b == null || b.isEmpty()) return a;
-        return a + " " + b;
+        return a + " " + Tidy.PAUSE + " " + b; // the speech service stopped on a pause: a new sentence
     }
 
     /** Listen again after a pause, keeping what's been said, with the screen as it is. */
+    /**
+     * You paused, so the countdown that follows keeps listening under it: speak again before the
+     * ring runs out and it stops and adds your words. Set at the pause; the countdown starts the
+     * listen itself, because naming a group finds it first and the countdown comes a moment later.
+     */
+    private boolean listenUnder;
+    /** Quick retries of a listen under the countdown that failed at once (the mic hadn't let go). */
+    private int underRetries;
+
+    private boolean listenQueued;
+
     private void keepListening() {
+        if (listenQueued) return; // already on its way
+        listenQueued = true;
         quietRetry = true;
-        getWindow().getDecorView().postDelayed(this::listen, 120);
+        getWindow().getDecorView().postDelayed(() -> {
+            listenQueued = false;
+            // not if it already sent, or you cancelled, in the moment between
+            if (!listening && !isFinishing() && (pendingSend != null || awaiting != null)) listen();
+        }, 120);
     }
 
     /** The words heard so far in this listen, kept in case the speech service ends in an error. */
     private String heardSoFar = "";
+    /** Where you paused while talking: commas and periods. */
+    private final Pauses pauses = new Pauses();
 
 
     /** Set once the speech service has the mic open; a refusal before that gets one quiet retry. */
@@ -230,6 +251,10 @@ public class MainActivity extends Activity {
         @Override public void onPartialResults(Bundle b) {
             if (!listening) return;
             String t = first(b);
+            if (t != null) {
+                pauses.heard(t, android.os.SystemClock.elapsedRealtime());
+                t = pauses.mark(t);
+            }
             if (t != null && !t.isEmpty() && pendingSend != null) {
                 // talking again before it sent: stop the countdown and keep adding
                 cancelPending();
@@ -265,7 +290,7 @@ public class MainActivity extends Activity {
         @Override public void onResults(Bundle b) {
             if (!listening) return;
             listening = false;
-            String heard = first(b);
+            String heard = pauses.mark(first(b));
             if (heard == null && !heardSoFar.isEmpty()) heard = heardSoFar;
             String full = joinSpoken(spokenSoFar, heard);
             if (full.isEmpty()) {
@@ -274,15 +299,20 @@ public class MainActivity extends Activity {
                 spokenSoFar = "";
                 spoken = true;
                 userDone = false;
+                listenUnder = false;
                 handle(full);
                 if (awaiting != null) keepListening(); // named a group only: listen for the message
             } else { // a pause: count down as usual, but keep listening under it
                 spokenSoFar = full;
                 heardSoFar = "";
                 spoken = true;
+                listenUnder = true; // the countdown (now, or once the group is found) listens on
+                underRetries = 0;
                 handle(full);
-                if (awaiting != null) spokenSoFar = ""; // the next words are the message itself
-                if (pendingSend != null || awaiting != null) keepListening(); // more words keep coming
+                if (awaiting != null) { // the next words are the message itself
+                    spokenSoFar = "";
+                    keepListening();
+                }
             }
         }
 
@@ -290,8 +320,13 @@ public class MainActivity extends Activity {
             android.util.Log.w("SaySo", "speech error " + code + " ready=" + ready);
             if (!listening) return; // some watches report a late error after results
             listening = false;
-            if (pendingSend != null) { // counting down: no more words came, so it simply sends
+            if (pendingSend != null) {
                 resetRecognizer();
+                boolean atOnce = android.os.SystemClock.elapsedRealtime() - listenAt < 1500
+                        && code != SpeechRecognizer.ERROR_NO_MATCH && code != SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                        && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS;
+                if (atOnce && listenUnder && underRetries++ < 2) keepListening(); // the mic hadn't let go yet
+                // otherwise: counting down and no more words came, so it simply sends
                 return;
             }
             if (awaiting != null && heardSoFar.isEmpty() && spokenSoFar.isEmpty()) {
@@ -406,6 +441,7 @@ public class MainActivity extends Activity {
     /** Type the same thing you'd say. Goes through exactly the same steps as speech. */
     private void showTyping(String why) {
         cancelPending();
+        listenUnder = false; // typed: nothing to listen for under the countdown
         EditText e = new EditText(this);
         Press.field(e);
         Phrase.Group d = Store.defaultGroup(this);
@@ -479,7 +515,7 @@ public class MainActivity extends Activity {
     static final String EXTRA_RESEND = "resend";
     private String shownTitle, shownBody;
 
-    private static String quote(String t) { return "\u201C" + t + "\u201D"; }
+    private static String quote(String t) { return "\u201C" + Tidy.breaks(t) + "\u201D"; }
 
     private boolean tooLong(String text) {
         if (text.length() <= MAX_TEXT) return false;
@@ -675,6 +711,8 @@ public class MainActivity extends Activity {
             run(busy, done, action);
         };
         ui.postDelayed(pendingSend, SEND_DELAY_MS);
+        // came after a pause (maybe a moment later, once the group was found): listen under it
+        if (listenUnder && !listening) keepListening();
     }
 
     private void run(String busy, String done, Action action) {
@@ -704,6 +742,7 @@ public class MainActivity extends Activity {
     private void stopListeningQuietly() {
         if (listening && rec != null) rec.cancel();
         listening = false;
+        listenUnder = false;
         spokenSoFar = "";
         heardSoFar = "";
     }

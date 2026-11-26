@@ -4816,6 +4816,7 @@ public class HomeActivity extends Activity {
         autoRetried = false;
         spokenSoFar = "";
         userDone = quickRetried = false;
+        listenUnder = false;
         listening = true;
         micAside(true);
         beginListening();
@@ -4834,17 +4835,28 @@ public class HomeActivity extends Activity {
 
     /** Sentences already finished in this message (you can pause between them), and how it ends. */
     private String spokenSoFar = "";
+    /** Where you paused while talking: commas and periods. */
+    private final Pauses pauses = new Pauses();
     private boolean userDone, quickRetried;
+    /**
+     * You paused, so the countdown keeps listening under it (talk again and it stops and adds your
+     * words). The countdown starts that listen itself when it comes later: after going to the group
+     * you named.
+     */
+    private boolean listenUnder;
+    /** Quick retries of a listen under the countdown that failed at once (the mic hadn't let go). */
+    private int underRetries;
     private long listenAt;
 
     private static String joinSpoken(String a, String b) {
         if (a == null || a.isEmpty()) return b == null ? "" : b;
         if (b == null || b.isEmpty()) return a;
-        return a + " " + b;
+        return a + " " + Tidy.PAUSE + " " + b; // the speech service stopped on a pause: a new sentence
     }
 
     /** Ends a listen still running under a countdown (it's sending, or you cancelled). */
     private void stopListeningQuietly() {
+        listenUnder = false;
         if (rec != null) {
             rec.cancel();
             rec.destroy();
@@ -4858,6 +4870,7 @@ public class HomeActivity extends Activity {
     /** The message is complete: count down and send it (or go to the chat it names). */
     private void finishSpoken(String text) {
         listening = false;
+        listenUnder = false;
         spokenSoFar = "";
         if (rec != null) {
             rec.destroy();
@@ -4873,6 +4886,7 @@ public class HomeActivity extends Activity {
 
     private void beginListening() {
         heardSoFar = "";
+        pauses.reset();
         listenAt = android.os.SystemClock.elapsedRealtime();
         if (rec != null) rec.destroy();
         rec = SpeechRecognizer.createSpeechRecognizer(this);
@@ -5035,6 +5049,8 @@ public class HomeActivity extends Activity {
             }
             if (listening && t != null) {
                 sendTyping(); // the chat sees you're writing
+                pauses.heard(t, android.os.SystemClock.elapsedRealtime());
+                t = pauses.mark(t);
                 heardSoFar = t;
                 // earlier sentences stay; capitals and commas as you go, so nothing jumps at the end
                 typeTo(Tidy.live(joinSpoken(spokenSoFar, t)));
@@ -5043,7 +5059,7 @@ public class HomeActivity extends Activity {
 
         @Override public void onResults(Bundle b) {
             if (!listening) return;
-            String t = top(b);
+            String t = pauses.mark(top(b));
             if (t == null && !heardSoFar.isEmpty()) t = heardSoFar;
             String full = joinSpoken(spokenSoFar, t);
             if (full.isEmpty()) {
@@ -5059,9 +5075,19 @@ public class HomeActivity extends Activity {
             // A pause: the send countdown starts as usual, but Say So keeps listening under it.
             // Start talking again before the bar runs out and the countdown stops and your words
             // are added; stay quiet and it sends.
-            if (voiceEntry && redirect(full)) {
-                finishSpoken(full);
-                return;
+            listenUnder = true;
+            underRetries = 0;
+            if (voiceEntry) {
+                voiceEntry = false; // only the first thing said can name another chat
+                if (rec != null) {
+                    rec.destroy();
+                    rec = null;
+                }
+                listening = false; // the countdown in that chat listens again
+                spokenSoFar = "";
+                heardSoFar = "";
+                if (redirect(full)) return; // going to the chat you named; its countdown listens on
+                listening = true;
             }
             spokenSoFar = full;
             heardSoFar = "";
@@ -5084,12 +5110,19 @@ public class HomeActivity extends Activity {
                 ui.postDelayed(() -> { if (listening) beginListening(); }, 350);
                 return;
             }
-            if (pendingSend != null) { // still counting down: no more words came, so it simply sends
-                listening = false;
+            if (pendingSend != null) {
                 if (rec != null) {
                     rec.destroy();
                     rec = null;
                 }
+                boolean atOnce = android.os.SystemClock.elapsedRealtime() - listenAt < 1500
+                        && code != SpeechRecognizer.ERROR_NO_MATCH && code != SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                        && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS;
+                if (atOnce && listenUnder && underRetries++ < 2) { // the mic hadn't let go yet: once more
+                    ui.postDelayed(() -> { if (listening && pendingSend != null) beginListening(); }, 250);
+                    return;
+                }
+                listening = false; // still counting down: no more words came, so it simply sends
                 return;
             }
             boolean nothing = heardSoFar.isEmpty() && spokenSoFar.isEmpty();
@@ -5186,6 +5219,7 @@ public class HomeActivity extends Activity {
                     return;
                 }
                 Feed.Convo here = current;
+                if (listenUnder) spokenSoFar = p.text; // more words add to the message, not the "tell X"
                 if (here != null && here.isDm == person && here.id.equals(found.group.id)) {
                     countdown(Tidy.spoken(p.text));
                     return;
@@ -5241,6 +5275,8 @@ public class HomeActivity extends Activity {
     private void countdown(String text) {
         final Feed.Convo to = current;
         if (to == null) return;
+        if (pendingSend != null) ui.removeCallbacks(pendingSend); // never two countdowns at once
+        pendingSend = null;
         final List<Feed.Member> tags = new ArrayList<>(tagging);
         final String replyId = replying == null ? "" : replying.id;
         if (text.length() > 1000) {
@@ -5276,6 +5312,10 @@ public class HomeActivity extends Activity {
             send(to, text, tags, replyId);
         };
         ui.postDelayed(pendingSend, SEND_DELAY_MS);
+        if (listenUnder && !listening) { // came a moment after the pause (a redirect): listen under it
+            listening = true;
+            ui.postDelayed(() -> { if (listening && pendingSend != null) beginListening(); }, 120);
+        }
     }
 
     private void send(Feed.Convo to, String text, List<Feed.Member> tags, String replyId) {

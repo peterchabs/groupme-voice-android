@@ -13,7 +13,7 @@ public final class Phrase {
     public final String text;
 
     private Phrase(String group, String text) {
-        this.group = group;
+        this.group = Tidy.plain(group); // a pause mark is never part of a name
         this.text = text;
     }
 
