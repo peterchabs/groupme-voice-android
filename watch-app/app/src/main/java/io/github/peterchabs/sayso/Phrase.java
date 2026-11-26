@@ -274,6 +274,18 @@ public final class Phrase {
         return strip(text, " ,;:-").trim();
     }
 
+    private static final Pattern ANSWER_LEAD = Pattern.compile(
+            "^\\s*(?:(?:um|uh|oh|ok|okay|so)[,\\s]+)?(?:(?:send|post|text|put)\\s+)?(?:(?:it|that|this)\\s+)?"
+            + "(?:(?:to|in|into|for)\\s+)?(?:the\\s+)?", CI);
+    private static final Pattern ANSWER_TAIL = Pattern.compile("(?:\\s+(?:group|chat))?(?:\\s+please)?[\\s.!?]*$", CI);
+
+    /** "Which group?" answered: "Test", "to Test", "send it to the Test group" all give "Test". */
+    public static String groupAnswer(String heard) {
+        if (heard == null) return "";
+        String s = ANSWER_LEAD.matcher(PREFIX.matcher(heard).replaceFirst("")).replaceFirst("");
+        return ANSWER_TAIL.matcher(s).replaceFirst("").trim();
+    }
+
     private static String strip(String s, String chars) {
         int a = 0, b = s.length();
         while (a < b && chars.indexOf(s.charAt(a)) >= 0) a++;

@@ -144,6 +144,7 @@ public class MainActivity extends Activity {
         listenUnder = false;
         showingTo = false;
         awaiting = null; // a fresh start; "Try again" for a named group sets it back right after
+        orphan = null;
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             stage.show(OrbView.Mode.IDLE, "Allow the microphone", "So I can hear your message.");
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
@@ -232,7 +233,7 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().postDelayed(() -> {
             listenQueued = false;
             // not if it already sent, or you cancelled, in the moment between
-            if (!listening && !isFinishing() && (pendingSend != null || awaiting != null)) listen();
+            if (!listening && !isFinishing() && (pendingSend != null || awaiting != null || orphan != null)) listen();
         }, 120);
     }
 
@@ -272,6 +273,11 @@ public class MainActivity extends Activity {
             String all = joinSpoken(spokenSoFar, t);
             stage.live(all.isEmpty() ? null : Tidy.live(all));
             // the moment a group is recognized, the screen says where it's going, before you finish
+            if (orphan != null && !all.isEmpty()) { // naming the group for the message you said
+                Phrase.Match m = Phrase.match(Store.groups(MainActivity.this), Phrase.groupAnswer(Tidy.plain(all)));
+                if (m.group != null) stage.retitle("To " + m.group.name, quote(out(orphan)));
+                return;
+            }
             if (awaiting == null && pendingSend == null && !all.isEmpty()) {
                 Phrase named = Phrase.parse(all);
                 if (named == null) named = Phrase.parseNamed(all, Store.groups(MainActivity.this));
@@ -308,7 +314,7 @@ public class MainActivity extends Activity {
                 userDone = false;
                 listenUnder = false;
                 handle(full);
-                if (awaiting != null) keepListening(); // named a group only: listen for the message
+                if (awaiting != null || orphan != null) keepListening(); // half of it: listen for the rest
             } else { // a pause: count down as usual, but keep listening under it
                 spokenSoFar = full;
                 heardSoFar = "";
@@ -316,7 +322,7 @@ public class MainActivity extends Activity {
                 listenUnder = true; // the countdown (now, or once the group is found) listens on
                 underRetries = 0;
                 handle(full);
-                if (awaiting != null) { // the next words are the message itself
+                if (awaiting != null || orphan != null) { // the next words are the other half
                     spokenSoFar = "";
                     keepListening();
                 }
@@ -334,6 +340,14 @@ public class MainActivity extends Activity {
                         && code != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS;
                 if (atOnce && listenUnder && underRetries++ < 2) keepListening(); // the mic hadn't let go yet
                 // otherwise: counting down and no more words came, so it simply sends
+                return;
+            }
+            if (orphan != null && heardSoFar.isEmpty() && spokenSoFar.isEmpty()) {
+                final String msg = orphan;
+                resetRecognizer();
+                stage.show(OrbView.Mode.ERROR, "Which group is it for?", quote(out(msg)) + "\nNothing was sent yet.",
+                        "Try again", (Runnable) () -> askWhichGroup(msg),
+                        "Chats", (Runnable) MainActivity.this::openChats);
                 return;
             }
             if (awaiting != null && heardSoFar.isEmpty() && spokenSoFar.isEmpty()) {
@@ -544,7 +558,31 @@ public class MainActivity extends Activity {
     /** The title says "To <group>" from what you have said so far. */
     private boolean showingTo;
 
+    /** You said a message but no group (and there's no default): it's kept while you name one. */
+    private String orphan;
+
+    /** Keeps {@code msg} and listens for which group it goes to. */
+    private void askWhichGroup(String msg) {
+        begin();
+        orphan = msg;
+        stage.retitle("Which group?", quote(out(msg)));
+    }
+
     private void handle(String heard) {
+        if (orphan != null) { // the group for the message you already said
+            String msg = orphan;
+            orphan = null;
+            Phrase.Match m = Phrase.match(Store.groups(this), Phrase.groupAnswer(heard == null ? "" : Tidy.plain(heard)));
+            if (m.group != null) {
+                confirmGroup(m.group, msg);
+            } else {
+                stopListeningQuietly();
+                stage.show(OrbView.Mode.ERROR, m.problem, quote(out(msg)) + "\nNothing was sent yet.",
+                        "Try again", (Runnable) () -> askWhichGroup(msg),
+                        "Chats", (Runnable) this::openChats);
+            }
+            return;
+        }
         if (awaiting != null) { // the message for the group you just named
             Phrase.Group g = awaiting;
             awaiting = null;
@@ -589,6 +627,12 @@ public class MainActivity extends Activity {
             String text = heard == null ? "" : heard.trim();
             if (d != null && !text.isEmpty()) {
                 if (!tooLong(text)) confirmGroup(d, text);
+                return;
+            }
+            if (spoken && !text.isEmpty() && !tooLong(text)) { // keep it and ask where, still listening
+                orphan = text;
+                spokenSoFar = "";
+                stage.show(OrbView.Mode.LISTEN, "Which group?", quote(out(text)), "Chats", (Runnable) this::openChats);
                 return;
             }
             showRetry("Name a group in it:", "\"Tell Family I'm on my way\"\n\nI heard: \"" + heard + "\"");

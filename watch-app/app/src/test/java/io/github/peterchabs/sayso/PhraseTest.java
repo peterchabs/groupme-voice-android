@@ -178,4 +178,11 @@ public class PhraseTest {
         // a clear command beats a name that's merely first
         said("Yolk is slammed, tell Weekend Crew", "Weekend Crew", "Yolk is slammed");
     }
+
+    @Test public void answeringWhichGroup() {
+        assertEquals("Test", Phrase.groupAnswer("Test"));
+        assertEquals("Test", Phrase.groupAnswer("to Test"));
+        assertEquals("Weekend Crew", Phrase.groupAnswer("send it to the Weekend Crew group please"));
+        assertEquals("weekend crew", Phrase.groupAnswer("um the weekend crew chat"));
+    }
 }
