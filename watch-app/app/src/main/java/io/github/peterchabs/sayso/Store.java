@@ -60,6 +60,11 @@ final class Store {
         p(c).edit().putLong("push_error_at", System.currentTimeMillis()).putString("push_error", why == null ? "" : why).apply();
     }
 
+    /** Replies from a notification quote the message they answer (GroupMe's reply). On unless turned off. */
+    static boolean quoteReplies(Context c) { return p(c).getBoolean("quote_replies", true); }
+
+    static void setQuoteReplies(Context c, boolean on) { p(c).edit().putBoolean("quote_replies", on).apply(); }
+
     static void setPushSound(Context c, boolean on) { p(c).edit().putBoolean("push_sound", on).apply(); }
 
     /** "light" (default), "dark" or "system" (see Palette). */

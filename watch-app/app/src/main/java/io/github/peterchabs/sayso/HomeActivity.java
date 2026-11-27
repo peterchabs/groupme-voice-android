@@ -1378,6 +1378,12 @@ public class HomeActivity extends Activity {
             fillSettings();
             if (Store.pushSound(this)) chime(true); // a sample of how it sounds
         });
+        // Replying from a notification: quote the message you're answering, or send a plain message
+        addSettingButton(col, (watch ? "Quote replies: " : "Quote the message in notification replies: ")
+                + (Store.quoteReplies(this) ? "on" : "off"), false, () -> {
+            Store.setQuoteReplies(this, !Store.quoteReplies(this));
+            fillSettings();
+        });
         addSettingButton(col, "Theme: " + Palette.label(Store.theme(this)), false, () -> {
             Store.setTheme(this, Palette.next(Store.theme(this)));
             recreate(); // every color rebuilt in the new theme

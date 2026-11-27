@@ -58,9 +58,10 @@ public class ReplyReceiver extends BroadcastReceiver {
         final Context app = c.getApplicationContext();
         new Thread(() -> {
             try {
-                // a real GroupMe reply to the message it answers, quoting it
+                // a real GroupMe reply to the message it answers, quoting it (unless that's turned off)
+                String quote = replyTo == null || !Store.quoteReplies(app) ? "" : replyTo;
                 Feed.sendTagged(token, new Feed.Convo(id, name == null ? "" : name, "", dm, 0, ""),
-                        new java.util.ArrayList<>(), text, replyTo == null ? "" : replyTo);
+                        new java.util.ArrayList<>(), text, quote);
                 PushService.addMine(app, key, id, name, dm, text);
             } catch (Api.RefusedException e) {
                 PushService.addMine(app, key, id, name, dm, "Not sent (" + e.getMessage() + "): " + text);
