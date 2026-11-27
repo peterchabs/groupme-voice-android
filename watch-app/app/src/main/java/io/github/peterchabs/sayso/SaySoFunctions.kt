@@ -14,8 +14,10 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * Lets Gemini (and other system assistants on Android 16+) send a GroupMe message through Say So
- * in one request, like "Hey Google, use Say So to tell Weekend Crew I'm running late".
+ * Lets Gemini (and other system assistants on Android 16+) send and read GroupMe messages through
+ * Say So, like "Hey Google, use Say So to tell Weekend Crew I'm running late" or "what did Sam say
+ * in Say So?" and then an answer. Gemini on a watch acts through the paired phone, which carries
+ * these too, so a Wear OS 6 watch (no AppFunctions of its own) still gets them.
  * It uses the same group matching as speaking to Say So, and never guesses between two groups.
  * Only the phone's system assistant can call these; other apps can't.
  */
@@ -75,6 +77,58 @@ abstract class SaySoFunctions : AppFunctionService() {
         }
     }
 
+    /**
+     * Reads the user's newest GroupMe messages so you can tell them what was said and help them
+     * answer (send the answer with sendGroupMeMessage). With no chat named, it gives the newest
+     * message from each of their most recently active chats; with a chat named (a group, or a
+     * person they have direct messages with), the last few messages in that chat.
+     *
+     * @param params Which chat to read (optional) and how many messages.
+     * @return The messages, oldest first.
+     */
+    @AppFunctionDeclaration(isDescribedByKDoc = true)
+    suspend fun readGroupMeMessages(params: ReadGroupMeMessagesParams): List<GroupMeMessage> =
+        withContext(Dispatchers.IO) {
+            val token = Store.token(applicationContext)
+            if (token.isEmpty()) throw AppFunctionDeniedException("Open Say So and sign in to GroupMe first.")
+            val count = (params.count ?: 5).coerceIn(1, 20)
+            val myId = Store.myId(applicationContext)
+            val now = System.currentTimeMillis()
+            try {
+                val chats = Feed.conversations(token).sortedByDescending { it.lastAt }
+                val wanted = params.chat?.trim().orEmpty()
+                if (wanted.isEmpty()) {
+                    return@withContext chats.filter { it.lastAt > 0 }.take(count).mapNotNull { c ->
+                        Feed.messages(token, c, 3).lastOrNull { !it.system }?.let { toMessage(c, it, myId, now) }
+                    }.reversed()
+                }
+                val named = chats.map { Phrase.Group(it.id + (if (it.isDm) ":dm" else ":g"), it.name) }
+                val m = Phrase.match(named, wanted)
+                val hit = m.group ?: throw AppFunctionElementNotFoundException(
+                    if (m.problem.isNotEmpty()) m.problem else "No GroupMe chat called \"$wanted\".")
+                val c = chats.first { it.id + (if (it.isDm) ":dm" else ":g") == hit.id }
+                Feed.messages(token, c, count).filter { !it.system }.sortedBy { it.at }.takeLast(count)
+                    .map { toMessage(c, it, myId, now) }
+            } catch (e: Api.AuthException) {
+                Store.forgetSignIn(applicationContext)
+                throw AppFunctionDeniedException("GroupMe signed you out. Open Say So and sign in again.")
+            } catch (e: IOException) {
+                throw AppFunctionAppUnknownException(e.message ?: "Couldn't reach GroupMe.")
+            }
+        }
+
+    private fun toMessage(c: Feed.Convo, m: Feed.Msg, myId: String, now: Long): GroupMeMessage {
+        val text = when {
+            m.text.isNotBlank() && m.media.isNotEmpty() -> m.text.trim() + " (with a picture)"
+            m.text.isNotBlank() -> m.text.trim()
+            m.media.isNotEmpty() -> "(a picture)"
+            else -> "(no text)"
+        }
+        return GroupMeMessage(
+            chat = c.name, sender = m.sender, message = text,
+            time = Feed.stamp(m.at, now), direct = c.isDm, fromUser = m.senderId == myId)
+    }
+
     private fun groups(token: String, fresh: Boolean): List<Phrase.Group> {
         if (!fresh) {
             val cached = Store.groups(applicationContext)
@@ -128,4 +182,30 @@ data class SentGroupMeMessage(
     val message: String,
     /** True if it went to one person directly instead of a group. */
     val direct: Boolean,
+)
+
+/** Which messages to read. */
+@AppFunctionSerializable(isDescribedByKDoc = true)
+data class ReadGroupMeMessagesParams(
+    /** A group's name, or a person the user has direct messages with. Leave it out for the newest messages across all chats. */
+    val chat: String?,
+    /** How many messages, 1 to 20 (5 when left out). */
+    val count: Int?,
+)
+
+/** A GroupMe message. */
+@AppFunctionSerializable(isDescribedByKDoc = true)
+data class GroupMeMessage(
+    /** The group, or the person for a direct message. */
+    val chat: String,
+    /** Who sent it. */
+    val sender: String,
+    /** What it says. */
+    val message: String,
+    /** When it was sent, like "5:34 PM" or "Yesterday 5:34 PM". */
+    val time: String,
+    /** True for a direct message. */
+    val direct: Boolean,
+    /** True if the user sent it themselves. */
+    val fromUser: Boolean,
 )
