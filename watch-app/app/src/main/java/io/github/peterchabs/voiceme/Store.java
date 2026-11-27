@@ -41,8 +41,13 @@ final class Store {
         p(c).edit().putString("view_id_" + key, id).putInt("view_y_" + key, offset).apply();
     }
 
-    /** New-message notifications (PushService). Off until you turn them on. */
-    static boolean pushOn(Context c) { return p(c).getBoolean("push", false); }
+    /** New-message notifications (PushService). On unless turned off (or the permission is refused). */
+    static boolean pushOn(Context c) { return p(c).getBoolean("push", true); }
+
+    /** Whether we've already asked once for permission to show notifications (Android 13+). */
+    static boolean notifAsked(Context c) { return p(c).getBoolean("notif_asked", false); }
+
+    static void setNotifAsked(Context c) { p(c).edit().putBoolean("notif_asked", true).apply(); }
 
     static void setPushOn(Context c, boolean on) { p(c).edit().putBoolean("push", on).apply(); }
 

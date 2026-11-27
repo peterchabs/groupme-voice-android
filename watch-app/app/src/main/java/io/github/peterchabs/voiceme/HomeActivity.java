@@ -227,6 +227,13 @@ public class HomeActivity extends Activity {
         eventsLayer.setVisibility(View.GONE);
         mediaLayer.setVisibility(View.GONE);
         refreshList();
+        // Notifications are on from the start: ask once for the permission they need (Android 13+).
+        // Saying no turns the setting off (see onRequestPermissionsResult).
+        if (Store.pushOn(this) && android.os.Build.VERSION.SDK_INT >= 33 && !Store.notifAsked(this)
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            Store.setNotifAsked(this);
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
+        }
         PushService.sync(this);
         voiceIntent(getIntent());
     }
