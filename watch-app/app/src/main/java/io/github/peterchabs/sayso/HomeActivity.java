@@ -4525,7 +4525,7 @@ public class HomeActivity extends Activity {
             }
         }
         if (current != null && !current.isDm) profileExtras(col, m);
-        else if (!me) profileAbout(col, m); // a DM's profile: the same GroupMe profile fields
+        else profileAbout(col, m); // a DM's profile (or yours): the same GroupMe profile fields
         sv.addView(col);
         profileLayer.addView(sv, match());
     }
@@ -4635,7 +4635,7 @@ public class HomeActivity extends Activity {
                     for (Feed.Media x : all) if (x.fromId.equals(m.userId)) mine.add(x);
                     ui.post(() -> { if (profileShowing.equals(key) && !mine.isEmpty()) showTheirPhotos(photoBox, mine, c.name); });
                 }
-                if (!m.userId.equals(Store.myId(this))) { // their GroupMe profile: bio, interests, song, photos, groups you share
+                { // their GroupMe profile (yours too): bio, interests, song, photos, groups you share
                     Api.Profile pr = Api.profile(token, m.userId);
                     Map<Integer, String> names = pr.interests.isEmpty() ? new java.util.HashMap<>() : Api.interestNames();
                     ui.post(() -> { if (profileShowing.equals(key)) showProfile(aboutBox, groupBox, pr, names, m); });
@@ -4848,6 +4848,7 @@ public class HomeActivity extends Activity {
         fadeIn(about);
 
         groups.removeAllViews();
+        if (m.userId.equals(Store.myId(this))) return; // your own page: every group would be "shared"
         List<String[]> others = new ArrayList<>();
         for (String[] g : p.sharedGroups) if (current == null || !g[0].equals(current.id)) others.add(g);
         if (others.isEmpty()) return; // nothing else in common: no heading for an empty list
