@@ -234,18 +234,24 @@ final class Images {
         boolean placeholder = url.contains("/uploads/") && f.length() > 0 && f.length() < 12000
                 && System.currentTimeMillis() - f.lastModified() > 60_000;
         if (f.length() > 0 && !placeholder) return f;
-        HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
+        // GroupMe still hands out some old http:// picture links; the same picture is served over https
+        String fetch = url.startsWith("http://i.groupme.com/") ? "https://" + url.substring(7) : url;
+        HttpURLConnection con = (HttpURLConnection) new URL(fetch).openConnection();
         try {
             con.setConnectTimeout(15000);
             con.setReadTimeout(20000);
             if (con.getResponseCode() >= 300) throw new IOException("image " + con.getResponseCode());
-            File tmp = new File(dir, f.getName() + ".part");
+            File tmp = new File(dir, f.getName() + "." + Thread.currentThread().getId() + ".part"); // two loads of one picture can't collide
             try (InputStream in = con.getInputStream(); OutputStream out = new FileOutputStream(tmp)) {
                 byte[] buf = new byte[16384];
                 int n;
                 while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
             }
-            if (!tmp.renameTo(f)) throw new IOException("cache write");
+            if (!tmp.renameTo(f)) {
+                boolean other = f.length() > 0; // another load of the same picture finished first
+                tmp.delete();
+                if (!other) throw new IOException("cache write");
+            }
             trim(dir);
             return f;
         } finally {

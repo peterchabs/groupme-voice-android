@@ -312,6 +312,7 @@ public class HomeActivity extends Activity {
         ui.removeCallbacks(chatPoll);
         cancelVoice();
         if (playing != null) playing.pause(); // leaving the app: the video stops too
+        stopSong();
         super.onPause();
     }
 
@@ -4565,9 +4566,14 @@ public class HomeActivity extends Activity {
         });
     }
 
-    /** The swipeable photo row on a profile: sideways drags on it scroll it, not the page. */
-    private android.widget.HorizontalScrollView photoStrip;
-    private boolean stripTouch;
+    /** The swipeable photo rows on a profile: sideways drags on one scroll it, not the page. */
+    private final List<android.widget.HorizontalScrollView> strips = new ArrayList<>();
+    private android.widget.HorizontalScrollView stripTouch;
+
+    private void addStrip(android.widget.HorizontalScrollView hs) {
+        strips.removeIf(x -> !x.isAttachedToWindow());
+        strips.add(hs);
+    }
 
     /** Which profile is showing, so late answers from GroupMe land only on the right one. */
     private String profileShowing = "";
@@ -4695,7 +4701,7 @@ public class HomeActivity extends Activity {
         t.setPadding(0, px(14), 0, px(6));
         box.addView(t);
         android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
-        photoStrip = hs;
+        addStrip(hs);
         hs.setHorizontalScrollBarEnabled(false);
         hs.setClipToPadding(false);
         LinearLayout row = new LinearLayout(this);
@@ -4755,9 +4761,6 @@ public class HomeActivity extends Activity {
         return t;
     }
 
-    /** An empty profile field, said plainly rather than hidden. */
-    private TextView notSet() { return profileValue("Not set", GREY); }
-
     private static void fadeIn(View v) {
         v.setVisibility(View.VISIBLE);
         v.setAlpha(0f);
@@ -4765,56 +4768,54 @@ public class HomeActivity extends Activity {
     }
 
     /**
-     * What their GroupMe profile says, the parts they've filled in: bio, interests, profile song,
-     * profile photos, when they joined, whether they take direct messages; then the groups you're
-     * both in (tap one to open it).
+     * What their GroupMe profile says, only the parts they've filled in (an empty field isn't
+     * shown at all): bio, interests, profile song (played right here), profile photos, when they
+     * joined, whether they take direct messages and have the app; then the groups you're both in.
      */
     private void showProfile(LinearLayout about, LinearLayout groups, Api.Profile p, Map<Integer, String> names, Feed.Member m) {
         about.removeAllViews();
-        // every field GroupMe's profile has, each under its heading; "Not set" when they left it empty
-        about.addView(profileHeading("Bio"));
-        about.addView(p.bio.isEmpty() ? notSet() : profileValue(p.bio, INK));
+        if (!p.bio.isEmpty()) {
+            about.addView(profileHeading("Bio"));
+            about.addView(profileValue(p.bio, INK));
+        }
 
         List<String> tags = new ArrayList<>();
         for (int id : p.interests) {
             String n = names.get(id);
             if (n != null && !n.isEmpty()) tags.add(n);
         }
-        about.addView(profileHeading("Interests"));
-        about.addView(tags.isEmpty() ? notSet() : profileValue(android.text.TextUtils.join("  \u00B7  ", tags), INK));
-
-        about.addView(profileHeading("Profile song"));
-        if (p.songUrl.isEmpty()) {
-            about.addView(notSet());
-        } else {
-            TextView song = label("Spotify", sp(watch ? 12 : 14), BLUE, true);
-            song.setGravity(Gravity.CENTER);
-            song.setSingleLine(false);
-            song.setMaxLines(3);
-            song.setEllipsize(TextUtils.TruncateAt.END);
-            song.setBackground(card(Palette.ROW, Palette.ROW_EDGE));
-            song.setPadding(px(12), px(8), px(12), px(8));
-            about.addView(song, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            LinkPreview.load(p.songUrl, c -> { if (!c.title.isEmpty()) song.setText(c.title); }); // "Song · Artist"
-            song.setOnClickListener(v -> { // Spotify's own app (watch or phone) if it's there
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(p.songUrl)));
-                } catch (android.content.ActivityNotFoundException e) {
-                    toast("Open it on your phone: no Spotify here");
-                }
-            });
-            Press.attach(song);
+        if (!tags.isEmpty()) {
+            about.addView(profileHeading("Interests"));
+            about.addView(profileValue(android.text.TextUtils.join("  \u00B7  ", tags), INK));
         }
 
-        about.addView(profileHeading(p.photos.isEmpty() ? "Profile photos" : "Profile photos  \u00B7  " + p.photos.size()));
-        if (p.photos.isEmpty()) {
-            about.addView(notSet());
-        } else {
+        if (!p.songUrl.isEmpty()) {
+            about.addView(profileHeading("Profile song"));
+            LinearLayout songBox = new LinearLayout(this);
+            songBox.setOrientation(LinearLayout.VERTICAL);
+            about.addView(songBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            final String key = profileShowing;
+            bg.execute(() -> {
+                SpotifySong song;
+                try {
+                    song = SpotifySong.load(p.songUrl);
+                } catch (IOException | RuntimeException e) {
+                    song = null;
+                }
+                final SpotifySong sg = song;
+                ui.post(() -> { if (profileShowing.equals(key)) songBox.addView(songCard(sg, p.songUrl)); });
+            });
+        }
+
+        if (!p.photos.isEmpty()) {
+            about.addView(profileHeading("Profile photos  \u00B7  " + p.photos.size()));
             android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+            addStrip(hs);
             hs.setHorizontalScrollBarEnabled(false);
+            hs.setClipToPadding(false);
             LinearLayout row = new LinearLayout(this);
             int sz = px(watch ? 64 : 84);
-            for (int i = 0; i < Math.min(p.photos.size(), 12); i++) {
+            for (int i = 0; i < p.photos.size(); i++) {
                 String url = p.photos.get(i);
                 ImageView img = new ImageView(this);
                 img.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -4835,24 +4836,22 @@ public class HomeActivity extends Activity {
             ((LinearLayout.LayoutParams) hs.getLayoutParams()).gravity = Gravity.CENTER_HORIZONTAL;
         }
 
-        about.addView(profileHeading("On GroupMe since"));
-        about.addView(p.createdAtSec > 0 ? profileValue(new java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.US)
-                .format(new java.util.Date(p.createdAtSec * 1000)), INK) : notSet());
+        if (p.createdAtSec > 0) {
+            about.addView(profileHeading("On GroupMe since"));
+            about.addView(profileValue(new java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.US)
+                    .format(new java.util.Date(p.createdAtSec * 1000)), INK));
+        }
         about.addView(profileHeading("Direct messages"));
         about.addView(profileValue(p.dmCapable ? "Can receive them" : "Can't receive them", INK));
         about.addView(profileHeading("GroupMe app"));
         about.addView(profileValue(p.appInstalled ? "Installed" : "Not installed", INK));
-        if (about.getChildCount() > 0) fadeIn(about);
+        fadeIn(about);
 
         groups.removeAllViews();
         List<String[]> others = new ArrayList<>();
         for (String[] g : p.sharedGroups) if (current == null || !g[0].equals(current.id)) others.add(g);
+        if (others.isEmpty()) return; // nothing else in common: no heading for an empty list
         groups.addView(profileHeading("Groups you share  \u00B7  " + others.size()));
-        if (others.isEmpty()) {
-            TextView none = label(current != null && !current.isDm ? "Just this one" : "None", sp(watch ? 11.5f : 13), GREY, false);
-            none.setGravity(Gravity.CENTER);
-            groups.addView(none);
-        }
         for (String[] g : others) {
             TextView row = label(g[1], sp(watch ? 12.5f : 14), INK, false);
             row.setGravity(Gravity.CENTER);
@@ -4872,6 +4871,141 @@ public class HomeActivity extends Activity {
             groups.addView(row, gl);
         }
         fadeIn(groups);
+    }
+
+    // The profile song playing on this page (one at a time; it stops when you leave the page).
+    private android.media.MediaPlayer song;
+    private ImageView songButton;
+    private View songBar;
+    private final Runnable songTick = new Runnable() {
+        @Override public void run() {
+            if (song == null) return;
+            if (songBar == null || !songBar.isShown()) { stopSong(); return; } // left the profile
+            try {
+                int d = song.getDuration();
+                if (d > 0) songBar.setScaleX(Math.min(1f, song.getCurrentPosition() / (float) d));
+            } catch (IllegalStateException ignored) {
+                // still preparing
+            }
+            ui.postDelayed(this, 200);
+        }
+    };
+
+    private void stopSong() {
+        ui.removeCallbacks(songTick);
+        if (song != null) {
+            song.release();
+            song = null;
+        }
+        if (songButton != null) songButton.setImageDrawable(new Icons(Icons.PLAY, Color.BLACK, 0xFF1ED760));
+        if (songBar != null) songBar.setScaleX(0f);
+    }
+
+    /**
+     * The profile song as a player on the page, like GroupMe's embedded Spotify one: cover, title,
+     * artist, and a play button for Spotify's 30 second preview. Tapping the rest opens Spotify.
+     */
+    private View songCard(SpotifySong sg, String url) {
+        int fill = sg != null && sg.tint != 0 ? sg.tint : Palette.ROW;
+        int ink = sg != null && sg.tint != 0 ? Color.WHITE : INK;
+        int sub = sg != null && sg.tint != 0 ? 0xCCFFFFFF : GREY;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        GradientDrawable bgd = new GradientDrawable();
+        bgd.setColor(fill);
+        bgd.setCornerRadius(px(14));
+        box.setBackground(bgd);
+        box.setClipToOutline(true);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(px(8), px(8), px(8), px(8));
+        int art = px(watch ? 44 : 56);
+        if (sg != null && !sg.cover.isEmpty()) {
+            ImageView cover = new ImageView(this);
+            cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            GradientDrawable ph = new GradientDrawable();
+            ph.setColor(Palette.PLACEHOLDER);
+            ph.setCornerRadius(px(8));
+            cover.setBackground(ph);
+            cover.setClipToOutline(true);
+            Images.load(cover, sg.cover, art, false);
+            row.addView(cover, new LinearLayout.LayoutParams(art, art));
+        }
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.setPadding(px(8), 0, px(6), 0);
+        TextView t = label(sg == null ? "Spotify" : sg.title, sp(watch ? 12 : 14), ink, true);
+        TextView a = label(sg == null || sg.artist.isEmpty() ? "Open in Spotify" : sg.artist, sp(watch ? 10.5f : 12), sub, false);
+        for (TextView x : new TextView[]{t, a}) { // a long title glides past instead of being cut off
+            x.setSingleLine(true);
+            x.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+            x.setMarqueeRepeatLimit(-1);
+            x.setHorizontalFadingEdgeEnabled(true);
+            x.setSelected(true);
+            words.addView(x);
+        }
+        row.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        View.OnClickListener open = v -> { // Spotify's own app (watch or phone) if it's there
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (android.content.ActivityNotFoundException e) {
+                toast("Open it on your phone: no Spotify here");
+            }
+        };
+        box.setOnClickListener(open);
+        Press.attach(box);
+        box.addView(row);
+        if (sg != null && !sg.preview.isEmpty()) {
+            ImageView play = new ImageView(this);
+            play.setImageDrawable(new Icons(Icons.PLAY, Color.BLACK, 0xFF1ED760));
+            int b = px(watch ? 34 : 40);
+            row.addView(play, new LinearLayout.LayoutParams(b, b));
+            View bar = new View(this);
+            bar.setBackgroundColor(0xFF1ED760);
+            bar.setPivotX(0f);
+            bar.setScaleX(0f);
+            box.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(3)));
+            play.setOnClickListener(v -> {
+                if (song != null && songButton == play) { // the one playing: pause or carry on
+                    if (song.isPlaying()) {
+                        song.pause();
+                        play.setImageDrawable(new Icons(Icons.PLAY, Color.BLACK, 0xFF1ED760));
+                    } else {
+                        song.start();
+                        play.setImageDrawable(new Icons(Icons.PAUSE, Color.BLACK, 0xFF1ED760));
+                        ui.post(songTick);
+                    }
+                    return;
+                }
+                stopSong();
+                songButton = play;
+                songBar = bar;
+                android.media.MediaPlayer mp = new android.media.MediaPlayer();
+                song = mp;
+                play.setImageDrawable(new Icons(Icons.PAUSE, Color.BLACK, 0xFF1ED760));
+                try {
+                    mp.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build());
+                    mp.setDataSource(sg.preview);
+                    mp.setOnPreparedListener(x -> { if (song == x) { x.start(); ui.post(songTick); } });
+                    mp.setOnCompletionListener(x -> { if (song == x) stopSong(); });
+                    mp.setOnErrorListener((x, w, e) -> {
+                        if (song == x) { stopSong(); toast("Couldn't play the song"); }
+                        return true;
+                    });
+                    mp.prepareAsync();
+                } catch (IOException | RuntimeException e) {
+                    stopSong();
+                    toast("Couldn't play the song");
+                }
+            });
+            Press.attach(play);
+        }
+        box.setAlpha(0f);
+        box.animate().alpha(1f).setDuration(220).start();
+        return box;
     }
 
     private void addProfileButton(LinearLayout col, String text, boolean primary, Runnable tap) {
@@ -5484,8 +5618,10 @@ public class HomeActivity extends Activity {
                 downY = e.getRawY();
                 pulling = closing = false;
                 android.graphics.Rect sr = new android.graphics.Rect();
-                stripTouch = level == 3 && photoStrip != null && photoStrip.isShown()
-                        && photoStrip.getGlobalVisibleRect(sr) && sr.contains((int) e.getRawX(), (int) e.getRawY());
+                stripTouch = null;
+                if (level == 3) for (android.widget.HorizontalScrollView hs : strips) {
+                    if (hs.isShown() && hs.getGlobalVisibleRect(sr) && sr.contains((int) e.getRawX(), (int) e.getRawY())) stripTouch = hs;
+                }
                 if (vt != null) vt.recycle();
                 vt = VelocityTracker.obtain();
                 vt.addMovement(e);
@@ -5518,7 +5654,7 @@ public class HomeActivity extends Activity {
                     setPull(closing ? 1f + dy / H : dy / (H * 0.8f));
                     return true;
                 }
-                if (stripTouch && photoStrip.canScrollHorizontally(dx < 0 ? 1 : -1)) break; // the strip scrolls first
+                if (stripTouch != null && stripTouch.canScrollHorizontally(dx < 0 ? 1 : -1)) break; // the strip scrolls first
                 if (!dragging && Math.abs(dx) > slop * 1.5f && Math.abs(dx) > Math.abs(dy) * 1.3f
                         && !(settingsOpen && (level != 0 || Math.abs(dy) > Math.abs(dx)))) {
                     MotionEvent c = MotionEvent.obtain(e);

@@ -10,7 +10,7 @@ import android.graphics.drawable.Drawable;
 
 /** Small icons drawn as shapes, so the app never depends on emoji fonts. */
 final class Icons extends Drawable {
-    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4, DOWN = 5, PIN = 6, MUTED = 7, SEARCH = 8;
+    static final int PLAY = 1, HEART = 2, MIC = 3, BACK = 4, DOWN = 5, PIN = 6, MUTED = 7, SEARCH = 8, PAUSE = 9;
 
     private final int kind;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -41,6 +41,13 @@ final class Icons extends Drawable {
                 path.close();
                 p.setStyle(Paint.Style.FILL);
                 c.drawPath(path, p);
+                break;
+            }
+            case PAUSE: {
+                float h = s * 0.22f, w = s * 0.085f, gap = s * 0.07f;
+                p.setStyle(Paint.Style.FILL);
+                c.drawRoundRect(new RectF(cx - gap - w, cy - h, cx - gap, cy + h), w * 0.3f, w * 0.3f, p);
+                c.drawRoundRect(new RectF(cx + gap, cy - h, cx + gap + w, cy + h), w * 0.3f, w * 0.3f, p);
                 break;
             }
             case HEART: {
