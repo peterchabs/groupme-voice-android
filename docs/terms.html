@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VoiceMe Terms</title>
+<meta name="description" content="Terms for using the VoiceMe app.">
+<meta name="referrer" content="no-referrer">
+<style>
+  /* The VoiceMe app's own colors (Palette.java), so this page looks like the app. */
+  :root {
+    --bg: #ffffff; --card: #f7fafc; --text: #1b1f24; --muted: #46515c; --line: #e4ebf1;
+    --accent: #00aff0; --accent-press: #0398d8; --accent-text: #ffffff; --badge: #eaf6fd;
+    --ok: #2e7d32; --bad: #c62828;
+    --field-text: #262626; --field-hint: #9aa7b0; --field-edge: #c5d3dc; --field-top: #e3ebf0; --field-mid: #f7fafc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111417; --card: #1a1f25; --text: #f1f4f7; --muted: #a3aeb9; --line: #29313a;
+      --badge: #0f2a38; --ok: #66bb6a; --bad: #ef5350;
+      --field-text: #f1f4f7; --field-hint: #7d8894; --field-edge: #3a444f; --field-top: #151a1f; --field-mid: #1b2127;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111417; --card: #1a1f25; --text: #f1f4f7; --muted: #a3aeb9; --line: #29313a;
+    --badge: #0f2a38; --ok: #66bb6a; --bad: #ef5350;
+    --field-text: #f1f4f7; --field-hint: #7d8894; --field-edge: #3a444f; --field-top: #151a1f; --field-mid: #1b2127;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.5 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; }
+  .lead { color: var(--muted); margin: 0 0 22px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 18px; margin-bottom: 14px;
+    opacity: 0; transform: translateY(10px);
+    animation: rise .42s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .card:nth-of-type(2) { animation-delay: .07s; }
+  .card:nth-of-type(3) { animation-delay: .14s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  h2 { font-size: 18px; margin: 0 0 6px; }
+  p, li { color: var(--text); margin: 0 0 10px; }
+  ul { padding-left: 20px; margin: 0 0 6px; }
+  .muted { color: var(--muted); font-size: 15px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<h1>VoiceMe terms of use</h1>
+<p class="lead">Last updated November 26, 2026.</p>
+
+<section class="card">
+<h2>The app</h2>
+<p>VoiceMe is free. It lets you send and read GroupMe messages by voice on a Galaxy Watch or an Android phone. It is not affiliated with, endorsed by or sponsored by GroupMe or Microsoft. GroupMe is a trademark of Microsoft.</p>
+</section>
+
+<section class="card">
+<h2>Your account</h2>
+<p>You use VoiceMe with your own GroupMe account, and GroupMe's terms still apply to everything you send. You are responsible for your messages, including ones sent by voice or through Gemini. VoiceMe shows what it heard before sending, so check it.</p>
+</section>
+
+<section class="card">
+<h2>No warranty</h2>
+<p>VoiceMe is provided as is, without warranties of any kind. It may not catch every word, and it depends on GroupMe, Google and your device, any of which can change or stop working. To the extent the law allows, the developer is not liable for any loss or damage from using it.</p>
+</section>
+
+<section class="card">
+<h2>Changes</h2>
+<p>These terms may be updated. The date above shows the latest version. See also the <a href="privacy.html">privacy policy</a>.</p>
+</section>
+
+<section class="card">
+<h2>Questions</h2>
+<p>Open an issue at <a href="https://github.com/peterchabs/groupme-voice-android/issues">github.com/peterchabs/groupme-voice-android/issues</a>.</p>
+</section>
+
+</main>
+</body>
+</html>

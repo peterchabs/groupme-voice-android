@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Say So</string>
+    <string name="app_name">VoiceMe</string>
     <color name="ic_bg">#00AFF0</color>
 </resources>

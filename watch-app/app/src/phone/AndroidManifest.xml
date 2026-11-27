@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Phone build: signs watches in (GroupMe's own web login, then the watch's code) and lets Gemini
-     send GroupMe messages through Say So (AppFunctions). Gemini on a watch acts through the paired
+     send GroupMe messages through VoiceMe (AppFunctions). Gemini on a watch acts through the paired
      phone, so the phone app carries the functions too. Everything else in src/main (chats, the voice
      screen, notifications, the mic) is watch-only, so it's taken out of the phone app here. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"

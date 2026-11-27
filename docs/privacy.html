@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VoiceMe Privacy</title>
+<meta name="description" content="How the VoiceMe app handles your information.">
+<meta name="referrer" content="no-referrer">
+<style>
+  /* The VoiceMe app's own colors (Palette.java), so this page looks like the app. */
+  :root {
+    --bg: #ffffff; --card: #f7fafc; --text: #1b1f24; --muted: #46515c; --line: #e4ebf1;
+    --accent: #00aff0; --accent-press: #0398d8; --accent-text: #ffffff; --badge: #eaf6fd;
+    --ok: #2e7d32; --bad: #c62828;
+    --field-text: #262626; --field-hint: #9aa7b0; --field-edge: #c5d3dc; --field-top: #e3ebf0; --field-mid: #f7fafc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111417; --card: #1a1f25; --text: #f1f4f7; --muted: #a3aeb9; --line: #29313a;
+      --badge: #0f2a38; --ok: #66bb6a; --bad: #ef5350;
+      --field-text: #f1f4f7; --field-hint: #7d8894; --field-edge: #3a444f; --field-top: #151a1f; --field-mid: #1b2127;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111417; --card: #1a1f25; --text: #f1f4f7; --muted: #a3aeb9; --line: #29313a;
+    --badge: #0f2a38; --ok: #66bb6a; --bad: #ef5350;
+    --field-text: #f1f4f7; --field-hint: #7d8894; --field-edge: #3a444f; --field-top: #151a1f; --field-mid: #1b2127;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.5 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; }
+  .lead { color: var(--muted); margin: 0 0 22px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 18px; margin-bottom: 14px;
+    opacity: 0; transform: translateY(10px);
+    animation: rise .42s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .card:nth-of-type(2) { animation-delay: .07s; }
+  .card:nth-of-type(3) { animation-delay: .14s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  h2 { font-size: 18px; margin: 0 0 6px; }
+  p, li { color: var(--text); margin: 0 0 10px; }
+  ul { padding-left: 20px; margin: 0 0 6px; }
+  .muted { color: var(--muted); font-size: 15px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<h1>VoiceMe privacy policy</h1>
+<p class="lead">Last updated November 26, 2026. VoiceMe is a free app for sending and reading GroupMe messages by voice on a Galaxy Watch or Android phone. It is not affiliated with GroupMe or Microsoft.</p>
+
+<section class="card">
+<h2>What VoiceMe stores</h2>
+<ul>
+<li>Your GroupMe sign-in (an access token), your name, your user ID and your profile picture link.</li>
+<li>Short-lived copies of your group and chat names, so it can match the group you say.</li>
+<li>Your settings, like your default group, theme and sounds.</li>
+</ul>
+<p>All of it stays in VoiceMe's private storage on your phone or watch. Other apps can't read it, and it is not backed up. Signing out deletes it.</p>
+</section>
+
+<section class="card">
+<h2>Where your information goes</h2>
+<ul>
+<li><strong>GroupMe.</strong> Messages you send, and the chats, members and profiles you open, go straight between your device and GroupMe. You sign in on GroupMe's own sign-in page, and your password goes only to GroupMe.</li>
+<li><strong>Signing a watch in.</strong> The phone app encrypts your sign-in with the code shown on your watch and passes it through the ntfy.sh relay. Only the watch showing that code can open it, and it expires after 15 minutes.</li>
+<li><strong>Speech.</strong> What you say is turned into text by your device's own speech recognition (on most devices, Google's). VoiceMe keeps only the text it sends.</li>
+<li><strong>Link and song previews.</strong> To show a preview of a link or a profile song, VoiceMe reads that web page or Spotify's public player page.</li>
+<li><strong>Gemini.</strong> If you ask Gemini to send or read GroupMe messages through VoiceMe, VoiceMe hands Gemini the messages it asked for. What Gemini does with them is covered by Google's own terms and privacy policy.</li>
+</ul>
+</section>
+
+<section class="card">
+<h2>What VoiceMe does not do</h2>
+<ul>
+<li>No ads, analytics or tracking.</li>
+<li>No accounts or servers of its own. Nothing is sold or shared with anyone else.</li>
+<li>It never reads messages unless you open them, a notification arrives, or you ask Gemini to read them.</li>
+</ul>
+</section>
+
+<section class="card">
+<h2>Deleting your information</h2>
+<p>Sign out in VoiceMe, or uninstall it, and everything it stored is gone. To stop VoiceMe's access on GroupMe's side, change your GroupMe password.</p>
+</section>
+
+<section class="card">
+<h2>Questions</h2>
+<p>Open an issue at <a href="https://github.com/peterchabs/groupme-voice-android/issues">github.com/peterchabs/groupme-voice-android/issues</a>.</p>
+</section>
+
+</main>
+</body>
+</html>

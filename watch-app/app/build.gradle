@@ -7,17 +7,17 @@ plugins {
 def ks = System.getenv("KEYSTORE_FILE")
 
 android {
-    namespace 'io.github.peterchabs.sayso'
+    namespace 'io.github.peterchabs.voiceme'
     compileSdk 37   // AppFunctions needs 37 to build; the apps still run on Android 8+ / Wear OS 3+
 
     defaultConfig {
-        applicationId 'io.github.peterchabs.sayso'
+        applicationId 'io.github.peterchabs.voiceme'
         targetSdk 34
         versionCode Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
         versionName System.getenv("VERSION_NAME") ?: "1.0"
     }
 
-    // One codebase, two apps: SaySo-watch.apk and SaySo-phone.apk
+    // One codebase, two apps: VoiceMe-watch.apk and VoiceMe-phone.apk
     flavorDimensions = ["device"]
     productFlavors {
         watch {
@@ -72,7 +72,7 @@ dependencies {
     // watch: the live-connection notice as an Ongoing Activity (watch-face icon, Recents), as Wear OS asks
     watchImplementation 'androidx.wear:wear-ongoing:1.0.0'
     phoneImplementation 'androidx.core:core-google-shortcuts:1.1.0'   // offers the shortcut to Google Assistant
-    implementation 'androidx.appfunctions:appfunctions:1.0.0'    // lets Gemini send through Say So (Android 16+ / Wear OS 6+)
+    implementation 'androidx.appfunctions:appfunctions:1.0.0'    // lets Gemini send through VoiceMe (Android 16+ / Wear OS 6+)
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
     ksp 'androidx.appfunctions:appfunctions-compiler:1.0.0'
     testImplementation 'junit:junit:4.13.2'

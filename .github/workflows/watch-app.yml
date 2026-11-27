@@ -52,12 +52,12 @@ jobs:
 
       - name: Name the APKs
         run: |
-          cp watch-app/app/build/outputs/apk/watch/release/app-watch-release.apk SaySo-watch.apk
-          cp watch-app/app/build/outputs/apk/phone/release/app-phone-release.apk SaySo-phone.apk
+          cp watch-app/app/build/outputs/apk/watch/release/app-watch-release.apk VoiceMe-watch.apk
+          cp watch-app/app/build/outputs/apk/phone/release/app-phone-release.apk VoiceMe-phone.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SaySo
+          name: VoiceMe
           path: |
-            SaySo-watch.apk
-            SaySo-phone.apk
+            VoiceMe-watch.apk
+            VoiceMe-phone.apk

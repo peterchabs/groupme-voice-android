@@ -5,8 +5,8 @@
     <capability android:name="actions.intent.OPEN_APP_FEATURE">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="io.github.peterchabs.sayso"
-            android:targetClass="io.github.peterchabs.sayso.MainActivity">
+            android:targetPackage="io.github.peterchabs.voiceme"
+            android:targetClass="io.github.peterchabs.voiceme.MainActivity">
             <parameter
                 android:name="feature"
                 android:key="feature" />
@@ -21,8 +21,8 @@
         android:shortcutLongLabel="@string/shortcut_talk_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="io.github.peterchabs.sayso"
-            android:targetClass="io.github.peterchabs.sayso.MainActivity" />
+            android:targetPackage="io.github.peterchabs.voiceme"
+            android:targetClass="io.github.peterchabs.voiceme.MainActivity" />
         <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
             <parameter-binding
                 android:key="feature"

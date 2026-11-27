@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A white chat bubble with a small blue microphone in it, centered in the 108dp adaptive-icon
-     canvas and inside the round crop a watch shows. A bubble first, so nothing Say So shows on its
+     canvas and inside the round crop a watch shows. A bubble first, so nothing VoiceMe shows on its
      own (notification cards use this icon) reads as "the mic is on". -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -11,7 +11,7 @@
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M41,32h26a11,11 0 0 1 11,11v15a11,11 0 0 1 -11,11h-17l-11,9v-9.6a11,11 0 0 1 -9,-10.4v-15a11,11 0 0 1 11,-11z" />
-    <!-- the microphone, in Say So's blue -->
+    <!-- the microphone, in VoiceMe's blue -->
     <group
         android:scaleX="1.25"
         android:scaleY="1.25"

@@ -38,7 +38,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Lets you choose Say So as the phone's digital assistant app, so the
+            <!-- Lets you choose VoiceMe as the phone's digital assistant app, so the
                  assistant gesture (hold power or home, or swipe from a bottom corner) opens it
                  listening. Works for any install; no Google lookup involved. -->
             <intent-filter>
@@ -58,10 +58,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="sayso" android:host="signin" />
-                <!-- sayso://watch?c=CODE: the page, opened from a watch's QR code, asks
+                <data android:scheme="voiceme" android:host="signin" />
+                <!-- voiceme://watch?c=CODE: the page, opened from a watch's QR code, asks
                      this phone app to sign that watch in. -->
-                <data android:scheme="sayso" android:host="watch" />
+                <data android:scheme="voiceme" android:host="watch" />
             </intent-filter>
         </activity>
 
@@ -96,11 +96,11 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- Gemini (Android 16+ phones, Wear OS 6+ watches): "use Say So to message
+        <!-- Gemini (Android 16+ phones, Wear OS 6+ watches): "use VoiceMe to message
              Weekend Crew ..." in one request. Only the system assistant may bind to this
-             (BIND_APP_FUNCTION_SERVICE). The class is generated from SaySoFunctions.kt. -->
+             (BIND_APP_FUNCTION_SERVICE). The class is generated from VoiceMeFunctions.kt. -->
         <service
-            android:name=".SaySoAppFunctionService"
+            android:name=".VoiceMeAppFunctionService"
             android:exported="true"
             android:permission="android.permission.BIND_APP_FUNCTION_SERVICE"
             tools:targetApi="36">
@@ -109,7 +109,7 @@
                 android:value="app_functions_schema.xsd" />
             <property
                 android:name="android.app.appfunctions.v2"
-                android:value="sayso_app_functions.xml" />
+                android:value="voiceme_app_functions.xml" />
             <intent-filter>
                 <action android:name="android.app.appfunctions.AppFunctionService" />
             </intent-filter>
