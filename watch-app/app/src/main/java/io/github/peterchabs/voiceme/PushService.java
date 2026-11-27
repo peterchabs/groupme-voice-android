@@ -24,7 +24,9 @@ import java.util.Map;
  * while it runs. Off unless you switch it on in Chats settings.
  */
 public class PushService extends Service {
-    static final String CH_MESSAGES = "messages", CH_QUIET = "messages_quiet", CH_RUNNING = "running";
+    static final String CH_MESSAGES = "messages", CH_RUNNING = "running";
+    /** The old separate "Messages (no sound)" channel, removed: Sounds off now posts silently on Messages. */
+    private static final String CH_QUIET_OLD = "messages_quiet";
     static final String EXTRA_KEY = "convo_key", EXTRA_ID = "convo_id", EXTRA_NAME = "convo_name", EXTRA_DM = "convo_dm",
             EXTRA_REPLY_TO = "reply_to", EXTRA_MSG = "msg_id";
     static final String REPLY = "reply";
@@ -89,7 +91,7 @@ public class PushService extends Service {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm != null && !nm.areNotificationsEnabled()) return "Notifications for VoiceMe are blocked in your watch's settings";
         if (nm != null && Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel ch = nm.getNotificationChannel(Store.pushSound(c) ? CH_MESSAGES : CH_QUIET);
+            NotificationChannel ch = nm.getNotificationChannel(CH_MESSAGES);
             if (ch != null && ch.getImportance() == NotificationManager.IMPORTANCE_NONE)
                 return "\u201C" + ch.getName() + "\u201D notifications are off in your watch's settings";
         }
@@ -320,8 +322,11 @@ public class PushService extends Service {
             shown = new Notification.BigPictureStyle().bigPicture(last.picture).setBigContentTitle(title)
                     .setSummaryText(summary);
         }
-        // Sound is a channel setting on Android, so silent messages get their own channel.
-        Notification.Builder nb = new Notification.Builder(c, Store.pushSound(c) ? CH_MESSAGES : CH_QUIET);
+        // One channel. With Sounds off the notification itself stays silent (a child in its group
+        // that leaves alerting to a summary it never has) and VoiceMe buzzes the watch itself.
+        boolean quiet = !Store.pushSound(c);
+        Notification.Builder nb = new Notification.Builder(c, CH_MESSAGES);
+        if (quiet) nb.setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY);
         nb.addExtras(invisibleMarkAsRead(markRead)); // hidden: no extra button on screen
         Notification n = nb
                 .setSmallIcon(R.drawable.ic_stat_voiceme)
@@ -340,6 +345,19 @@ public class PushService extends Service {
         if (accept != null) n.actions = new Notification.Action[]{accept, act}; // Accept first, then Reply
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm != null) nm.notify(key.hashCode(), n);
+        if (quiet && !last.sender.equals("You")) buzz(c); // your own reply never buzzes
+    }
+
+    /** The buzz a silent message still gets, unless the watch is on Do Not Disturb or silent. */
+    private static void buzz(Context c) {
+        NotificationManager nm = c.getSystemService(NotificationManager.class);
+        if (nm != null && nm.getCurrentInterruptionFilter() > NotificationManager.INTERRUPTION_FILTER_ALL) return;
+        android.media.AudioManager am = c.getSystemService(android.media.AudioManager.class);
+        if (am != null && am.getRingerMode() == android.media.AudioManager.RINGER_MODE_SILENT) return;
+        android.os.Vibrator v = c.getSystemService(android.os.Vibrator.class);
+        if (v == null || !v.hasVibrator()) return;
+        v.vibrate(android.os.VibrationEffect.createWaveform(new long[]{0, 140, 110, 140}, -1),
+                new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).build());
     }
 
     /**
@@ -422,11 +440,7 @@ public class PushService extends Service {
         if (nm == null) return;
         NotificationChannel msgs = new NotificationChannel(CH_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH);
         msgs.setDescription("New GroupMe messages");
-        NotificationChannel quiet = new NotificationChannel(CH_QUIET, "Messages (no sound)", NotificationManager.IMPORTANCE_HIGH);
-        quiet.setDescription("New GroupMe messages, with a buzz but no sound");
-        quiet.setSound(null, null);
-        quiet.enableVibration(true);
-        nm.createNotificationChannel(quiet);
+        nm.deleteNotificationChannel(CH_QUIET_OLD); // merged into Messages
         NotificationChannel on = new NotificationChannel(CH_RUNNING, "Staying connected", NotificationManager.IMPORTANCE_MIN);
         on.setDescription("Shown while VoiceMe listens for new messages");
         on.setShowBadge(false);
