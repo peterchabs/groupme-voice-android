@@ -23,6 +23,9 @@ android {
         watch {
             dimension "device"
             minSdk 30      // Wear OS 3 (Galaxy Watch 4) and newer
+            // Google Play needs the watch and phone builds to have different version codes,
+            // so watch builds count from 1,000,000 up (1.18.4 is phone 240, watch 1000240).
+            versionCode 1000000 + Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
         }
         phone {
             dimension "device"
