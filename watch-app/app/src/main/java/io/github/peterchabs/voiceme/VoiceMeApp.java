@@ -16,6 +16,7 @@ public class VoiceMeApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        Scope.forUser(Store.myId(this)); // before anything talks to GroupMe
         if (Build.VERSION.SDK_INT < 35 || Stage.isWatchBuild()) return;
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
             @Override public void onActivityCreated(Activity a, Bundle b) { padForBars(a); }

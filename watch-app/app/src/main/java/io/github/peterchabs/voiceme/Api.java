@@ -534,6 +534,7 @@ final class Api {
     }
 
     static JSONObject call(String method, String path, String token, String body) throws IOException {
+        Scope.check(method, path);
         // a full address (GroupMe's v4 read receipts) goes as is; anything else is under v3
         HttpURLConnection c = (HttpURLConnection) new URL(path.startsWith("https://") ? path : BASE + path).openConnection();
         try {
@@ -565,7 +566,12 @@ final class Api {
             if (code == 304) return new JSONObject(); // GroupMe: "no messages" for an empty group
             if (code >= 300) throw new IOException("GroupMe said error " + code + ". Nothing was sent.");
             String s = read(c.getInputStream());
-            return s.trim().isEmpty() ? new JSONObject() : new JSONObject(s);
+            JSONObject out = s.trim().isEmpty() ? new JSONObject() : new JSONObject(s);
+            if (path.startsWith("/users/me")) { // who's signed in decides what VoiceMe may see
+                JSONObject me = out.optJSONObject("response");
+                if (me != null) Scope.forUser(me.optString("id", ""));
+            }
+            return Scope.filter(method, path, out);
         } catch (JSONException e) {
             throw new IOException("GroupMe sent back something unexpected.");
         } finally {

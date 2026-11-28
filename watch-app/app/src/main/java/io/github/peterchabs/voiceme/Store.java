@@ -23,7 +23,10 @@ final class Store {
 
     static String myId(Context c) { return p(c).getString("my_id", ""); }
 
-    static void setMyId(Context c, String id) { p(c).edit().putString("my_id", id == null ? "" : id).apply(); }
+    static void setMyId(Context c, String id) {
+        p(c).edit().putString("my_id", id == null ? "" : id).apply();
+        Scope.forUser(id);
+    }
 
     static void setName(Context c, String n) { p(c).edit().putString("name", n == null ? "" : n).apply(); }
 

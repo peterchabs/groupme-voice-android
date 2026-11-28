@@ -109,6 +109,7 @@ final class Push {
         if (data == null) return null;
         String type = data.optString("type"), ch = o.optString("channel");
         if ("typing".equals(type) && (ch.startsWith("/group/") || ch.startsWith("/direct_message/"))) {
+            if (!Scope.allows(ch.startsWith("/direct_message/"), ch.startsWith("/group/") ? ch.substring(7) : "")) return null;
             String who = data.optString("user_id", "");
             return who.isEmpty() || who.equals(myId) ? null : new Signal("typing", who, "", ch, 0);
         }
@@ -128,6 +129,7 @@ final class Push {
                 JSONObject d = ev.optJSONObject("data");
                 String chat = s.optString("group_id", "");
                 if (chat.isEmpty()) chat = s.optString("chat_id", "");
+                if (!Scope.allows(s.optString("group_id", "").isEmpty(), s.optString("group_id", ""))) return null;
                 return new Signal("pinned", d == null ? "" : d.optString("pinned_by", ""),
                         d == null ? "" : d.optString("message_id", ""), chat, d == null ? 0 : d.optLong("pinned_at", 0));
             }
@@ -141,6 +143,7 @@ final class Push {
             if (s == null) s = data;
             String who = s.optString("user_id", "");
             if (who.isEmpty() || who.equals(myId)) return null;
+            if (Scope.limited() && !Scope.allows(false, s.optString("chat_id", ""))) return null;
             return new Signal("read", who, s.optString("message_id", ""), s.optString("chat_id", ""), s.optLong("read_at", 0));
         }
         return null;
@@ -217,6 +220,7 @@ final class Push {
         if (sender.equals(myId) || "system".equals(m.optString("sender_type")) || m.optBoolean("system", false)) return null;
         String convo = dm ? sender : m.optString("group_id", "");
         if (convo.isEmpty()) return null;
+        if (!Scope.allows(dm, convo)) return null; // the review account only hears its Test group
         boolean photo = false;
         String picture = "";
         JSONArray atts = m.optJSONArray("attachments");
