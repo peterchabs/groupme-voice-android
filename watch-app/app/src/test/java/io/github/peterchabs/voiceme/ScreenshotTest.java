@@ -39,6 +39,9 @@ public class ScreenshotTest {
         assumeTrue("watch".equals(BuildConfig.FLAVOR)); // round-screen pictures are for the watch build
         out = new File(dir);
         out.mkdirs();
+        // SCREENSHOTS_THEME=dark renders the watch's dark theme (for store pictures)
+        if ("dark".equals(System.getenv("SCREENSHOTS_THEME")))
+            Store.setTheme(org.robolectric.RuntimeEnvironment.getApplication(), Palette.DARK);
         try { // the renderer defaults animations to zero length; play them at normal speed
             java.lang.reflect.Method m = android.animation.ValueAnimator.class.getMethod("setDurationScale", float.class);
             m.invoke(null, 1f);

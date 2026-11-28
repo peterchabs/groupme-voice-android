@@ -38,6 +38,8 @@ public class PhoneScreenshotTest {
         assumeTrue("phone".equals(BuildConfig.FLAVOR));
         out = new File(dir);
         out.mkdirs();
+        // SCREENSHOTS_THEME=dark renders the phone in dark mode (the phone app follows the phone)
+        if ("dark".equals(System.getenv("SCREENSHOTS_THEME"))) RuntimeEnvironment.setQualifiers("+night");
         try {
             android.animation.ValueAnimator.class.getMethod("setDurationScale", float.class).invoke(null, 1f);
         } catch (Exception ignored) { }
@@ -79,6 +81,26 @@ public class PhoneScreenshotTest {
         Activity a = Robolectric.buildActivity(SetupActivity.class).setup().get();
         advance(800);
         save(a, "p1-sign-in");
+    }
+
+    @Test public void account() throws Exception {
+        Context c = RuntimeEnvironment.getApplication();
+        Store.setToken(c, "example");
+        Store.setName(c, "Alex");
+        Activity a = Robolectric.buildActivity(SetupActivity.class).setup().get();
+        advance(800);
+        save(a, "p5-account");
+    }
+
+    @Test public void watchCode() throws Exception {
+        Context c = RuntimeEnvironment.getApplication();
+        Store.setToken(c, "example");
+        Store.setName(c, "Alex");
+        android.content.Intent i = new android.content.Intent(c, SetupActivity.class)
+                .putExtra(SetupActivity.EXTRA_OPEN, "watch");
+        Activity a = Robolectric.buildActivity(SetupActivity.class, i).setup().get();
+        advance(800);
+        save(a, "p6-watch-code");
     }
 
     @Test public void listening() throws Exception {
