@@ -1873,11 +1873,15 @@ public class HomeActivity extends Activity {
         draftBar.animate().cancel();
         draftBar.setScaleX(1f);
         draftBar.setVisibility(View.INVISIBLE);
-        if (draft.getVisibility() != View.VISIBLE) {
+        boolean starting = draft.getVisibility() != View.VISIBLE;
+        if (starting) {
             draft.setVisibility(View.VISIBLE);
             draft.setAlpha(0f);
         }
         draft.animate().alpha(1f).setDuration(200).setInterpolator(new DecelerateInterpolator()).start();
+        // you started talking: go to the bottom, where your words appear, even if you were reading
+        // older messages (followDraft alone leaves the list where it is when you've scrolled up)
+        if (starting) scrollChatToEnd();
     }
 
     private void hideDraft() {
