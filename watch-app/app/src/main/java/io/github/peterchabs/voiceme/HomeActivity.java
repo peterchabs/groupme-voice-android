@@ -70,6 +70,8 @@ public class HomeActivity extends Activity {
     private ImageView chatAvatar;
     /** On a watch: the online / away dot on the open DM's picture. */
     private View presenceDot;
+    /** On a watch: your own picture at the right edge, across from the chat's picture. */
+    private ImageView myAvatar;
     private View micButton;
     private LinearLayout voicePanel;
 
@@ -131,6 +133,31 @@ public class HomeActivity extends Activity {
             ui.post(() -> { if (redraw) convoAdapter.notifyDataSetChanged(); });
             if (open != null && open.isDm) refreshDmActive(open);
         });
+    }
+
+    /** A round picture of someone's (or a group's) initials, for when there's no photo. */
+    private android.graphics.drawable.Drawable initialsDrawable(String name, int size) {
+        String n = name == null ? "" : name.trim();
+        StringBuilder in = new StringBuilder();
+        for (String w : n.split("\\s+")) {
+            if (w.isEmpty()) continue;
+            int cp = w.codePointAt(0);
+            if (Character.isLetterOrDigit(cp)) in.appendCodePoint(Character.toUpperCase(cp));
+            if (in.length() >= 2) break;
+        }
+        if (in.length() == 0) in.append('#');
+        android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas cv = new android.graphics.Canvas(b);
+        android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p.setColor(BLUE);
+        cv.drawOval(0, 0, size, size, p);
+        p.setColor(Color.WHITE);
+        p.setTypeface(BOLD);
+        p.setTextAlign(android.graphics.Paint.Align.CENTER);
+        p.setTextSize(size * 0.4f);
+        android.graphics.Paint.FontMetrics fm = p.getFontMetrics();
+        cv.drawText(in.toString(), size / 2f, size / 2f - (fm.ascent + fm.descent) / 2f, p);
+        return new android.graphics.drawable.BitmapDrawable(getResources(), b);
     }
 
     /** The dot on the DM picture: "online" green, "away" amber, anything else none. */
@@ -1644,6 +1671,26 @@ public class HomeActivity extends Activity {
             presenceDot.setElevation(px(3));
             presenceDot.setVisibility(View.GONE);
             chatLayer.addView(presenceDot, dl);
+            // your own picture at the right edge, the mirror of the chat's on the left. While you
+            // talk the mic takes this spot, so the picture slides up out of its way.
+            myAvatar = new ImageView(this);
+            myAvatar.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            myAvatar.setContentDescription("Your picture");
+            GradientDrawable mring = new GradientDrawable();
+            mring.setShape(GradientDrawable.OVAL);
+            mring.setColor(Palette.AVATAR);
+            myAvatar.setBackground(mring);
+            myAvatar.setElevation(px(2));
+            myAvatar.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setOval(0, 0, v.getWidth(), v.getHeight()); }
+            });
+            myAvatar.setClipToOutline(true);
+            myAvatar.setOnClickListener(v -> openSettings()); // your picture: your settings, as in the Chats list
+            Press.attach(myAvatar);
+            FrameLayout.LayoutParams ml = new FrameLayout.LayoutParams(pa, pa);
+            ml.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+            ml.rightMargin = px(3);
+            chatLayer.addView(myAvatar, ml);
         }
 
         // the mic: speak, and it goes to this conversation
@@ -1886,6 +1933,11 @@ public class HomeActivity extends Activity {
         micScale = sc;
         micButton.animate().translationX(tx).translationY(ty).scaleX(sc).scaleY(sc).alpha(1f)
                 .setDuration(320).setInterpolator(new DecelerateInterpolator(1.4f)).start();
+        if (myAvatar != null) { // the mic takes your picture's spot: the picture steps up above it
+            float up = aside ? -(myAvatar.getLayoutParams().height + px(6)) : 0f;
+            myAvatar.animate().cancel();
+            myAvatar.animate().translationY(up).setDuration(320).setInterpolator(new DecelerateInterpolator(1.4f)).start();
+        }
         fitListRoom();
     }
 
@@ -2140,9 +2192,15 @@ public class HomeActivity extends Activity {
         if (!same || !c.isDm) showPresence(null); // a new chat starts with no dot until GroupMe answers
         status(c.isDm ? "Direct message" : "Group");
         if (c.isDm) refreshDmActive(c);
-        chatAvatar.setImageDrawable(null);
-        if (watch) chatAvatar.setVisibility(c.avatarUrl.isEmpty() || !photosOn() ? View.GONE : View.VISIBLE);
-        if (photosOn()) Images.load(chatAvatar, Feed.sized(c.avatarUrl, "avatar"), px(watch ? 22 : 36), true);
+        // the chat's picture; no picture (or photos off): its initials, so groups always have one too
+        chatAvatar.setImageDrawable(initialsDrawable(c.name, px(watch ? 22 : 36)));
+        if (watch) chatAvatar.setVisibility(View.VISIBLE);
+        if (photosOn() && !c.avatarUrl.isEmpty()) Images.load(chatAvatar, Feed.sized(c.avatarUrl, "avatar"), px(watch ? 22 : 36), true);
+        if (myAvatar != null) {
+            myAvatar.setImageDrawable(initialsDrawable(Store.name(this), px(22)));
+            String mine = Store.avatar(this);
+            if (photosOn() && !mine.isEmpty()) Images.load(myAvatar, Feed.sized(mine, "avatar"), px(22), true);
+        }
         if (!same) {
             msgs.clear();
             msgAdapter.notifyDataSetChanged();
