@@ -48,6 +48,19 @@
             </intent-filter>
         </activity>
 
+        <!-- A second name for "Hey Google, open ...": Google often hears "VoiceMe" as Voice Access
+             or voicemail, so "Hey Google, open GroupMe Voice" opens the same screen. -->
+        <activity-alias
+            android:name=".GroupMeVoice"
+            android:label="GroupMe Voice"
+            android:targetActivity=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <activity
             android:name=".SetupActivity"
             android:exported="true"

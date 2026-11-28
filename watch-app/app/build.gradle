@@ -51,7 +51,9 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true          // R8 shrinks and obfuscates the release apps (Play asks for this)
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig ks ? signingConfigs.release : signingConfigs.debug
         }
     }
@@ -77,6 +79,9 @@ dependencies {
     phoneImplementation 'androidx.core:core-google-shortcuts:1.1.0'   // offers the shortcut to Google Assistant
     implementation 'androidx.appfunctions:appfunctions:1.0.0'    // lets Gemini send through VoiceMe (Android 16+ / Wear OS 6+)
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+    // Play services (pulled in by the Google shortcuts library) asks for androidx.fragment 1.0.0,
+    // which Play flags as outdated; this current version replaces it
+    implementation 'androidx.fragment:fragment:1.8.5'
     ksp 'androidx.appfunctions:appfunctions-compiler:1.0.0'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.18.1'   // renders README screenshots

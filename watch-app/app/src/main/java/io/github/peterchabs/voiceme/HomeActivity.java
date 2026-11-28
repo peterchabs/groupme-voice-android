@@ -190,12 +190,7 @@ public class HomeActivity extends Activity {
         GREY = Palette.SUB;
         BG = Palette.BG;
         watch = Stage.isWatchBuild();
-        if (!watch) { // phone status bar follows the theme
-            getWindow().setStatusBarColor(BG);
-            View d = getWindow().getDecorView();
-            int f = d.getSystemUiVisibility();
-            d.setSystemUiVisibility(Palette.dark ? f & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : f | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
+        // (the chats screen exists only on the watch; phones draw edge to edge via VoiceMeApp)
         getWindow().getDecorView().setBackgroundColor(Palette.BG);
         d = getResources().getDisplayMetrics().density;
         W = getResources().getDisplayMetrics().widthPixels;

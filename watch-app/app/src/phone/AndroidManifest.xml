@@ -16,6 +16,7 @@
     <application>
         <activity android:name=".MainActivity" tools:node="remove" />
         <activity android:name=".HomeActivity" tools:node="remove" />
+        <activity-alias android:name=".GroupMeVoice" tools:node="remove" />
         <service android:name=".PushService" tools:node="remove" />
         <receiver android:name=".ReplyReceiver" tools:node="remove" />
         <receiver android:name=".BootReceiver" tools:node="remove" />
@@ -27,5 +28,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- the same second name on the phone ("Hey Google, open GroupMe Voice") -->
+        <activity-alias
+            android:name=".GroupMeVoicePhone"
+            android:label="GroupMe Voice"
+            android:targetActivity=".SetupActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>
