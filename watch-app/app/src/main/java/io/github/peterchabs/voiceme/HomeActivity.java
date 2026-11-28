@@ -68,6 +68,8 @@ public class HomeActivity extends Activity {
     private ListView list, chatList;
     private TextView listStatus, chatTitle, chatStatus;
     private ImageView chatAvatar;
+    /** On a watch: the online / away dot on the open DM's picture. */
+    private View presenceDot;
     private View micButton;
     private LinearLayout voicePanel;
 
@@ -131,6 +133,22 @@ public class HomeActivity extends Activity {
         });
     }
 
+    /** The dot on the DM picture: "online" green, "away" amber, anything else none. */
+    private void showPresence(String status) {
+        if (presenceDot == null) return;
+        boolean on = "online".equals(status), away = "away".equals(status);
+        if (!(on || away) || chatAvatar.getVisibility() != View.VISIBLE) {
+            presenceDot.setVisibility(View.GONE);
+            return;
+        }
+        GradientDrawable dot = new GradientDrawable();
+        dot.setShape(GradientDrawable.OVAL);
+        dot.setColor(on ? 0xFF2FC973 : 0xFFF2B33D);
+        dot.setStroke(px(1.5f), BG);
+        presenceDot.setBackground(dot);
+        presenceDot.setVisibility(View.VISIBLE);
+    }
+
     private void refreshDmActive(Feed.Convo c) {
         final String token = Store.token(this), browser = Store.webAgent(this);
         if (token.isEmpty() || browser.isEmpty()) return;
@@ -142,8 +160,7 @@ public class HomeActivity extends Activity {
             ui.post(() -> {
                 if (current != c) return;
                 dmActive = line;
-                CharSequence now = chatStatus.getText();
-                if (now.length() == 0 || "Direct message".contentEquals(now) || now.toString().startsWith("Active")) status("Direct message");
+                showPresence(p.status);
             });
         });
     }
@@ -1616,6 +1633,17 @@ public class HomeActivity extends Activity {
             al.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
             al.leftMargin = px(3);
             chatLayer.addView(chatAvatar, al);
+            // a DM's person is online (green) or away (amber): a dot on the picture's lower right,
+            // ringed in the page color so it reads against the photo, like GroupMe's own apps
+            presenceDot = new View(this);
+            int pd = px(8);
+            FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(pd, pd);
+            dl.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+            dl.leftMargin = px(3) + pa - pd + px(1);
+            dl.topMargin = (pa - pd) / 2 + px(1);
+            presenceDot.setElevation(px(3));
+            presenceDot.setVisibility(View.GONE);
+            chatLayer.addView(presenceDot, dl);
         }
 
         // the mic: speak, and it goes to this conversation
@@ -1776,6 +1804,61 @@ public class HomeActivity extends Activity {
         tp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         tp.bottomMargin = micBottom + micSize + px(3);
         chatLayer.addView(typingLabel, tp);
+
+        // In a DM, GroupMe shows three bouncing dots while the other person types: the same here,
+        // in a little bubble at the same spot (the dots move by transform only)
+        typingBubble = new LinearLayout(this);
+        typingBubble.setOrientation(LinearLayout.HORIZONTAL);
+        typingBubble.setGravity(Gravity.CENTER);
+        typingBubble.setPadding(px(10), px(7), px(10), px(7));
+        GradientDrawable bb = new GradientDrawable();
+        bb.setColor(Palette.dark ? 0xFF2A2F36 : 0xFFE9EDF1);
+        bb.setCornerRadius(px(14));
+        typingBubble.setBackground(bb);
+        typingBubble.setContentDescription("Typing");
+        for (int k = 0; k < 3; k++) {
+            View d = new View(this);
+            GradientDrawable dd = new GradientDrawable();
+            dd.setShape(GradientDrawable.OVAL);
+            dd.setColor(GREY);
+            d.setBackground(dd);
+            int ds = px(watch ? 6 : 7);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(ds, ds);
+            if (k > 0) dlp.leftMargin = px(4);
+            typingBubble.addView(d, dlp);
+        }
+        typingBubble.setVisibility(View.GONE);
+        FrameLayout.LayoutParams tbp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tbp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        tbp.bottomMargin = micBottom + micSize + px(3);
+        chatLayer.addView(typingBubble, tbp);
+    }
+
+    private LinearLayout typingBubble;
+    private final List<android.animation.Animator> dotBounce = new ArrayList<>();
+
+    /** Show or hide the bouncing dots; each dot rises and falls a beat after the one before. */
+    private void typingDotsShown(boolean show) {
+        if (typingBubble == null) return;
+        if (!show) {
+            for (android.animation.Animator a : dotBounce) a.cancel();
+            dotBounce.clear();
+            if (typingBubble.getVisibility() != View.GONE) typingBubble.setVisibility(View.GONE);
+            return;
+        }
+        if (typingBubble.getVisibility() == View.VISIBLE) return;
+        typingBubble.setVisibility(View.VISIBLE);
+        for (int k = 0; k < typingBubble.getChildCount(); k++) {
+            View d = typingBubble.getChildAt(k);
+            android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(d, View.TRANSLATION_Y, 0f, -px(4), 0f);
+            a.setDuration(600);
+            a.setStartDelay(k * 150L);
+            a.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            a.setRepeatMode(android.animation.ValueAnimator.RESTART);
+            a.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+            a.start();
+            dotBounce.add(a);
+        }
     }
 
     /**
@@ -2054,6 +2137,7 @@ public class HomeActivity extends Activity {
         checkPins(c);
         checkCanPin(c);
         if (!same) dmActive = "";
+        if (!same || !c.isDm) showPresence(null); // a new chat starts with no dot until GroupMe answers
         status(c.isDm ? "Direct message" : "Group");
         if (c.isDm) refreshDmActive(c);
         chatAvatar.setImageDrawable(null);
@@ -2079,10 +2163,7 @@ public class HomeActivity extends Activity {
      */
     private void status(String text) {
         boolean plain = text.equals("Group") || text.equals("Direct message");
-        if (text.equals("Direct message") && !dmActive.isEmpty()) { // the person: "Active 5 min ago"
-            text = dmActive;
-            plain = false;
-        }
+        // (whether a DM's person is active shows as a dot on their picture, not in the header)
         chatStatus.setText(text);
         if (watch) chatStatus.setVisibility(plain ? View.GONE : View.VISIBLE);
     }
@@ -2711,9 +2792,17 @@ public class HomeActivity extends Activity {
         if (typingLabel == null) return;
         if (typers.isEmpty()) {
             if (typingLabel.getVisibility() != View.GONE) typingLabel.setVisibility(View.GONE);
+            typingDotsShown(false);
             ui.removeCallbacks(typingTick);
             return;
         }
+        if (current != null && current.isDm) { // a DM: just the bouncing dots, like GroupMe
+            if (typingLabel.getVisibility() != View.GONE) typingLabel.setVisibility(View.GONE);
+            ui.removeCallbacks(typingTick);
+            typingDotsShown(true);
+            return;
+        }
+        typingDotsShown(false);
         List<String> names = new ArrayList<>();
         for (String id : typers.keySet()) names.add(nameOf(id));
         String who = names.size() == 1 ? names.get(0) : names.size() == 2 ? names.get(0) + " and " + names.get(1)
