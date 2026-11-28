@@ -311,10 +311,17 @@ public class PushService extends Service {
         if (Stage.isWatchBuild()) {
             // Wear draws chat-style notifications as left-hugging bubbles the round edge cuts off;
             // centered "Name: message" lines read cleanly on a circle.
+            // Name each change of speaker ("Old Man River: ...", "You: ..."); a run of messages from
+            // one person shares one name. A DM with only their messages needs no names at all.
+            boolean mixed = false;
+            for (Line l : lines) if (l.sender.equals("You")) { mixed = true; break; }
             StringBuilder sb = new StringBuilder();
+            String prev = null;
             for (Line l : lines) {
                 if (sb.length() > 0) sb.append('\n');
-                sb.append(dm && !l.sender.equals("You") ? l.text : l.sender + ": " + l.text);
+                boolean label = (!dm || mixed) && !l.sender.equals(prev);
+                sb.append(label ? l.sender + ": " + l.text : l.text);
+                prev = l.sender;
             }
             shown = new Notification.BigTextStyle().bigText(sb).setBigContentTitle(title);
             summary = dm || last.sender.equals("You") ? last.text : last.sender + ": " + last.text;
