@@ -63,6 +63,7 @@ public class ReplyReceiver extends BroadcastReceiver {
                 Feed.sendTagged(token, new Feed.Convo(id, name == null ? "" : name, "", dm, 0, ""),
                         new java.util.ArrayList<>(), text, quote);
                 PushService.addMine(app, key, id, name, dm, text);
+                PushService.sentChime(app); // the soft "sent" tone, not the new-message sound
             } catch (Api.RefusedException e) {
                 PushService.addMine(app, key, id, name, dm, "Not sent (" + e.getMessage() + "): " + text);
             } catch (IOException e) {

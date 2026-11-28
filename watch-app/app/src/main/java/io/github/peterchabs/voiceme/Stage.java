@@ -44,7 +44,7 @@ final class Stage {
         // a watch uses its whole round screen; a phone uses a comfortable centered column
         int w = watch ? a.getResources().getDisplayMetrics().widthPixels
                 : Math.min(a.getResources().getDisplayMetrics().widthPixels, (int) (330 * dp));
-        textScale = watch ? 1f : 1.3f;
+        textScale = watch ? 1.15f : 1.3f; // watch text sized to use the round screen; nothing may cross its edge (ScreenshotTest checks)
         unit = w;
         int pad = (int) (w * 0.11f);
 
@@ -60,7 +60,7 @@ final class Stage {
         qr = new ImageView(a);
         qr.setVisibility(View.GONE);
         qr.setAlpha(0f);
-        int orbSize = (int) (w * (watch ? 0.24f : 0.26f)), qrSize = (int) (w * (watch ? 0.29f : 0.5f));
+        int orbSize = (int) (w * (watch ? 0.21f : 0.26f)), qrSize = (int) (w * (watch ? 0.29f : 0.5f));
         hero.addView(orb, new FrameLayout.LayoutParams(orbSize, orbSize, Gravity.CENTER));
         hero.addView(qr, new FrameLayout.LayoutParams(qrSize, qrSize, Gravity.CENTER));
         col.addView(hero, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,

@@ -42,6 +42,9 @@ public class ScreenshotTest {
         // SCREENSHOTS_THEME=dark renders the watch's dark theme (for store pictures)
         if ("dark".equals(System.getenv("SCREENSHOTS_THEME")))
             Store.setTheme(org.robolectric.RuntimeEnvironment.getApplication(), Palette.DARK);
+        // SCREENSHOTS_FONT_SCALE=1.25 renders with a larger watch text size (store pictures read better)
+        String fs = System.getenv("SCREENSHOTS_FONT_SCALE");
+        if (fs != null && !fs.isEmpty()) org.robolectric.RuntimeEnvironment.setFontScale(Float.parseFloat(fs));
         try { // the renderer defaults animations to zero length; play them at normal speed
             java.lang.reflect.Method m = android.animation.ValueAnimator.class.getMethod("setDurationScale", float.class);
             m.invoke(null, 1f);
@@ -150,9 +153,9 @@ public class ScreenshotTest {
     @Test public void listening() throws Exception {
         Activity a = main();
         Stage s = stageOf(a);
-        s.show(OrbView.Mode.LISTEN, "Listening", "Say: [group] that says [message]");
+        s.show(OrbView.Mode.LISTEN, "Listening", "Say your message and which group");
         advance(500);
-        s.live("Weekend Crew that says running 10 minutes late");
+        s.live("Tell Weekend Crew I'm running 10 minutes late");
         s.orb.setLevel(9f);
         advance(380);
         s.orb.setLevel(9f);
@@ -163,7 +166,7 @@ public class ScreenshotTest {
     @Test public void countdown() throws Exception {
         Activity a = main();
         Stage s = stageOf(a);
-        s.show(OrbView.Mode.COUNTDOWN, "To Weekend Crew", "“running 10 minutes late”",
+        s.show(OrbView.Mode.COUNTDOWN, "To Weekend Crew", "“I'm running 10 minutes late”",
                 "Cancel", (Runnable) () -> { }, "Send now", (Runnable) () -> { });
         advance(400);
         Field pf = OrbView.class.getDeclaredField("progress"); // freeze the ring partway down
@@ -263,7 +266,7 @@ public class ScreenshotTest {
         Store.setDefaultGroup(c, GROUPS.get(1));
         Activity a = main();
         Stage s = stageOf(a);
-        s.show(OrbView.Mode.LISTEN, "Listening", "Say your message for Family, or [group] that says [message]");
+        s.show(OrbView.Mode.LISTEN, "Listening", "Say your message for Family, or name a group");
         advance(500);
         s.live("picking up pizza on the way home");
         s.orb.setLevel(8f);

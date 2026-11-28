@@ -106,9 +106,9 @@ public class PhoneScreenshotTest {
     @Test public void listening() throws Exception {
         Activity a = main();
         Stage s = stageOf(a);
-        s.show(OrbView.Mode.LISTEN, "Listening", "Say: [group] that says [message]");
+        s.show(OrbView.Mode.LISTEN, "Listening", "Say your message and which group");
         advance(400);
-        s.live("Weekend Crew that says running 10 minutes late");
+        s.live("Tell Weekend Crew I'm running 10 minutes late");
         s.orb.setLevel(9f);
         advance(80);
         save(a, "p2-listening");

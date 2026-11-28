@@ -288,7 +288,6 @@ of setup and every feature, recorded on a real watch screen with captions.
 | **"Reply saying I've got 4"** | Replies to the newest message someone sent you (group or direct), quoting it |
 | **"Like that"** or **"Heart that message"** | Hearts the newest message someone sent you |
 | **"DM Jordan saying call me"** | Sends Jordan a private message |
-| **"Jordan that says call me"** | Same thing, if you don't have a group called Jordan |
 | **"picking up pizza"** (just the message) | Goes to your default group, if you set one (below) |
 
 Every one of these shows the 3-second countdown first, with who it's going to

@@ -325,8 +325,11 @@ public class PushService extends Service {
         // One channel. With Sounds off the notification itself stays silent (a child in its group
         // that leaves alerting to a summary it never has) and VoiceMe buzzes the watch itself.
         boolean quiet = !Store.pushSound(c);
+        // Your own reply only updates the conversation on screen: it never rings, buzzes or pops up.
+        boolean mine = last.sender.equals("You");
         Notification.Builder nb = new Notification.Builder(c, CH_MESSAGES);
-        if (quiet) nb.setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY);
+        if (quiet || mine) nb.setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY);
+        if (mine) nb.setOnlyAlertOnce(true);
         nb.addExtras(invisibleMarkAsRead(markRead)); // hidden: no extra button on screen
         Notification n = nb
                 .setSmallIcon(R.drawable.ic_stat_voiceme)
@@ -383,12 +386,39 @@ public class PushService extends Service {
         return out;
     }
 
+    /**
+     * The soft rising "sent" tone the chat screen plays, for a reply sent from a notification.
+     * Quiet when Sounds is off or the watch is on silent or vibrate.
+     */
+    static void sentChime(Context c) {
+        if (!Store.pushSound(c)) return;
+        android.media.AudioManager am = c.getSystemService(android.media.AudioManager.class);
+        if (am != null && am.getRingerMode() != android.media.AudioManager.RINGER_MODE_NORMAL) return;
+        try {
+            android.media.MediaPlayer mp = new android.media.MediaPlayer();
+            mp.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            android.content.res.AssetFileDescriptor fd = c.getResources().openRawResourceFd(R.raw.sent);
+            mp.setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength());
+            fd.close();
+            mp.setVolume(0.6f, 0.6f);
+            mp.setOnCompletionListener(MediaPlayer -> MediaPlayer.release());
+            mp.prepare();
+            mp.start();
+        } catch (java.io.IOException | RuntimeException ignored) {
+            // no tone is fine; the reply already went
+        }
+    }
+
     /** After a reply from the notification: show it in the conversation as yours. */
     static void addMine(Context c, String key, String id, String title, boolean dm, String text) {
         List<Line> lines;
         synchronized (HISTORY) {
             lines = HISTORY.computeIfAbsent(key, k -> new ArrayList<>());
-            lines.add(new Line("You", text, System.currentTimeMillis(), null));
+            // your own avatar, so your reply shows your face like everyone else's messages do
+            lines.add(new Line("You", text, System.currentTimeMillis(),
+                    Images.roundNow(c, Feed.sized(Store.avatar(c), "avatar"), 128)));
             while (lines.size() > 6) lines.remove(0);
             lines = new ArrayList<>(lines);
         }
