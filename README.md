@@ -36,7 +36,7 @@ A small app that lives on your watch and talks to GroupMe by itself.
 ### What you need
 
 - A **Galaxy Watch 4 or newer** (or any watch with Wear OS 3 or newer).
-- **An Android phone** for the free [VoiceMe phone app](#say-so-phone-app-android), which signs
+- **An Android phone** for the free [VoiceMe phone app](#voiceme-phone-app-android), which signs
   your watch in to GroupMe. (iPhones can't be used to sign in.)
 - Your GroupMe account. Sign in the way you always do: Google, Microsoft, Apple,
   email or phone number.
@@ -178,7 +178,7 @@ On your watch, go to **Settings** > **Developer options** and turn off
      **peterchabs.github.io/groupme-voice-android** and type the code from your watch.
 4. On the page:
    1. Don't have the VoiceMe phone app yet? Tap **Download for Android** and install
-      it (see [the phone app](#say-so-phone-app-android) for the steps).
+      it (see [the phone app](#voiceme-phone-app-android) for the steps).
    2. Tap **Open VoiceMe**. The phone app opens with your watch's code.
    3. Tap **Sign in with GroupMe** and sign in the way you always do. GroupMe's own
       sign-in opens inside the app.
