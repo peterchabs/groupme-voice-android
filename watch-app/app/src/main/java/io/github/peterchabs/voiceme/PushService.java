@@ -441,7 +441,9 @@ public class PushService extends Service {
         NotificationChannel msgs = new NotificationChannel(CH_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH);
         msgs.setDescription("New GroupMe messages");
         nm.deleteNotificationChannel(CH_QUIET_OLD); // merged into Messages
-        NotificationChannel on = new NotificationChannel(CH_RUNNING, "Staying connected", NotificationManager.IMPORTANCE_MIN);
+        // Off from the start: the card only says VoiceMe is connected, and messages arrive with it off.
+        // Anyone who wants it can turn it on in VoiceMe's notification settings.
+        NotificationChannel on = new NotificationChannel(CH_RUNNING, "Staying connected", NotificationManager.IMPORTANCE_NONE);
         on.setDescription("Shown while VoiceMe listens for new messages");
         on.setShowBadge(false);
         nm.createNotificationChannel(msgs);

@@ -1354,8 +1354,8 @@ public class HomeActivity extends Activity {
             conn.setGravity(Gravity.CENTER);
             conn.setPadding(px(watch ? 14 : 8), px(2), px(watch ? 14 : 8), px(6));
             col.addView(conn);
-            // The card Android shows while the connection is open. Only you can hide it (Android's rule),
-            // so this opens the watch's own switch for exactly that card; messages keep coming either way.
+            // The card Android shows while the connection is open. It starts hidden; this opens the watch's
+            // own switch for exactly that card, to show or hide it. Messages keep coming either way.
             if (android.os.Build.VERSION.SDK_INT >= 26) {
                 android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
                 android.app.NotificationChannel ch = nm == null ? null : nm.getNotificationChannel(PushService.CH_RUNNING);
