@@ -260,7 +260,9 @@ public class PushService extends Service {
             android.app.Person me = person("You", Images.roundNow(c, Feed.sized(Store.avatar(c), "avatar"), 128), "me");
             style = new Notification.MessagingStyle(me);
             for (Line l : lines) {
-                android.app.Person who = l.sender.equals("You") ? me : person(l.sender, l.avatar, l.sender);
+                // your own lines carry no sender: that's how Android knows they're yours (shown with
+                // your picture from "me"), so the conversation's face stays the other person's
+                android.app.Person who = l.sender.equals("You") ? null : person(l.sender, l.avatar, l.sender);
                 style.addMessage(new Notification.MessagingStyle.Message(l.text, l.at, who));
             }
             style.setGroupConversation(!dm);
