@@ -72,6 +72,12 @@ public class HomeActivity extends Activity {
     private View presenceDot;
     /** On a watch: your own picture at the right edge, across from the chat's picture. */
     private ImageView myAvatar;
+    /** Your own status dot on that picture (green Available, amber Idle, grey Invisible). */
+    private View myDot;
+    /** Your own GroupMe status: "online", "away", "offline", or "" until GroupMe answers. */
+    private String myStatus = "";
+    /** Settings asked GroupMe for your status once already (so an empty answer can't loop). */
+    private boolean myStatusAsked;
     private View micButton;
     private LinearLayout voicePanel;
 
@@ -158,6 +164,35 @@ public class HomeActivity extends Activity {
         android.graphics.Paint.FontMetrics fm = p.getFontMetrics();
         cv.drawText(in.toString(), size / 2f, size / 2f - (fm.ascent + fm.descent) / 2f, p);
         return new android.graphics.drawable.BitmapDrawable(getResources(), b);
+    }
+
+    /** Your dot: green Available, amber Idle, grey Invisible; none until GroupMe answers. */
+    private void showMyStatus() {
+        if (myDot == null) return;
+        int color = "online".equals(myStatus) ? 0xFF2FC973 : "away".equals(myStatus) ? 0xFFF2B33D
+                : "offline".equals(myStatus) ? 0xFF8A9099 : 0;
+        if (color == 0) { myDot.setVisibility(View.GONE); return; }
+        GradientDrawable dot = new GradientDrawable();
+        dot.setShape(GradientDrawable.OVAL);
+        dot.setColor(color);
+        dot.setStroke(px(1.5f), BG);
+        myDot.setBackground(dot);
+        myDot.setVisibility(View.VISIBLE);
+    }
+
+    /** Asks GroupMe for your own status, then shows it (dot, and settings if open). */
+    private void refreshMyStatus() {
+        final String token = Store.token(this), browser = Store.webAgent(this), me = Store.myId(this);
+        if (token.isEmpty() || browser.isEmpty() || me.isEmpty()) return;
+        bg.execute(() -> {
+            Api.Presence p = Api.presence(token, browser, me);
+            if (p == null) return;
+            ui.post(() -> {
+                myStatus = p.status == null ? "" : p.status;
+                showMyStatus();
+                if (settingsOpen) fillSettings();
+            });
+        });
     }
 
     /** The dot on the DM picture: "online" green, "away" amber, anything else none. */
@@ -1430,6 +1465,32 @@ public class HomeActivity extends Activity {
             Store.setQuoteReplies(this, !Store.quoteReplies(this));
             fillSettings();
         });
+        // Your GroupMe status, as GroupMe's own apps set it: Available, Idle or Invisible
+        if (!Store.webAgent(this).isEmpty()) {
+            String shown = "online".equals(myStatus) ? "Available" : "away".equals(myStatus) ? "Idle"
+                    : "offline".equals(myStatus) ? "Invisible" : "...";
+            addSettingButton(col, "Active status: " + shown, false, () -> {
+                final String before = myStatus;
+                final String next = "online".equals(before) ? "away" : "away".equals(before) ? "offline" : "online";
+                final String write = "online".equals(next) ? "clear" : next; // GroupMe's word for Available
+                myStatus = next; // shown at once; put back if GroupMe says no
+                showMyStatus();
+                fillSettings();
+                final String token = Store.token(this), browser = Store.webAgent(this);
+                bg.execute(() -> {
+                    boolean ok = Api.setPresence(token, browser, write);
+                    ui.post(() -> {
+                        if (!ok) {
+                            myStatus = before;
+                            showMyStatus();
+                            if (settingsOpen) fillSettings();
+                            toast("GroupMe didn't change your status. Try again.");
+                        }
+                    });
+                });
+            });
+            if (myStatus.isEmpty() && !myStatusAsked) { myStatusAsked = true; refreshMyStatus(); }
+        }
         addSettingButton(col, "Theme: " + Palette.label(Store.theme(this)), false, () -> {
             Store.setTheme(this, Palette.next(Store.theme(this)));
             recreate(); // every color rebuilt in the new theme
@@ -1556,6 +1617,7 @@ public class HomeActivity extends Activity {
         int side = watch ? (int) (W * 0.125f) : px(10);
         chatList.setPadding(side, watch ? (int) (H * 0.15f) : px(64), side, watch ? (int) (H * 0.24f) : px(96));
         chatList.setClipToPadding(false);
+        chatList.setClipChildren(false); // a row's name-and-time line may run past its edge on a watch
         msgAdapter = new MsgAdapter();
         chatList.setAdapter(msgAdapter);
         // where you are in the chat is remembered each time scrolling stops
@@ -1691,6 +1753,14 @@ public class HomeActivity extends Activity {
             ml.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
             ml.rightMargin = px(3);
             chatLayer.addView(myAvatar, ml);
+            myDot = new View(this);
+            FrameLayout.LayoutParams mdl = new FrameLayout.LayoutParams(pd, pd);
+            mdl.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+            mdl.rightMargin = px(3) + pa - pd + px(1); // its lower left: the mirror of theirs
+            mdl.topMargin = (pa - pd) / 2 + px(1);
+            myDot.setElevation(px(3));
+            myDot.setVisibility(View.GONE);
+            chatLayer.addView(myDot, mdl);
         }
 
         // the mic: speak, and it goes to this conversation
@@ -1937,6 +2007,10 @@ public class HomeActivity extends Activity {
             float up = aside ? -(myAvatar.getLayoutParams().height + px(6)) : 0f;
             myAvatar.animate().cancel();
             myAvatar.animate().translationY(up).setDuration(320).setInterpolator(new DecelerateInterpolator(1.4f)).start();
+            if (myDot != null) {
+                myDot.animate().cancel();
+                myDot.animate().translationY(up).setDuration(320).setInterpolator(new DecelerateInterpolator(1.4f)).start();
+            }
         }
         fitListRoom();
     }
@@ -2197,6 +2271,7 @@ public class HomeActivity extends Activity {
         if (watch) chatAvatar.setVisibility(View.VISIBLE);
         if (photosOn() && !c.avatarUrl.isEmpty()) Images.load(chatAvatar, Feed.sized(c.avatarUrl, "avatar"), px(watch ? 22 : 36), true);
         if (myAvatar != null) {
+            refreshMyStatus();
             myAvatar.setImageDrawable(initialsDrawable(Store.name(this), px(22)));
             String mine = Store.avatar(this);
             if (photosOn() && !mine.isEmpty()) Images.load(myAvatar, Feed.sized(mine, "avatar"), px(22), true);
@@ -2437,7 +2512,17 @@ public class HomeActivity extends Activity {
             final Feed.Msg msg = m;
             who.setOnClickListener(v -> openProfile(memberFor(msg), 1));
             Press.attach(who);
-            row.addView(who);
+            if (watch) {
+                // On a round screen there's room past the message column (behind the side pictures),
+                // so the name-and-time line may run into it rather than cutting the time short.
+                int side = chatList.getPaddingRight();
+                LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                if (mine) wl.leftMargin = -side; else wl.rightMargin = -side;
+                row.setClipChildren(false);
+                row.addView(who, wl);
+            } else {
+                row.addView(who);
+            }
 
             int maxW = (int) (W * (watch ? 0.74f : 0.72f));
             if (!m.replyId.isEmpty()) { // the message this answers, quoted small above it
@@ -4636,7 +4721,7 @@ public class HomeActivity extends Activity {
         name.setGravity(Gravity.CENTER);
         name.setPadding(0, px(8), 0, 0);
         col.addView(name);
-        if (!me) profileActive(col, m);
+        profilePresence(big, m); // online / away: a dot on their picture (yours too), not a line of text
         if (!m.role.isEmpty()) { // Owner / Admin, as a small badge
             TextView badge = label(m.role, sp(watch ? 10 : 11.5f), BLUE, true);
             badge.setAllCaps(true);
@@ -4659,8 +4744,10 @@ public class HomeActivity extends Activity {
             acct.setPadding(0, px(3), 0, 0);
             col.addView(acct);
         }
-        String about = current == null ? "" : current.isDm ? "Direct message" : "In " + current.name;
+        // in a group, which group this is; a DM's profile needs no line saying it's a DM
+        String about = current == null || current.isDm ? "" : "In " + current.name;
         TextView sub = label(about, sp(watch ? 11 : 13), GREY, false);
+        if (about.isEmpty()) sub.setTextSize(1); // keeps the spacing below the name without a line of text
         sub.setGravity(Gravity.CENTER);
         sub.setMaxLines(2);
         sub.setEllipsize(TextUtils.TruncateAt.END);
@@ -4693,6 +4780,17 @@ public class HomeActivity extends Activity {
      * Under the name: "Active now" (green dot), "Active 5 min ago" (amber dot when away). Appears
      * once GroupMe answers; nothing when it doesn't (an older phone app signed this watch in).
      */
+    /** A profile's picture gets the dot: green online, amber away, once GroupMe answers. */
+    private void profilePresence(Avatar big, Feed.Member m) {
+        final String token = Store.token(this), browser = Store.webAgent(this);
+        if (token.isEmpty() || browser.isEmpty()) return;
+        bg.execute(() -> {
+            Api.Presence p = Api.presence(token, browser, m.userId);
+            if (p == null) return;
+            ui.post(() -> { if (big.view.isAttachedToWindow()) big.setPresence(p.status); });
+        });
+    }
+
     private void profileActive(LinearLayout col, Feed.Member m) {
         TextView t = label("", sp(watch ? 11 : 13), GREY, false);
         t.setGravity(Gravity.CENTER);

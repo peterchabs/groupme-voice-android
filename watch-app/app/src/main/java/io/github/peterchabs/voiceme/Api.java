@@ -514,6 +514,35 @@ final class Api {
         return "Active " + (min / 60) + " hr ago";
     }
 
+    /**
+     * Sets your own status the way GroupMe's apps do: "clear" (Available), "away" (Idle) or
+     * "offline" (Invisible), as a manual choice. True when GroupMe took it.
+     */
+    static boolean setPresence(String token, String browser, String write) {
+        if (token == null || token.isEmpty() || browser == null || browser.isEmpty()) return false;
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL("https://api.groupme.com/v1/presence/status").openConnection();
+            c.setRequestMethod("PUT");
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(15000);
+            c.setRequestProperty("X-Access-Token", token);
+            c.setRequestProperty("User-Agent", browser);
+            c.setRequestProperty("Accept", "application/json");
+            c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            c.setDoOutput(true);
+            byte[] body = new JSONObject().put("status", write).put("manual", true).toString()
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            try (OutputStream os = c.getOutputStream()) { os.write(body); }
+            int code = c.getResponseCode();
+            return code >= 200 && code < 300;
+        } catch (IOException | JSONException | RuntimeException e) {
+            return false;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
     private static JSONObject presenceGet(String token, String browser, String path) {
         if (token == null || token.isEmpty() || browser == null || browser.isEmpty()) return null;
         HttpURLConnection c = null;
